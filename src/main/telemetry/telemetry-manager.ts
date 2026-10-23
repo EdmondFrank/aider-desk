@@ -41,12 +41,12 @@ export class TelemetryManager {
 
   async init(): Promise<void> {
     try {
-      await import('./open-telemetry');
-
-      if (!POSTHOG_PUBLIC_API_KEY) {
-        logger.info('TelemetryManager skipped: POSTHOG_PUBLIC_API_KEY not configured.');
+      if (!this.store.getSettings().telemetryEnabled || !POSTHOG_PUBLIC_API_KEY) {
+        logger.info('TelemetryManager skipped: telemetry is disabled or POSTHOG_PUBLIC_API_KEY is not configured.');
         return;
       }
+
+      await import('./open-telemetry');
 
       const app = getElectronApp();
       this.client = new PostHog(POSTHOG_PUBLIC_API_KEY, {

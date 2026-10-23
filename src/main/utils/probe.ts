@@ -1,3 +1,5 @@
+import { existsSync } from 'fs';
+
 import { PROBE_BINARY_PATH } from '@/constants';
 import { execWithShellPath } from '@/utils/shell';
 
@@ -66,6 +68,12 @@ export const search = async (options: ProbeSearchOptions): Promise<string | unkn
 
   if (options.path) {
     args.push(`"${options.path}"`);
+  }
+
+  if (!existsSync(PROBE_BINARY_PATH)) {
+    throw new Error(
+      `probe binary not found at ${PROBE_BINARY_PATH}. Semantic code search and task search are unavailable; run "npm run download:probe" to install it.`,
+    );
   }
 
   const command = `"${PROBE_BINARY_PATH}" search ${args.join(' ')}`;

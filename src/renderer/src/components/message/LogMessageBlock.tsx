@@ -72,10 +72,11 @@ export const LogMessageBlock = ({ baseDir, taskId, message, onRemove, compact = 
             className={clsx(config.tooltipClass, 'transition-colors text-text-dark group-hover:text-text-muted-light')}
             alwaysShow={true}
           />
-          {onRemove && (
+          {onRemove && !message.persistent && (
             <IconButton
               icon={<MdClose className="w-4 h-4" />}
               onClick={onRemove}
+              data-testid="remove-log-message"
               tooltip={t('common.remove')}
               className={clsx(config.tooltipClass, 'p-1 rounded transition-colors text-text-dark group-hover:text-text-muted-light duration-200')}
             />

@@ -29,6 +29,7 @@ export interface ReflectedMessage extends Message {
 
 export interface LogMessage extends Message {
   type: 'log';
+  persistent?: boolean;
   level: 'info' | 'warning' | 'error';
   actions?: LogAction[];
 }

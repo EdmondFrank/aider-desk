@@ -1379,6 +1379,7 @@ export class ContextManager {
           promptContext: message.promptContext,
           actions: message.actions,
           timestamp: message.timestamp,
+          persistent: true,
         };
         messagesData.push(logData);
       } else if (message.role === 'tool' && Array.isArray(message.content)) {

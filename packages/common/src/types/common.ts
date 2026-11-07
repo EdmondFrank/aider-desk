@@ -283,6 +283,7 @@ export interface LogAction {
 
 export interface LogData {
   id?: string;
+  persistent?: boolean;
   baseDir: string;
   taskId: string;
   level: LogLevel;

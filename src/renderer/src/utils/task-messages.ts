@@ -59,6 +59,7 @@ const convertLog = (data: LogData): LogMessage => ({
   promptContext: data.promptContext,
   actions: data.actions,
   timestamp: data.timestamp,
+  persistent: data.persistent,
 });
 
 const convertTool = (data: ToolData): ToolMessage => ({

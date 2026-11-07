@@ -77,6 +77,7 @@ export const useTaskLogHandlers = (baseDir: string, taskId: string) => {
         const logMessage: LogMessage = {
           id: data.id ?? uuidv4(),
           type: 'log',
+          persistent: data.persistent,
           level,
           content: message || '',
           promptContext,

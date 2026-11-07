@@ -87,6 +87,7 @@ describe('ContextManager - addPersistentLogMessage', () => {
     if ('level' in data[0]) {
       expect(data[0].id).toBeDefined();
       expect(data[0].level).toBe('info');
+      expect(data[0].persistent).toBe(true);
       expect(data[0].message).toBe('Persistent log');
       expect(data[0].taskId).toBe('test-task');
       expect(data[0].baseDir).toBe('/test/project');

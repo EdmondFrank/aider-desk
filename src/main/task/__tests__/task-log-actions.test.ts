@@ -30,6 +30,7 @@ describe('Task log actions', () => {
       promptContext: undefined,
       actions,
       timestamp: expect.any(Number),
+      persistent: false,
     });
   });
 });

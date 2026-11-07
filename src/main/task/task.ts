@@ -2732,6 +2732,7 @@ export class Task {
       promptContext,
       actions,
       timestamp,
+      persistent: persistent && level !== 'loading' && !!message,
     };
 
     if (persistent && level !== 'loading' && message) {

@@ -79,6 +79,19 @@ describe('LogMessageBlock', () => {
     expect(removeActionId).toHaveBeenCalledWith('resolve-git-error-with-agent');
   });
 
+  it.each([undefined, false, true])('only allows removing non-persistent logs (persistent: %s)', (persistent) => {
+    const onRemove = vi.fn();
+
+    render(<LogMessageBlock {...defaultProps} message={createLogMessage({ persistent })} onRemove={onRemove} />);
+
+    if (persistent) {
+      expect(screen.queryByTestId('remove-log-message')).not.toBeInTheDocument();
+    } else {
+      fireEvent.click(screen.getByTestId('remove-log-message'));
+      expect(onRemove).toHaveBeenCalledOnce();
+    }
+  });
+
   it('does not render actions in compact mode', () => {
     render(<LogMessageBlock {...defaultProps} message={createLogMessage()} compact />);
 

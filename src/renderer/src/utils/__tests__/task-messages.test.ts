@@ -58,10 +58,10 @@ describe('persistent log hydration and reconciliation', () => {
   it('preserves backend IDs and structured actions across repeated reconnects', () => {
     const actions = [{ id: 'undoContextChange', data: { checkpointId: 'context.pre-compaction.001.json' } }];
     const snapshot: TaskStateData['messages'] = [
-      { id: 'log-1', baseDir: '/project', taskId: 'task-1', level: 'info', message: 'Compacted', actions, timestamp: 10 },
+      { id: 'log-1', baseDir: '/project', taskId: 'task-1', level: 'info', message: 'Compacted', actions, timestamp: 10, persistent: true },
     ];
     const first = convertTaskStateMessages(snapshot);
-    expect(first[0]).toMatchObject({ id: 'log-1', actions, content: 'Compacted', timestamp: 10 });
+    expect(first[0]).toMatchObject({ id: 'log-1', actions, content: 'Compacted', timestamp: 10, persistent: true });
     const live = [...first, { id: 'transient', type: 'log' as const, level: 'warning' as const, content: 'Transient warning' }];
     let messages = live;
     for (let index = 0; index < 3; index++) {

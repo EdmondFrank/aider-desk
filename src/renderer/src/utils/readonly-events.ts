@@ -146,6 +146,7 @@ export const applyReadonlyLogEvent = (messages: Message[], event: ReadonlyEvent,
   const logMessage: LogMessage = {
     id: data.id ?? uuidv4(),
     type: 'log',
+    persistent: data.persistent,
     level,
     content: text ?? '',
     promptContext,

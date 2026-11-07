@@ -1286,6 +1286,7 @@ describe('ContextManager - getContextMessagesData', () => {
         promptContext: undefined,
         actions: undefined,
         timestamp: 12345,
+        persistent: true,
       });
     });
 

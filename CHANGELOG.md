@@ -10,6 +10,7 @@
 - fixed timeouts for long-running browser prompts and task operations while preserving CLI streaming
 - fixed database errors during app shutdown by waiting for project and task cleanup to finish
 - added support for payload data in log message actions while preserving existing action behavior
+- added reusable split buttons with additional-action menus and support for UI extensions
 
 ## [0.90.0]
 

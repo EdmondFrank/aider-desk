@@ -1,4 +1,7 @@
 {
+  "splitButton": {
+    "moreActions": "更多操作"
+  },
   "startup": {
     "downloading": "正在下载应用…",
     "starting": "正在启动应用…",

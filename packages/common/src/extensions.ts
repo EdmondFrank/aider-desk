@@ -356,6 +356,7 @@ export interface ModelSelectorProps {
  */
 export interface UIComponents {
   Button: UIComponent;
+  SplitButton: UIComponent;
   Checkbox: UIComponent;
   Input: UIComponent;
   Select: UIComponent;

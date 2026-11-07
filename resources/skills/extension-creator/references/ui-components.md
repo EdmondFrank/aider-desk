@@ -298,6 +298,34 @@ The `ui` prop provides pre-built AiderDesk components:
 </ui.Button>
 ```
 
+### SplitButton
+
+```jsx
+const handleMerge = () => executeExtensionAction('merge');
+const handleSquash = () => executeExtensionAction('squash');
+
+<ui.SplitButton
+  onClick={handleMerge}
+  variant="contained"
+  color="primary"
+  size="sm"
+  actions={[
+    { id: 'squash', label: 'Squash and merge', onClick: handleSquash },
+  ]}
+>
+  Merge
+</ui.SplitButton>
+```
+
+The primary button executes `onClick`; the separate arrow opens a menu whose
+items execute immediately without changing the primary action. Supports the
+same variants (`contained`, `text`, `outline`), colors, sizes (`xs`, `sm`, `md`),
+and primary-button props as `Button`. Actions require `id`, `label`, and
+`onClick`, with optional `icon` and `disabled`. Component-level `disabled`
+disables both halves; an empty action list disables only the arrow. Optional
+`menuLabel` overrides the localized arrow label. `className` applies to the
+primary button and `containerClassName` to the wrapper.
+
 ### IconButton
 ```jsx
 <ui.IconButton 

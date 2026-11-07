@@ -1,4 +1,7 @@
 {
+  "splitButton": {
+    "moreActions": "Altre azioni"
+  },
   "startup": {
     "downloading": "Download dell’applicazione…",
     "starting": "Avvio dell’applicazione…",

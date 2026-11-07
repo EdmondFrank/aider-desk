@@ -1,4 +1,7 @@
 {
+  "splitButton": {
+    "moreActions": "추가 작업"
+  },
   "startup": {
     "downloading": "애플리케이션 다운로드 중…",
     "starting": "애플리케이션 시작 중…",

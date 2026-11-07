@@ -406,6 +406,7 @@ The following components are available via `props.ui`:
 | Component | Description |
 |-----------|-------------|
 | `Button` | Standard button with variants (solid, outline) and colors (primary, secondary, tertiary, danger) |
+| `SplitButton` | Primary action button with an additional-actions dropdown; supports all Button variants, colors, and sizes |
 | `IconButton` | Button with icon only |
 | `Checkbox` | Checkbox input with label |
 | `Input` | Text input field |
@@ -420,6 +421,39 @@ The following components are available via `props.ui`:
 | `Tooltip` | Tooltip wrapper for hover content |
 | `LoadingOverlay` | Loading spinner with message |
 | `ConfirmDialog` | Confirmation dialog modal |
+
+#### SplitButton
+
+`ui.SplitButton` combines a primary `Button` with a separate arrow that opens an
+additional-actions menu. Selecting a menu item executes it immediately; it does
+not change the primary action. It supports the same `variant` (`contained`,
+`text`, `outline`), `color`, `size`, `disabled`, `tooltip`, and native button
+props as `Button`. These button props apply to the primary action; the arrow
+always has `type="button"` so it cannot submit a form.
+
+```jsx
+const handleMerge = () => executeExtensionAction('merge');
+const handleSquash = () => executeExtensionAction('squash');
+
+<ui.SplitButton
+  onClick={handleMerge}
+  variant="outline"
+  size="sm"
+  actions={[
+    { id: 'squash', label: 'Squash and merge', onClick: handleSquash },
+  ]}
+>
+  Merge
+</ui.SplitButton>
+```
+
+Each action requires a stable `id`, a `label` (text or JSX), and an `onClick`
+callback; `icon` (JSX) and `disabled` are optional. `disabled` on the component
+disables both halves. An empty `actions` array disables only the arrow.
+`menuLabel` overrides the arrow's localized accessible name (`More actions`).
+`className` styles the primary button; `containerClassName` styles the combined
+wrapper. The dropdown supports keyboard navigation, Escape, and outside-click
+dismissal, and is portaled to avoid clipping by parent containers.
 
 #### ModelSelector catalogs and extension-owned favorites
 

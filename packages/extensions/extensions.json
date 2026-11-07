@@ -10,7 +10,7 @@
       "capabilities": [
         "providers"
       ],
-      "installCount": 8
+      "installCount": 9
     },
     {
       "id": "jev",
@@ -346,7 +346,7 @@
         "ui",
         "example"
       ],
-      "installCount": 19
+      "installCount": 20
     },
     {
       "id": "multi-model-run",
@@ -359,7 +359,7 @@
         "ui",
         "workflows"
       ],
-      "installCount": 17
+      "installCount": 18
     },
     {
       "id": "providers-quota-extension",
@@ -383,7 +383,7 @@
       "capabilities": [
         "providers"
       ],
-      "installCount": 38
+      "installCount": 39
     },
     {
       "id": "fff",
@@ -455,7 +455,7 @@
         "workflows",
         "ui"
       ],
-      "installCount": 64
+      "installCount": 65
     },
     {
       "id": "bmad",
@@ -481,7 +481,7 @@
         "providers",
         "agent-loop"
       ],
-      "installCount": 29
+      "installCount": 30
     },
     {
       "id": "auggie-sdk",
@@ -518,7 +518,7 @@
         "providers",
         "agent-loop"
       ],
-      "installCount": 11
+      "installCount": 12
     },
     {
       "id": "github-copilot",
@@ -557,7 +557,7 @@
         "tools",
         "search"
       ],
-      "installCount": 90
+      "installCount": 91
     },
     {
       "id": "kanban",
@@ -569,7 +569,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 53
+      "installCount": 54
     },
     {
       "id": "doom",
@@ -632,7 +632,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 60
+      "installCount": 61
     },
     {
       "id": "skill-gallery",
@@ -644,7 +644,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 174
+      "installCount": 175
     },
     {
       "id": "task-scheduler",
@@ -670,7 +670,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 152
+      "installCount": 153
     },
     {
       "id": "dbx",
@@ -695,7 +695,7 @@
         "ui",
         "commands"
       ],
-      "installCount": 19
+      "installCount": 20
     }
   ]
 }

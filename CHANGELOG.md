@@ -14,6 +14,7 @@
 - fixed terminal text input on Wayland with IBus while preserving keyboard and composition handling
 - added an option to fork tasks from pre-compaction history through the Undo dropdown while preserving the current task
 - fixed Langfuse Cloud agent tracing by migrating to OpenTelemetry ingestion and flushing traces on shutdown
+- fixed concurrent git mutations racing on one repository via unified repo-level locking and made worktree uncommitted-changes recovery preserve both change sets
 
 ## [0.90.0]
 

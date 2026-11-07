@@ -624,7 +624,7 @@ export class GitManager {
       return;
     }
 
-    return await withLock(`git-checkout-${projectPath}`, async () => {
+    return await withLock(`git-mutation-${projectPath}`, async () => {
       let command: string;
 
       if (createTracking) {
@@ -716,7 +716,7 @@ export class GitManager {
       return {};
     }
 
-    return await withLock(`git-merge-into-current-${projectPath}`, async () => {
+    return await withLock(`git-mutation-${projectPath}`, async () => {
       const command = `git merge --no-edit ${this.quoteArg(branch)}`;
 
       try {
@@ -743,7 +743,7 @@ export class GitManager {
       return {};
     }
 
-    return await withLock(`git-rebase-onto-${projectPath}`, async () => {
+    return await withLock(`git-mutation-${projectPath}`, async () => {
       if (await this.hasUncommittedChanges(projectPath)) {
         throw new GitError(`Cannot rebase onto '${branch}': you have uncommitted changes. Commit or stash them first.`);
       }
@@ -2279,7 +2279,7 @@ export class GitManager {
     symlinkFolders: string[] = [],
     baseCommit?: string,
   ): Promise<MergeState> {
-    return await withLock(`git-merge-worktree-${worktreePath}`, async () => {
+    return await withLock(`git-mutation-${projectPath}`, async () => {
       const timestamp = Date.now();
       const worktreeStashId = `worktree-${taskId.length > 24 ? taskId.substring(24) : taskId}-merge-${timestamp}`;
       const mainStashId = `main-${taskId.length > 24 ? taskId.substring(24) : taskId}-merge-${timestamp}`;
@@ -3571,11 +3571,12 @@ export class GitManager {
    * This transfers work-in-progress changes while keeping them uncommitted in both branches
    */
   async applyUncommittedChangesToMain(projectPath: string, taskId: string, worktreePath: string, symlinkFolders: string[] = []): Promise<void> {
-    return await withLock(`git-apply-uncommitted-${worktreePath}`, async () => {
+    return await withLock(`git-mutation-${projectPath}`, async () => {
       const timestamp = Date.now();
       const worktreeStashId = `worktree-${taskId.length > 24 ? taskId.substring(24) : taskId}-uncommitted-${timestamp}`;
       const projectStashId = `main-${taskId.length > 24 ? taskId.substring(24) : taskId}-uncommitted-${timestamp}`;
       let projectOriginalStashId: string | undefined;
+      let worktreeStashed = false;
 
       try {
         logger.info('Starting apply uncommitted changes operation');
@@ -3593,6 +3594,7 @@ export class GitManager {
           logger.info('No changes were stashed');
           return;
         }
+        worktreeStashed = true;
 
         const targetBranch = await this.getProjectMainBranch(projectPath);
 
@@ -3615,49 +3617,72 @@ export class GitManager {
         logger.info('Applying uncommitted changes back to worktree');
         await this.applyStash(worktreePath, worktreeStashId);
 
-        // 6. Clean up stash
-        await this.dropStash(worktreePath, worktreeStashId);
-
-        // 7. Restore project directory's original uncommitted changes if any
+        // 6. Restore project directory's original uncommitted changes if any
         if (projectOriginalStashId) {
           logger.info('Restoring project directory original uncommitted changes');
           await this.applyStash(projectPath, projectOriginalStashId);
           await this.dropStash(projectPath, projectOriginalStashId);
         }
 
+        // 7. Clean up stashes only after every risky step has succeeded, so recovery can always rely on them
+        await this.dropStash(worktreePath, worktreeStashId);
+
         logger.info(`Successfully applied uncommitted changes to ${targetBranch} branch`);
       } catch (error) {
         logger.error('Failed to apply uncommitted changes:', error);
 
-        // Recovery: clean up project directory from failed stash apply
+        // Recovery: clean up partial stash applies. The resets below can only discard copies of
+        // stashed content because both stashes are dropped last, so nothing irreplaceable is lost.
         try {
           await execWithShellPath('git reset --hard', { cwd: projectPath });
           logger.info('Cleaned up project directory after failed stash apply');
         } catch (recoveryError) {
           logger.error('Failed to clean up project directory:', { error: recoveryError });
         }
+        // Only reset the worktree if its changes were actually stashed first, otherwise this
+        // would discard uncommitted changes that were never backed up.
+        if (worktreeStashed) {
+          try {
+            await execWithShellPath('git reset --hard', { cwd: worktreePath });
+            logger.info('Cleaned up worktree after failed stash apply');
+          } catch (recoveryError) {
+            logger.error('Failed to clean up worktree:', { error: recoveryError });
+          }
+        }
 
         // Restore project directory's original uncommitted changes
+        let projectChangesRecovered = true;
         if (projectOriginalStashId) {
           try {
             await this.applyStash(projectPath, projectOriginalStashId);
             await this.dropStash(projectPath, projectOriginalStashId);
           } catch (recoveryError) {
+            projectChangesRecovered = false;
             logger.error('Failed to recover project directory stash:', recoveryError);
           }
         }
 
-        // Restore stash to worktree
-        if (worktreeStashId) {
+        // Restore worktree's uncommitted changes
+        let worktreeChangesRecovered = true;
+        if (worktreeStashed) {
           try {
             await this.applyStash(worktreePath, worktreeStashId);
             await this.dropStash(worktreePath, worktreeStashId);
           } catch (recoveryError) {
+            worktreeChangesRecovered = false;
             logger.error('Failed to recover worktree stash:', recoveryError);
           }
         }
 
-        throw new Error(`Failed to apply uncommitted changes: ${error instanceof Error ? error.message : String(error)}`);
+        let message = `Failed to apply uncommitted changes: ${error instanceof Error ? error.message : String(error)}`;
+        if (!projectChangesRecovered && projectOriginalStashId) {
+          message += ` The project directory's uncommitted changes are preserved in stash '${projectOriginalStashId}' and can be restored manually with 'git stash pop'.`;
+        }
+        if (!worktreeChangesRecovered) {
+          message += ` The worktree's uncommitted changes are preserved in stash '${worktreeStashId}' and can be restored manually with 'git stash pop'.`;
+        }
+
+        throw new Error(message);
       }
     });
   }
@@ -3667,7 +3692,7 @@ export class GitManager {
    * Restores the main branch to its pre-merge state while preserving uncommitted changes
    */
   async revertMerge(projectPath: string, taskId: string, worktreePath: string, mergeState: MergeState, symlinkFolders: string[] = []): Promise<void> {
-    return await withLock(`git-revert-merge-${worktreePath}`, async () => {
+    return await withLock(`git-mutation-${projectPath}`, async () => {
       const timestamp = Date.now();
       const currentWorktreeStashId = `worktree-${taskId.length > 24 ? taskId.substring(24) : taskId}-revert-${timestamp}`;
       const currentMainStashId = `main-${taskId.length > 24 ? taskId.substring(24) : taskId}-revert-${timestamp}`;

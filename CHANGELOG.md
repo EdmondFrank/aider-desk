@@ -13,6 +13,7 @@
 - added reusable split buttons with additional-action menus and support for UI extensions
 - fixed terminal text input on Wayland with IBus while preserving keyboard and composition handling
 - added an option to fork tasks from pre-compaction history through the Undo dropdown while preserving the current task
+- fixed Langfuse Cloud agent tracing by migrating to OpenTelemetry ingestion and flushing traces on shutdown
 
 ## [0.90.0]
 

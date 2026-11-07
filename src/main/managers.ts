@@ -181,7 +181,6 @@ export const initManagers = async (store: Store, windowManager?: WindowManager):
         { manager: 'projectManager', run: () => projectManager.close() },
         { manager: 'mcpManager', run: () => mcpManager.close() },
         { manager: 'mcpConfigManager', run: () => mcpConfigManager.dispose() },
-        { manager: 'telemetryManager', run: () => telemetryManager.destroy() },
         { manager: 'agentProfileManager', run: () => agentProfileManager.dispose() },
         { manager: 'promptsManager', run: () => promptsManager.dispose() },
         { manager: 'extensionManager', run: () => extensionManager.dispose() },
@@ -199,6 +198,16 @@ export const initManagers = async (store: Store, windowManager?: WindowManager):
           });
         }
       });
+
+      try {
+        await telemetryManager.destroy();
+      } catch (error) {
+        logger.error('Error during cleanup:', {
+          manager: 'telemetryManager',
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      }
 
       dataManager.close();
     } catch (error) {

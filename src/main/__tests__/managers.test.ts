@@ -154,6 +154,41 @@ describe('manager cleanup', () => {
     expect(managers.DataManager.close).toHaveBeenCalledOnce();
   });
 
+  it('flushes telemetry only after trace-producing managers finish closing', async () => {
+    const project = createDeferred();
+    const flush = createDeferred();
+    managers.ProjectManager.close.mockReturnValue(project.promise);
+    managers.TelemetryManager.destroy.mockReturnValue(flush.promise);
+    const { cleanup } = await init();
+
+    const pending = cleanup();
+    await vi.waitFor(() => expect(managers.ProjectManager.close).toHaveBeenCalledOnce());
+    expect(managers.TelemetryManager.destroy).not.toHaveBeenCalled();
+
+    project.resolve();
+    await vi.waitFor(() => expect(managers.TelemetryManager.destroy).toHaveBeenCalledOnce());
+    expect(managers.DataManager.close).not.toHaveBeenCalled();
+
+    flush.resolve();
+    await pending;
+    expect(managers.DataManager.close).toHaveBeenCalledOnce();
+  });
+
+  it('closes the database even if telemetry flushing fails', async () => {
+    const error = new Error('Trace flush failed');
+    managers.TelemetryManager.destroy.mockRejectedValue(error);
+    const { cleanup } = await init();
+
+    await cleanup();
+
+    expect(managers.DataManager.close).toHaveBeenCalledOnce();
+    expect(logger.error).toHaveBeenCalledWith('Error during cleanup:', {
+      manager: 'telemetryManager',
+      error: error.message,
+      stack: error.stack,
+    });
+  });
+
   it('continues cleanup after a synchronous failure', async () => {
     const error = new Error('Terminal cleanup failed');
     managers.TerminalManager.close.mockImplementation(() => {

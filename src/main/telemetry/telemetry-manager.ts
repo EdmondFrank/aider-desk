@@ -14,6 +14,7 @@ export class TelemetryManager {
   private readonly store: Store;
   private readonly distinctId: string;
   private client?: PostHog;
+  private openTelemetry?: Promise<typeof import('./open-telemetry')>;
 
   constructor(
     store: Store,
@@ -41,7 +42,8 @@ export class TelemetryManager {
 
   async init(): Promise<void> {
     try {
-      await import('./open-telemetry');
+      this.openTelemetry = import('./open-telemetry');
+      await this.openTelemetry;
 
       if (!POSTHOG_PUBLIC_API_KEY) {
         logger.info('TelemetryManager skipped: POSTHOG_PUBLIC_API_KEY not configured.');
@@ -73,9 +75,14 @@ export class TelemetryManager {
   }
 
   async destroy(): Promise<void> {
-    if (this.client) {
-      await this.client.shutdown();
-      logger.info('TelemetryManager destroyed.');
+    try {
+      if (this.client) {
+        await this.client.shutdown();
+        logger.info('TelemetryManager destroyed.');
+      }
+    } finally {
+      const openTelemetry = await this.openTelemetry;
+      await openTelemetry?.shutdownOpenTelemetry();
     }
   }
 

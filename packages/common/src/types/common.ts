@@ -278,6 +278,7 @@ export type LogLevel = 'info' | 'warning' | 'error' | 'loading';
 export interface LogAction {
   id: string;
   data?: JSONValue;
+  alternativeActions?: LogAction[];
 }
 
 export interface LogData {

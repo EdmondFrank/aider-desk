@@ -814,6 +814,9 @@ export class BrowserApi implements ApplicationAPI {
       messageId,
     });
   }
+  forkTaskFromCheckpoint(baseDir: string, taskId: string, checkpointId: string): Promise<TaskData> {
+    return this.post('/project/tasks/fork-from-checkpoint', { projectDir: baseDir, taskId, checkpointId });
+  }
   getTasks(baseDir: string): Promise<TaskData[]> {
     return this.get('/project/tasks', { projectDir: baseDir });
   }

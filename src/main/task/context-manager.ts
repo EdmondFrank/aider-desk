@@ -810,6 +810,16 @@ export class ContextManager {
     }
   }
 
+  async copyCompactionCheckpointsFrom(source: ContextManager, checkpointId: string): Promise<void> {
+    const files = await getPreCompactionBackupFiles(source.getSnapshotDir());
+    await fs.mkdir(this.getSnapshotDir(), { recursive: true });
+    for (const file of files) {
+      if (getBackupSequence(file) <= getBackupSequence(checkpointId)) {
+        await fs.copyFile(path.join(source.getSnapshotDir(), file), path.join(this.getSnapshotDir(), file));
+      }
+    }
+  }
+
   private async cleanupContext(): Promise<void> {
     // Filter out files that no longer exist
     const existingFiles: ContextFile[] = [];

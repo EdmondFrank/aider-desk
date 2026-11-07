@@ -1,11 +1,12 @@
 import { screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { MessageActions } from '../MessageActions';
 
 import { render } from '@/__tests__/render';
 import { createMockApi } from '@/__tests__/mocks/api';
-import { useApi } from '@/contexts/ApiContext';
+import { useApi, useIsReadonlyView } from '@/contexts/ApiContext';
+import { showErrorNotification } from '@/utils/notifications';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -15,6 +16,8 @@ vi.mock('@/contexts/ApiContext', () => ({
   useApi: vi.fn(),
   useIsReadonlyView: vi.fn(() => false),
 }));
+
+vi.mock('@/utils/notifications', () => ({ showErrorNotification: vi.fn() }));
 
 vi.mock('@/stores/taskStore', () => ({
   useTaskStore: vi.fn(() => false),
@@ -132,5 +135,70 @@ describe('compaction restore actions', () => {
       expect(removeActionId).not.toHaveBeenCalled();
       expect(screen.getByRole('button', { name: 'common.undo' })).toBeInTheDocument();
     }
+  });
+});
+
+describe('log split actions', () => {
+  const checkpointId = 'context.pre-compaction.002.json';
+  const actions = [{ id: 'undoContextChange', data: { checkpointId }, alternativeActions: [{ id: 'forkTaskFromCheckpoint', data: { checkpointId } }] }];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+      },
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.mocked(useIsReadonlyView).mockReturnValue(false);
+  });
+
+  it.each([true, false])('forks without undoing or consuming the original action, success=%s', async (success) => {
+    const api = createMockApi();
+    vi.mocked(useApi).mockReturnValue(api);
+    if (!success) {
+      vi.mocked(api.forkTaskFromCheckpoint).mockRejectedValueOnce(new Error('Missing checkpoint'));
+    }
+    const removeActionId = vi.fn();
+    render(<MessageActions baseDir="/project" taskId="task-123" actions={actions} removeActionId={removeActionId} />);
+    expect(screen.getByRole('button', { name: 'common.undo' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'splitButton.moreActions' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'common.forkBeforeCompaction' }));
+    await waitFor(() => expect(api.forkTaskFromCheckpoint).toHaveBeenCalledWith('/project', 'task-123', checkpointId));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.undo' })).toBeEnabled());
+    expect(api.undoContextChange).not.toHaveBeenCalled();
+    expect(removeActionId).not.toHaveBeenCalled();
+    if (!success) {
+      expect(showErrorNotification).toHaveBeenCalledWith('errors.forkTaskFailed');
+    }
+  });
+
+  it('keeps Undo as the primary action of the split button', async () => {
+    const api = createMockApi();
+    vi.mocked(useApi).mockReturnValue(api);
+    vi.mocked(api.undoContextChange).mockResolvedValue(true);
+    render(<MessageActions baseDir="/project" taskId="task-123" actions={actions} />);
+    fireEvent.click(screen.getByRole('button', { name: 'common.undo' }));
+    await waitFor(() => expect(api.undoContextChange).toHaveBeenCalledWith('/project', 'task-123', checkpointId));
+    expect(api.forkTaskFromCheckpoint).not.toHaveBeenCalled();
+  });
+
+  it('renders ordinary buttons when alternatives are unknown', () => {
+    vi.mocked(useApi).mockReturnValue(createMockApi());
+    render(<MessageActions baseDir="/project" taskId="task-123" actions={[{ id: 'interrupt', alternativeActions: [{ id: 'unknown' }] }]} />);
+    expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'splitButton.moreActions' })).not.toBeInTheDocument();
+  });
+
+  it('hides all actions in readonly views', () => {
+    vi.mocked(useApi).mockReturnValue(createMockApi());
+    vi.mocked(useIsReadonlyView).mockReturnValue(true);
+    render(<MessageActions baseDir="/project" taskId="task-123" actions={actions} />);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });

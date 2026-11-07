@@ -317,6 +317,10 @@ export const setupIpcHandlers = (eventsHandler: EventsHandler, serverController:
     return await eventsHandler.forkTask(baseDir, taskId, messageId);
   });
 
+  ipcMain.handle('fork-task-from-checkpoint', async (_, baseDir: string, taskId: string, checkpointId: string) => {
+    return await eventsHandler.forkTaskFromCheckpoint(baseDir, taskId, checkpointId);
+  });
+
   ipcMain.handle('get-tasks', async (_, baseDir: string) => {
     return await eventsHandler.getTasks(baseDir);
   });

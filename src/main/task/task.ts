@@ -3041,6 +3041,10 @@ export class Task {
     });
   }
 
+  public async readCompactionCheckpoint(checkpointId: string): Promise<ContextMessage[] | null> {
+    return this.contextManager.readCompactionCheckpoint(checkpointId);
+  }
+
   async undoContextChange(checkpointId?: string): Promise<boolean> {
     if (checkpointId !== undefined && this.isPromptRunning()) {
       return false;
@@ -3638,7 +3642,14 @@ export class Task {
 
     await this.contextManager.loadMessages(compactedMessages, false, executionId, true);
     await this.updateContextInfo();
-    this.addLogMessage('info', infoMessage, false, undefined, [{ id: 'undoContextChange', data: { checkpointId } }], true);
+    this.addLogMessage(
+      'info',
+      infoMessage,
+      false,
+      undefined,
+      [{ id: 'undoContextChange', data: { checkpointId }, alternativeActions: [{ id: 'forkTaskFromCheckpoint', data: { checkpointId } }] }],
+      true,
+    );
     await this.contextManager.save();
 
     return compactedMessages;
@@ -3761,7 +3772,14 @@ export class Task {
       }
 
       await this.updateContextInfo();
-      this.addLogMessage('info', 'Conversation compacted.', false, undefined, [{ id: 'undoContextChange', data: { checkpointId } }], true);
+      this.addLogMessage(
+        'info',
+        'Conversation compacted.',
+        false,
+        undefined,
+        [{ id: 'undoContextChange', data: { checkpointId }, alternativeActions: [{ id: 'forkTaskFromCheckpoint', data: { checkpointId } }] }],
+        true,
+      );
       await this.contextManager.save();
     } catch (error) {
       logger.error('Failed to compact conversation', {
@@ -5784,7 +5802,7 @@ ${error.stderr}`,
     }
   }
 
-  public async forkFrom(sourceTask: Task, messageId: string): Promise<void> {
+  public async forkFrom(sourceTask: Task, forkPoint: string | ContextMessage[], checkpointId?: string): Promise<void> {
     // Copy basic task data
     const sourceData = sourceTask.task;
     await this.saveTask({
@@ -5795,11 +5813,14 @@ ${error.stderr}`,
     const contextFiles = await sourceTask.getContextFiles();
     await this.addFiles(...contextFiles);
 
-    // Get messages up to and including the specified message
-    const forkedMessages = sourceTask.contextManager.getMessagesUpTo(messageId);
+    const forkedMessages = typeof forkPoint === 'string' ? sourceTask.contextManager.getMessagesUpTo(forkPoint) : forkPoint;
+    if (checkpointId) {
+      await this.contextManager.copyCompactionCheckpointsFrom(sourceTask.contextManager, checkpointId);
+    }
 
     // Save forked messages into new task
-    this.contextManager.setContextMessages(forkedMessages);
+    this.contextManager.setContextMessages(forkedMessages, false);
+    await this.contextManager.save();
 
     await this.updateContextInfo();
 

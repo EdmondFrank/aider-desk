@@ -1,7 +1,17 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-import { AgentProfile, BranchInfo, CreateTaskParams, DefaultTaskState, ModeDefinition, ProjectSettings, SettingsData, TaskData } from '@common/types';
+import {
+  AgentProfile,
+  BranchInfo,
+  ContextMessage,
+  CreateTaskParams,
+  DefaultTaskState,
+  ModeDefinition,
+  ProjectSettings,
+  SettingsData,
+  TaskData,
+} from '@common/types';
 import { fileExists } from '@common/utils';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -560,13 +570,29 @@ export class Project {
       throw new Error(`Task with id ${taskId} not found`);
     }
 
+    return this.createFork(sourceTask, messageId);
+  }
+
+  public async forkTaskFromCheckpoint(taskId: string, checkpointId: string): Promise<TaskData> {
+    const sourceTask = this.tasks.get(taskId);
+    if (!sourceTask) {
+      throw new Error(`Task with id ${taskId} not found`);
+    }
+    const messages = await sourceTask.readCompactionCheckpoint(checkpointId);
+    if (!messages) {
+      throw new Error('Compaction checkpoint is missing or unreadable');
+    }
+    return this.createFork(sourceTask, messages, checkpointId);
+  }
+
+  private async createFork(sourceTask: Task, forkPoint: string | ContextMessage[], checkpointId?: string): Promise<TaskData> {
     const newTask = await this.prepareTask(undefined, {
       ...sourceTask.task,
       parentId: sourceTask.task.parentId || sourceTask.task.id,
       state: sourceTask.task.state === DefaultTaskState.InProgress ? DefaultTaskState.Todo : sourceTask.task.state,
     });
     await newTask.init();
-    await newTask.forkFrom(sourceTask, messageId);
+    await newTask.forkFrom(sourceTask, forkPoint, checkpointId);
     this.eventManager.sendTaskCreated(newTask.task, true);
 
     return newTask.task;

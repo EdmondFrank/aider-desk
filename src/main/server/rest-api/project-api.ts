@@ -244,6 +244,10 @@ const ForkTaskSchema = z.object({
   messageId: z.string().min(1, 'Message id is required'),
 });
 
+const ForkTaskFromCheckpointSchema = UndoContextChangeSchema.extend({
+  checkpointId: z.string().regex(/^context\.pre-compaction\.\d+\.json$/),
+});
+
 const GetTaskContextDataSchema = z.object({
   projectDir: z.string().min(1, 'Project directory is required'),
   id: z.string().min(1, 'Task id is required'),
@@ -830,6 +834,19 @@ export class ProjectApi extends BaseApi {
 
         const { projectDir, taskId, messageId } = parsed;
         const forkedTask = await this.eventsHandler.forkTask(projectDir, taskId, messageId);
+        res.status(200).json(forkedTask);
+      }),
+    );
+
+    router.post(
+      '/project/tasks/fork-from-checkpoint',
+      this.handleRequest(async (req, res) => {
+        const parsed = this.validateRequest(ForkTaskFromCheckpointSchema, req.body, res);
+        if (!parsed) {
+          return;
+        }
+        const { projectDir, taskId, checkpointId } = parsed;
+        const forkedTask = await this.eventsHandler.forkTaskFromCheckpoint(projectDir, taskId, checkpointId);
         res.status(200).json(forkedTask);
       }),
     );

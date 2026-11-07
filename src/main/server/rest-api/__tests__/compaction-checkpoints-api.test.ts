@@ -14,6 +14,7 @@ describe('compaction checkpoint REST API', () => {
   let server: Server;
   let url: string;
   const undoContextChange = vi.fn(async () => true);
+  const forkTaskFromCheckpoint = vi.fn(async () => ({ id: 'fork' }));
   const submit = (checkpointId?: string) =>
     fetch(url, {
       method: 'POST',
@@ -23,10 +24,11 @@ describe('compaction checkpoint REST API', () => {
 
   beforeEach(async () => {
     undoContextChange.mockClear();
+    forkTaskFromCheckpoint.mockClear();
     const app = express();
     app.use(express.json());
     const router = express.Router();
-    new ProjectApi({ undoContextChange } as unknown as EventsHandler).registerRoutes(router);
+    new ProjectApi({ undoContextChange, forkTaskFromCheckpoint } as unknown as EventsHandler).registerRoutes(router);
     app.use('/api', router);
     server = createServer(app);
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -49,4 +51,21 @@ describe('compaction checkpoint REST API', () => {
     expect((await submit(checkpointId)).status).toBe(400);
     expect(undoContextChange).not.toHaveBeenCalled();
   });
+  it('forks from a validated checkpoint', async () => {
+    url = url.replace('/project/undo-context-change', '/project/tasks/fork-from-checkpoint');
+    const response = await submit('context.pre-compaction.002.json');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ id: 'fork' });
+    expect(forkTaskFromCheckpoint).toHaveBeenCalledWith('/project', 'task', 'context.pre-compaction.002.json');
+    expect(undoContextChange).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, '', '../context.pre-compaction.001.json', '/tmp/context.pre-compaction.001.json', 'context.json'])(
+    'rejects invalid fork checkpoint %s',
+    async (checkpointId) => {
+      url = url.replace('/project/undo-context-change', '/project/tasks/fork-from-checkpoint');
+      expect((await submit(checkpointId)).status).toBe(400);
+      expect(forkTaskFromCheckpoint).not.toHaveBeenCalled();
+    },
+  );
 });

@@ -7,7 +7,7 @@ import type { LogAction } from '../types';
 describe('getLogActions', () => {
   it('preserves actions with and without JSON payloads through serialization', () => {
     const actions: LogAction[] = [
-      { id: 'interrupt' },
+      { id: 'interrupt', alternativeActions: [{ id: 'fork', data: { checkpointId: 'context.pre-compaction.001.json' } }] },
       { id: 'custom', data: { snapshotId: 'snapshot-1', values: [null, true, 42, 'text', { nested: false }] } },
       { id: 'null', data: null },
       { id: 'primitive', data: false },

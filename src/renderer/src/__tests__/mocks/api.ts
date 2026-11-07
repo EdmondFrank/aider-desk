@@ -159,6 +159,7 @@ export const createMockApi = (overrides: Partial<ApplicationAPI> = {}): MockedOb
     deleteTask: vi.fn((): Promise<boolean> => Promise.resolve(true)),
     duplicateTask: vi.fn((): Promise<TaskData> => Promise.resolve({ id: 'mock-duplicate-task-id' } as TaskData)),
     forkTask: vi.fn((): Promise<TaskData> => Promise.resolve({ id: 'mock-fork-task-id' } as TaskData)),
+    forkTaskFromCheckpoint: vi.fn((): Promise<TaskData> => Promise.resolve({ id: 'mock-checkpoint-fork-id' } as TaskData)),
     getTasks: vi.fn((): Promise<TaskData[]> => Promise.resolve([])),
     loadTask: vi.fn((): Promise<TaskStateData> => Promise.resolve({} as TaskStateData)),
     exportTaskToMarkdown: vi.fn((): Promise<string | void> => Promise.resolve()),

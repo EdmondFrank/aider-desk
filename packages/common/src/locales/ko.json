@@ -76,6 +76,7 @@
     "gitBranches": "Git 브랜치 표시"
   },
   "common": {
+    "forkBeforeCompaction": "압축 전 상태로 분기",
     "restoreContextFailed": "이 압축 지점을 복원할 수 없습니다. 백업이 없거나 읽을 수 없습니다.",
     "autonomyManual": "수동",
     "autonomyGuided": "가이드",

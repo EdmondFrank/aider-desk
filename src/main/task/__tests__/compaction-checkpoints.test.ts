@@ -22,9 +22,9 @@ const original: ContextMessage[] = [
   { id: 'assistant', role: 'assistant', content: 'Original response' },
 ];
 
-const createTask = () => {
+const createTask = (taskId = 'task') => {
   const fixture = {
-    taskId: 'task',
+    taskId,
     project: { baseDir: projectDir },
     task: { state: DefaultTaskState.Interrupted },
     store: { getSettings: () => ({ taskSettings: {} }) },
@@ -44,6 +44,8 @@ const createTask = () => {
     sendToolMessage: vi.fn(),
     sendAddMessage: vi.fn(),
     saveTask: vi.fn(),
+    getContextFiles: vi.fn(async () => []),
+    addFiles: vi.fn(),
     findSkillActivationMessages: vi.fn(() => []),
     runNextQueuedPrompt: vi.fn(),
     promptsManager: { getCompactConversationPrompt: vi.fn(async () => 'Summarize') },
@@ -54,7 +56,7 @@ const createTask = () => {
   };
   Object.setPrototypeOf(fixture, Task.prototype);
   const task = fixture as unknown as Task;
-  fixture.contextManager = new ContextManager(task, 'task');
+  fixture.contextManager = new ContextManager(task, taskId);
   return { task, context: fixture.contextManager, fixture };
 };
 
@@ -90,6 +92,7 @@ describe('durable compaction restore points', () => {
       throw new Error('Missing compaction point A');
     }
     const checkpointA = pointA.actions?.[0].data;
+    expect(pointA.actions?.[0].alternativeActions).toEqual([{ id: 'forkTaskFromCheckpoint', data: checkpointA }]);
     expect(fixture.eventManager.sendLog).toHaveBeenCalledWith(expect.objectContaining({ id: pointA.id, actions: pointA.actions }));
     expect(context.hasUndoSnapshot()).toBe(true);
     context.addContextMessage({ id: 'next', role: 'user', content: 'Continue after A' });
@@ -167,4 +170,46 @@ it('retains persisted restore-point logs when a durable execution restores model
   expect(await context.getContextMessages()).toEqual([...original, point]);
   await task.restoreDurableConversation([...original, point]);
   expect(await context.getContextMessages()).toEqual([...original, point]);
+});
+
+it('forks the exact pre-compaction history and preserves earlier restore points after restart without changing the source', async () => {
+  const source = createTask();
+  await source.context.getContextMessages();
+  source.context.disableAutosave();
+  original.forEach((message) => source.context.addContextMessage(message));
+  const checkpointA = await source.context.backupContext();
+  source.context.setContextMessages([{ id: 'summary-a', role: 'assistant', content: 'Summary A' }], false);
+  source.context.addPersistentLogMessage('info', 'Compacted A', undefined, [
+    {
+      id: 'undoContextChange',
+      data: { checkpointId: checkpointA },
+      alternativeActions: [{ id: 'forkTaskFromCheckpoint', data: { checkpointId: checkpointA } }],
+    },
+  ]);
+  source.context.addContextMessage({ id: 'before-b', role: 'user', content: 'Before B' });
+  const beforeB = structuredClone(await source.context.getContextMessages());
+  const checkpointB = await source.context.backupContext();
+  source.context.setContextMessages([{ id: 'summary-b', role: 'assistant', content: 'Summary B' }], false);
+  source.context.addContextMessage({ id: 'later', role: 'user', content: 'After B' });
+  const checkpointC = await source.context.backupContext();
+  const current = structuredClone(await source.context.getContextMessages());
+  const hadUndoSnapshot = source.context.hasUndoSnapshot();
+
+  const fork = createTask('fork');
+  await fork.context.getContextMessages();
+  fork.context.disableAutosave();
+  const messages = await source.task.readCompactionCheckpoint(checkpointB);
+  expect(messages).not.toBeNull();
+  await fork.task.forkFrom(source.task, messages!, checkpointB);
+  expect(await source.context.getContextMessages()).toEqual(current);
+  expect(source.context.hasUndoSnapshot()).toBe(hadUndoSnapshot);
+  expect(source.fixture.eventManager.sendClearTask).not.toHaveBeenCalled();
+  expect(await fork.context.getContextMessages()).toEqual(beforeB);
+  expect(await fork.context.readCompactionCheckpoint(checkpointC)).toBeNull();
+
+  const restarted = createTask('fork');
+  expect(await restarted.context.getContextMessages()).toEqual(beforeB);
+  restarted.context.disableAutosave();
+  expect(await restarted.task.undoContextChange(checkpointA)).toBe(true);
+  expect(await restarted.context.getContextMessages()).toEqual(original);
 });

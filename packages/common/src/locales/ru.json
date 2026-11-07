@@ -76,6 +76,7 @@
     "gitBranches": "Показать ветки Git"
   },
   "common": {
+    "forkBeforeCompaction": "Создать ветку до сжатия",
     "restoreContextFailed": "Не удалось восстановить эту точку сжатия. Резервная копия отсутствует или недоступна для чтения.",
     "autonomyManual": "Ручной",
     "autonomyGuided": "Управляемый",

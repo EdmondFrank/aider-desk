@@ -997,6 +997,10 @@ export class EventsHandler {
     return await this.projectManager.getProject(baseDir).forkTask(taskId, messageId);
   }
 
+  async forkTaskFromCheckpoint(baseDir: string, taskId: string, checkpointId: string): Promise<TaskData> {
+    return await this.projectManager.getProject(baseDir).forkTaskFromCheckpoint(taskId, checkpointId);
+  }
+
   async getTasks(baseDir: string): Promise<TaskData[]> {
     return this.projectManager.getProject(baseDir).getTasks();
   }

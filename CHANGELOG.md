@@ -12,6 +12,7 @@
 - added support for payload data in log message actions while preserving existing action behavior
 - added reusable split buttons with additional-action menus and support for UI extensions
 - fixed terminal text input on Wayland with IBus while preserving keyboard and composition handling
+- added an option to fork tasks from pre-compaction history through the Undo dropdown while preserving the current task
 
 ## [0.90.0]
 

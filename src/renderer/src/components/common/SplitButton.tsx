@@ -47,7 +47,7 @@ export const SplitButton = ({
         size={size}
         disabled={disabled || actions.length === 0}
         aria-label={menuLabel ?? t('splitButton.moreActions')}
-        className="relative rounded-l-none border-l-0 px-2 focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2"
+        className="relative rounded-l-none border-l-0 px-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-default"
       >
         <span aria-hidden="true" className="absolute left-0 inset-y-1/4 border-l border-current opacity-30" />
         <HiChevronDown aria-hidden="true" className="size-4" />
@@ -65,7 +65,7 @@ export const SplitButton = ({
             type="button"
             disabled={disabled || action.disabled}
             onClick={action.onClick}
-            className="flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm text-text-primary data-[focus]:bg-bg-tertiary data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed"
+            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs text-text-primary data-[focus]:bg-bg-tertiary data-[disabled]:opacity-50 data-[disabled]:cursor-not-allowed"
           >
             {action.icon && (
               <span aria-hidden="true" className="shrink-0">

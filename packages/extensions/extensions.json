@@ -70,7 +70,7 @@
         "commands",
         "example"
       ],
-      "installCount": 25
+      "installCount": 26
     },
     {
       "id": "questions",
@@ -117,7 +117,7 @@
       "capabilities": [
         "security"
       ],
-      "installCount": 56
+      "installCount": 57
     },
     {
       "id": "permission-gate",
@@ -128,7 +128,7 @@
       "capabilities": [
         "security"
       ],
-      "installCount": 40
+      "installCount": 41
     },
     {
       "id": "ultrathink",
@@ -163,7 +163,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 79
+      "installCount": 80
     },
     {
       "id": "learn",
@@ -307,7 +307,7 @@
         "tools",
         "code-intelligence"
       ],
-      "installCount": 95
+      "installCount": 97
     },
     {
       "id": "plannotator",
@@ -383,7 +383,7 @@
       "capabilities": [
         "providers"
       ],
-      "installCount": 37
+      "installCount": 38
     },
     {
       "id": "fff",
@@ -400,7 +400,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 44
+      "installCount": 45
     },
     {
       "id": "searxng-search",
@@ -557,7 +557,7 @@
         "tools",
         "search"
       ],
-      "installCount": 89
+      "installCount": 90
     },
     {
       "id": "kanban",
@@ -594,7 +594,7 @@
         "agents",
         "example"
       ],
-      "installCount": 73
+      "installCount": 74
     },
     {
       "id": "wigolo",
@@ -620,7 +620,7 @@
         "security",
         "commands"
       ],
-      "installCount": 54
+      "installCount": 55
     },
     {
       "id": "git-log",
@@ -644,7 +644,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 173
+      "installCount": 174
     },
     {
       "id": "task-scheduler",
@@ -670,7 +670,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 151
+      "installCount": 152
     },
     {
       "id": "dbx",

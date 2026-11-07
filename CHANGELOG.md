@@ -11,6 +11,7 @@
 - fixed database errors during app shutdown by waiting for project and task cleanup to finish
 - added support for payload data in log message actions while preserving existing action behavior
 - added reusable split buttons with additional-action menus and support for UI extensions
+- fixed terminal text input on Wayland with IBus while preserving keyboard and composition handling
 
 ## [0.90.0]
 

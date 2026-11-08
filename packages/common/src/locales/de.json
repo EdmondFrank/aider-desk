@@ -1,4 +1,14 @@
 {
+  "fileLink": {
+    "downloadTitle": "Datei herunterladen",
+    "downloadPrompt": "Diese Datei herunterladen?",
+    "download": "Herunterladen",
+    "copyPath": "Dateipfad kopieren",
+    "openError": "Die Datei kann nicht geöffnet werden. Sie fehlt möglicherweise oder ist nicht zugänglich.",
+    "downloadError": "Die Datei kann nicht heruntergeladen werden. Sie fehlt möglicherweise oder ist nicht zugänglich.",
+    "copyError": "Der Dateipfad kann nicht kopiert werden.",
+    "readonly": "Dateidownloads sind im schreibgeschützten Modus nicht verfügbar. Sie können den Dateipfad kopieren."
+  },
   "splitButton": {
     "moreActions": "Weitere Aktionen"
   },

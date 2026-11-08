@@ -20,6 +20,8 @@ import {
 import { CompactionSnippetBlock } from './CompactionSnippetBlock';
 import { CustomCommandBashBlock } from './CustomCommandBashBlock';
 import { ThinkingAnswerBlock } from './ThinkingAnswerBlock';
+import { MarkdownLink } from './MarkdownLink';
+import { messageUrlTransform } from './markdown-url';
 
 import { CodeBlock } from '@/components/common/CodeBlock';
 import { MermaidDiagram } from '@/components/common/MermaidDiagram';
@@ -59,7 +61,11 @@ export const MARKDOWN_COMPONENTS: Components = {
   blockquote: (props) => <blockquote className="border-l-4 border-border-default pl-4 italic my-0 text-text-muted-light" {...props} />,
   strong: (props) => <strong className="font-bold" {...props} />,
   em: (props) => <em className="italic" {...props} />,
-  a: (props) => <a className="text-info-light hover:underline" target="_blank" rel="noopener noreferrer" {...props} />,
+  a: ({ href, children, title }) => (
+    <MarkdownLink href={href} title={title}>
+      {children}
+    </MarkdownLink>
+  ),
   // Handle code blocks - check if it's a mermaid diagram or regular code
   code: (props) => {
     const { className, children } = props;
@@ -141,7 +147,13 @@ export const parseMessageContent = (
     if (currentText.trimEnd()) {
       if (renderMarkdown) {
         parts.push(
-          <ReactMarkdown key={parts.length} remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={MARKDOWN_COMPONENTS}>
+          <ReactMarkdown
+            key={parts.length}
+            urlTransform={messageUrlTransform}
+            remarkPlugins={REMARK_PLUGINS}
+            rehypePlugins={REHYPE_PLUGINS}
+            components={MARKDOWN_COMPONENTS}
+          >
             {normalizeListBlocks(currentText.trimEnd())}
           </ReactMarkdown>,
         );

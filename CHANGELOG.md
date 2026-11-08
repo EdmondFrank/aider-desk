@@ -16,6 +16,7 @@
 - fixed Langfuse Cloud agent tracing by migrating to OpenTelemetry ingestion and flushing traces on shutdown
 - fixed concurrent git mutations racing on one repository via unified repo-level locking and made worktree uncommitted-changes recovery preserve both change sets
 - added Smart Checkout to carry uncommitted changes across branches with conflict resolution and recovery backups
+- added support for file links in messages with desktop opening and browser downloads or path copying
 
 ## [0.90.0]
 

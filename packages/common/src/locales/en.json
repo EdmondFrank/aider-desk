@@ -1,4 +1,14 @@
 {
+  "fileLink": {
+    "downloadTitle": "Download file",
+    "downloadPrompt": "Download this file?",
+    "download": "Download",
+    "copyPath": "Copy file path",
+    "openError": "Unable to open the file. It may be missing or inaccessible.",
+    "downloadError": "Unable to download the file. It may be missing or inaccessible.",
+    "copyError": "Unable to copy the file path.",
+    "readonly": "File downloads are unavailable in read-only mode. You can copy the file path."
+  },
   "splitButton": {
     "moreActions": "More actions"
   },

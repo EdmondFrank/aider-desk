@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TaskExecutionMode } from '@common/types';
 
 import { BrowserApi } from '../browser-api';
@@ -175,5 +175,53 @@ describe('BrowserApi compaction checkpoints', () => {
     const api = new BrowserApi();
     expect(await api.undoContextChange('/project', 'task-1', checkpointId)).toBe(true);
     expect(mocks.post).toHaveBeenCalledWith('/project/undo-context-change', { projectDir: '/project', taskId: 'task-1', checkpointId });
+  });
+});
+
+describe('BrowserApi file downloads', () => {
+  const createObjectURL = vi.fn(() => 'blob:download');
+  const revokeObjectURL = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.stubGlobal('URL', Object.assign(class extends URL {}, { createObjectURL, revokeObjectURL }));
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ['/home/user/my mockup.html', 'my mockup.html'],
+    ['C:\\Users\\me\\my mockup.html', 'my mockup.html'],
+  ])('downloads %s with its original filename', async (path, filename) => {
+    const data = new Blob(['<html>mockup</html>']);
+    mocks.post.mockResolvedValue({ data });
+    let downloadedName: string | undefined;
+    let downloadedUrl: string | undefined;
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloadedName = this.download;
+      downloadedUrl = this.href;
+    });
+    await new BrowserApi().downloadFile(path);
+    expect(mocks.post).toHaveBeenCalledWith('/system/download-file', { path }, { responseType: 'blob' });
+    expect(createObjectURL).toHaveBeenCalledWith(data);
+    expect(downloadedName).toBe(filename);
+    expect(downloadedUrl).toBe('blob:download');
+    expect(document.querySelector('a[download]')).not.toBeInTheDocument();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:download');
+  });
+
+  it('propagates server errors without starting a download', async () => {
+    mocks.post.mockRejectedValue(new Error('File not found'));
+    await expect(new BrowserApi().downloadFile('/missing')).rejects.toThrow('File not found');
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled();
   });
 });

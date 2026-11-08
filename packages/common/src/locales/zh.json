@@ -1,4 +1,14 @@
 {
+  "fileLink": {
+    "downloadTitle": "下载文件",
+    "downloadPrompt": "要下载此文件吗？",
+    "download": "下载",
+    "copyPath": "复制文件路径",
+    "openError": "无法打开文件。文件可能不存在或无法访问。",
+    "downloadError": "无法下载文件。文件可能不存在或无法访问。",
+    "copyError": "无法复制文件路径。",
+    "readonly": "只读模式下无法下载文件。您可以复制文件路径。"
+  },
   "splitButton": {
     "moreActions": "更多操作"
   },

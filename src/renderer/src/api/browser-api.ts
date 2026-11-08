@@ -1552,6 +1552,21 @@ export class BrowserApi implements ApplicationAPI {
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
   }
 
+  async downloadFile(path: string): Promise<void> {
+    const response = await this.apiClient.post<Blob>('/system/download-file', { path }, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(response.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = path.replace(/\\/g, '/').split('/').pop() || 'download';
+    document.body.appendChild(link);
+    try {
+      link.click();
+    } finally {
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    }
+  }
+
   async openPath(): Promise<boolean> {
     // Not available in browser context
     return false;

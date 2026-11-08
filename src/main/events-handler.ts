@@ -1204,8 +1204,8 @@ export class EventsHandler {
   async openPath(path: string): Promise<boolean> {
     try {
       const { shell } = await import('electron');
-      await shell.openPath(path);
-      return true;
+      const error = await shell.openPath(path);
+      return !error;
     } catch (error) {
       logger.error('Failed to open path:', {
         path,

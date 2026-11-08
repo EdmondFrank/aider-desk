@@ -1,4 +1,14 @@
 {
+  "fileLink": {
+    "downloadTitle": "Scarica file",
+    "downloadPrompt": "Scaricare questo file?",
+    "download": "Scarica",
+    "copyPath": "Copia percorso del file",
+    "openError": "Impossibile aprire il file. Potrebbe essere mancante o inaccessibile.",
+    "downloadError": "Impossibile scaricare il file. Potrebbe essere mancante o inaccessibile.",
+    "copyError": "Impossibile copiare il percorso del file.",
+    "readonly": "Il download dei file non è disponibile in modalità di sola lettura. Puoi copiare il percorso del file."
+  },
   "splitButton": {
     "moreActions": "Altre azioni"
   },

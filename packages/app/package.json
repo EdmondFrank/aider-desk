@@ -1,6 +1,6 @@
 {
   "name": "@aiderdesk/aiderdesk",
-  "version": "0.90.0",
+  "version": "0.91.0",
   "description": "AiderDesk - AI-Powered Development Platform",
   "bin": {
     "aiderdesk": "./bin/aiderdesk.js"
@@ -51,7 +51,7 @@
     "@ai-sdk/openai": "4.0.105",
     "@ai-sdk/openai-compatible": "3.0.81",
     "@ai-sdk/otel": "1.0.157",
-    "@aiderdesk/extensions": "0.40.0",
+    "@aiderdesk/extensions": "0.41.0",
     "@aws-sdk/client-bedrock": "3.1059.0",
     "@aws-sdk/credential-providers": "3.1059.0",
     "@dotenvx/dotenvx": "1.52.0",
@@ -78,6 +78,7 @@
     "chokidar": "4.0.3",
     "cloudflared": "0.7.1",
     "commander": "13.1.0",
+    "compression": "1.8.1",
     "conf": "15.1.0",
     "cors": "2.8.6",
     "env-paths": "3.0.0",

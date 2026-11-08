@@ -11,11 +11,11 @@ import { TOOL_GROUP_NAME_SEPARATOR } from '@common/tools';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { LuBrain, LuClipboardList } from 'react-icons/lu';
 
-import { Checkbox } from '../common/Checkbox';
-
 import { McpServerSelectorItem } from './McpServerSelectorItem';
 import { ExtensionToolsSelectorItem } from './ExtensionToolsSelectorItem';
 
+import { Checkbox } from '@/components/common/Checkbox';
+import { InfoIcon } from '@/components/common/InfoIcon';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useExtensionTools } from '@/hooks/useExtensionTools';
 import { IconButton } from '@/components/common/IconButton';
@@ -326,6 +326,7 @@ export const AgentSelector = memo(
             <div className="py-2 border-b border-border-default-dark">
               <div className="flex items-center justify-between mb-2 pl-3 pr-2">
                 <span className="text-xs font-medium text-text-secondary uppercase">{t('agentProfiles.title')}</span>
+                <InfoIcon tooltip={t('agentProfiles.infoTooltip')} size="sm" />
               </div>
               <div className="max-h-[250px] overflow-y-auto scrollbar-thin scrollbar-thumb-bg-secondary-light scrollbar-track-bg-primary-light">
                 {profiles.map((profile) => (

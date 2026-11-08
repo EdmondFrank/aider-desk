@@ -1849,7 +1849,8 @@
     "tools": "工具",
     "model": "模型",
     "selectProfile": "选择...",
-    "useAsProjectDefault": "设为项目默认"
+    "useAsProjectDefault": "设为项目默认",
+    "infoTooltip": "智能体（Agent）决定 AI 为任务使用哪些模型和工具——可在智能体之间切换，或将某个设为项目默认。您也可以直接让 AI 为您创建新的智能体配置。"
   },
   "projectBar": {
     "editFormatTooltip": "这是用于编辑代码的格式。更改它可能会导致模型表现不如预期。",

@@ -1898,7 +1898,8 @@
     "tools": "Tools",
     "model": "Model",
     "selectProfile": "Select...",
-    "useAsProjectDefault": "Use as project default"
+    "useAsProjectDefault": "Use as project default",
+    "infoTooltip": "Agents control which model and tools the AI uses for your tasks — switch between them or set one as the project default. You can also just ask the AI directly to create a new agent profile for you."
   },
   "projectBar": {
     "editFormatTooltip": "This is the format used for editing code. Changing it might cause the model to not perform as expected.",

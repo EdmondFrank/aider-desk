@@ -594,7 +594,7 @@
         "agents",
         "example"
       ],
-      "installCount": 74
+      "installCount": 75
     },
     {
       "id": "wigolo",
@@ -644,7 +644,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 175
+      "installCount": 176
     },
     {
       "id": "task-scheduler",

@@ -2272,6 +2272,9 @@
     "caCertPathPlaceholder": "/path/to/ca.pem"
   },
   "git": {
+    "conflictsDescription": "Conflicts detected in the following files. Resolve them manually or use the AI agent to help.",
+    "smartCheckout": "Smart Checkout",
+    "smartCheckoutMessage": "Your local changes prevent switching to {{branch}}. Smart Checkout temporarily stashes tracked and untracked changes, switches branches, and reapplies your changes. Some changes may become unstaged. If conflicts occur, you can resolve them on the destination branch.",
     "askpass": {
       "passwordTitle": "Git Authentication",
       "usernameTitle": "Git Username",

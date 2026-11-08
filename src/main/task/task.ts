@@ -20,6 +20,7 @@ import {
   FileEdit,
   BranchInfo,
   GitSyncCommits,
+  GitCheckoutResult,
   LogData,
   LogLevel,
   LogAction,
@@ -5386,11 +5387,30 @@ ${error.stderr}`,
     await this.runGitAction('create branch', () => this.gitManager.createBranch(this.getTaskDir(), name, startPoint, checkout));
   }
 
-  public async checkoutGitBranch(branch: string, createTracking?: boolean, takeOver?: boolean): Promise<void> {
+  public async checkoutGitBranch(branch: string, createTracking?: boolean, takeOver?: boolean, smartCheckout?: boolean): Promise<GitCheckoutResult> {
     if (takeOver && this.task.workingMode === 'worktree') {
       throw new Error('Taking over a branch is not available in worktree mode');
     }
-    await this.runGitAction('checkout', () => this.gitManager.checkoutBranch(this.getTaskDir(), branch, createTracking, takeOver));
+    return await this.runGitAction('checkout', async () => {
+      try {
+        const result = await this.gitManager.checkoutBranch(this.getTaskDir(), branch, createTracking, takeOver, smartCheckout);
+        if (result.conflictedFiles?.length) {
+          this.addLogMessage(
+            'warning',
+            `Switched branches with conflicts in: ${result.conflictedFiles.join(', ')}. Recovery stash: ${result.backupRef}`,
+            true,
+            undefined,
+            [{ id: 'resolve-conflicts-with-agent' }],
+            true,
+          );
+        } else if (result.backupRef) {
+          this.addLogMessage('info', `Smart Checkout completed. Recovery stash retained: ${result.backupRef}`, true);
+        }
+        return result;
+      } finally {
+        await this.sendUpdatedFilesUpdated();
+      }
+    });
   }
 
   public async deleteGitBranch(branch: string, force?: boolean): Promise<void> {
@@ -5582,9 +5602,9 @@ ${error.stderr}`,
       );
     } finally {
       await this.saveTask({ state: previousTaskState });
+      await this.sendUpdatedFilesUpdated();
+      await this.sendTaskGitStatusUpdated();
     }
-
-    await this.sendTaskGitStatusUpdated();
   }
 
   private isConflictError(error: unknown): boolean {

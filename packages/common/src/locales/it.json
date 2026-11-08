@@ -2272,6 +2272,9 @@
     "caCertPathPlaceholder": "/percorso/a/ca.pem"
   },
   "git": {
+    "conflictsDescription": "Sono stati rilevati conflitti nei seguenti file. Risolvili manualmente o con l’aiuto dell’agente IA.",
+    "smartCheckout": "Checkout intelligente",
+    "smartCheckoutMessage": "Le modifiche locali impediscono il passaggio a {{branch}}. Il checkout intelligente salva temporaneamente in uno stash le modifiche ai file tracciati e non tracciati, cambia branch e le riapplica. Alcune modifiche potrebbero non essere più in staging. Eventuali conflitti possono essere risolti sul branch di destinazione.",
     "askpass": {
       "passwordTitle": "Autenticazione Git",
       "usernameTitle": "Nome utente Git",

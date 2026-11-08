@@ -777,8 +777,8 @@ const api: ApplicationAPI = {
   listGitBranches: (baseDir, taskId, includeRemote) => ipcRenderer.invoke('list-git-branches', baseDir, taskId, includeRemote),
   getSyncCommits: (baseDir, taskId, targetBranch) => ipcRenderer.invoke('get-sync-commits', baseDir, taskId, targetBranch),
   createGitBranch: (baseDir, taskId, name, startPoint, checkout) => ipcRenderer.invoke('create-git-branch', baseDir, taskId, name, startPoint, checkout),
-  checkoutGitBranch: (baseDir, taskId, branch, createTracking, takeOver) =>
-    ipcRenderer.invoke('checkout-git-branch', baseDir, taskId, branch, createTracking, takeOver),
+  checkoutGitBranch: (baseDir, taskId, branch, createTracking, takeOver, smartCheckout) =>
+    ipcRenderer.invoke('checkout-git-branch', baseDir, taskId, branch, createTracking, takeOver, smartCheckout),
   deleteGitBranch: (baseDir, taskId, branch, force) => ipcRenderer.invoke('delete-git-branch', baseDir, taskId, branch, force),
   mergeIntoCurrentBranch: (baseDir, taskId, branch) => ipcRenderer.invoke('merge-into-current-branch', baseDir, taskId, branch),
   rebaseOntoBranch: (baseDir, taskId, branch) => ipcRenderer.invoke('rebase-onto-branch', baseDir, taskId, branch),

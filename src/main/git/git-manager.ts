@@ -1,4 +1,5 @@
 import os from 'os';
+import { randomUUID } from 'crypto';
 import path, { join } from 'path';
 import fs, { mkdir, rm, lstat, symlink } from 'fs/promises';
 import { existsSync, lstatSync } from 'fs';
@@ -7,6 +8,7 @@ import {
   BranchInfo,
   ConflictResolutionFileContext,
   GitSyncCommits,
+  GitCheckoutResult,
   MergeState,
   RebaseState,
   UpdatedFile,
@@ -619,9 +621,9 @@ export class GitManager {
     }
   }
 
-  async checkoutBranch(projectPath: string, branch: string, createTracking = false, takeOver = false): Promise<void> {
+  async checkoutBranch(projectPath: string, branch: string, createTracking = false, takeOver = false, smartCheckout = false): Promise<GitCheckoutResult> {
     if (!(await this.ensureGitRepository(projectPath, 'checkout branch'))) {
-      return;
+      return {};
     }
 
     return await withLock(`git-mutation-${projectPath}`, async () => {
@@ -648,11 +650,15 @@ export class GitManager {
 
       try {
         await execWithShellPath(command, { cwd: projectPath });
+        return {};
       } catch (error: unknown) {
         const gitError = this.wrapGitError(error, [command], projectPath);
 
         if (gitError.gitOutput?.includes('would be overwritten by checkout')) {
-          gitError.message = `Cannot checkout '${branch}': you have uncommitted changes that would be overwritten. Commit or stash them first.`;
+          if (!smartCheckout) {
+            return { requiresSmartCheckout: true };
+          }
+          return await this.performSmartCheckout(projectPath, command, branch);
         } else if (/already used by worktree|already checked out at/.test(gitError.gitOutput || '')) {
           gitError.message = `Cannot checkout '${branch}': it is already checked out in another worktree.`;
         }
@@ -660,6 +666,76 @@ export class GitManager {
         throw gitError;
       }
     });
+  }
+
+  private async performSmartCheckout(projectPath: string, command: string, branch: string): Promise<GitCheckoutResult> {
+    const git = simpleGit(projectPath);
+    if ((await git.status()).conflicted.length > 0) {
+      throw new GitError('Resolve existing conflicts before using Smart Checkout.');
+    }
+
+    const originalHead = (await git.revparse(['HEAD'])).trim();
+    const originalBranch = (await git.revparse(['--symbolic-full-name', 'HEAD'])).trim();
+    const marker = `aiderdesk-smart-checkout-${randomUUID()}`;
+    try {
+      await execWithShellPath(['git', 'stash', 'push', '--include-untracked', '-m', marker], { cwd: projectPath });
+    } catch (error) {
+      const gitError = this.wrapGitError(error, ['git stash push --include-untracked'], projectPath);
+      gitError.message = `Smart Checkout could not save and clean your changes. Checkout was not attempted. Check git status and git stash list for recovery snapshot '${marker}'.`;
+      throw gitError;
+    }
+    const backupRef = (await git.raw(['rev-parse', '--verify', 'refs/stash'])).trim();
+    const subject = await git.raw(['log', '-1', '--format=%s', backupRef]);
+    if (!subject.includes(marker)) {
+      throw new GitError('Could not verify the Smart Checkout backup. Checkout was not attempted.');
+    }
+
+    try {
+      await execWithShellPath(command, { cwd: projectPath });
+    } catch (error) {
+      const gitError = this.wrapGitError(error, [command], projectPath);
+      const currentHead = (await git.revparse(['HEAD'])).trim();
+      const currentBranch = (await git.revparse(['--symbolic-full-name', 'HEAD'])).trim();
+      if (currentHead !== originalHead || currentBranch !== originalBranch) {
+        gitError.message = `Checkout reported a failure after changing HEAD. Your changes remain in recovery stash: ${backupRef}. Check the current branch before restoring them.`;
+        throw gitError;
+      }
+      try {
+        await execWithShellPath(['git', 'stash', 'apply', '--index', backupRef], { cwd: projectPath });
+        gitError.message = `Cannot checkout '${branch}'. Your original changes were restored. Recovery stash: ${backupRef}.`;
+      } catch (restoreError) {
+        gitError.message = `Cannot checkout '${branch}' and could not fully restore your changes. Recovery stash: ${backupRef}. ${String(restoreError)}`;
+      }
+      throw gitError;
+    }
+
+    try {
+      await execWithShellPath(['git', 'stash', 'apply', backupRef], { cwd: projectPath });
+      const conflictedFiles = (await git.status()).conflicted;
+      if (conflictedFiles.length > 0) {
+        return { conflictedFiles, backupRef };
+      }
+    } catch (error) {
+      const conflictedFiles = (await git.status()).conflicted;
+      if (conflictedFiles.length > 0) {
+        return { conflictedFiles, backupRef };
+      }
+      const gitError = this.wrapGitError(error, [`git stash apply ${backupRef}`], projectPath);
+      gitError.message = `Switched to '${branch}', but could not fully restore your changes. Recovery stash: ${backupRef}.`;
+      throw gitError;
+    }
+
+    try {
+      const stashes = await git.raw(['stash', 'list', '--format=%gd %H']);
+      const entry = stashes.split('\n').find((line) => line.endsWith(` ${backupRef}`));
+      if (entry) {
+        await git.raw(['stash', 'drop', entry.split(' ')[0]]);
+      }
+    } catch (error) {
+      logger.warn('Smart Checkout succeeded, but the recovery stash could not be removed:', error);
+      return { backupRef };
+    }
+    return {};
   }
 
   private async detachBranchFromOtherWorktrees(projectPath: string, branch: string): Promise<void> {

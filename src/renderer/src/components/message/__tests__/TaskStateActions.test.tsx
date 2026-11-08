@@ -77,6 +77,20 @@ describe('TaskStateActions - local mode rebase banners', () => {
     expect(mockApi.abortRebase).toHaveBeenCalledWith('/project', 'task-1');
   });
 
+  it('shows only conflict resolution for stash conflicts without an active rebase', () => {
+    renderWithState({
+      rebaseState: { inProgress: false, hasUnmergedPaths: true, unmergedFiles: ['message.txt'] },
+    });
+
+    expect(screen.getByText('git.conflictsDescription')).toBeTruthy();
+    expect(screen.getByText('- message.txt')).toBeTruthy();
+    expect(screen.queryByText('worktree.continueRebase')).toBeNull();
+    expect(screen.queryByText('worktree.abortRebase')).toBeNull();
+
+    fireEvent.click(screen.getByText('worktree.resolveConflictsWithAgent'));
+    expect(mockApi.resolveConflictsWithAgent).toHaveBeenCalledWith('/project', 'task-1');
+  });
+
   it('shows resolved-state actions when rebase is in progress without unmerged files', () => {
     renderWithState({ rebaseState: { inProgress: true, hasUnmergedPaths: false } });
 

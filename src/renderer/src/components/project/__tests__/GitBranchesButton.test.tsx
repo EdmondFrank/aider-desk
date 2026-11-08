@@ -5,7 +5,7 @@ import { TaskGitStatus } from '@common/types';
 import { GitBranchesButton } from '../GitBranchesButton';
 
 import { invokeAction } from '@/stores/actionsStore';
-import { showErrorNotification } from '@/utils/notifications';
+import { showErrorNotification, showInfoNotification } from '@/utils/notifications';
 import { render } from '@/__tests__/render';
 import { useApi } from '@/contexts/ApiContext';
 import { createMockApi } from '@/__tests__/mocks/api';
@@ -98,6 +98,68 @@ describe('GitBranchesButton', () => {
       expect(screen.getByText('worktree.rebaseFromCurrentBranch:main')).toBeInTheDocument();
       fireEvent.click(screen.getByText('worktree.rebaseFromCurrentBranch:main'));
       expect(defaultProps.onRebaseFromBranch).toHaveBeenCalledWith('main');
+    });
+  });
+
+  describe('Smart Checkout', () => {
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    const selectMain = async () => {
+      fireEvent.click(await screen.findByRole('button', { name: /task-123/i }));
+      fireEvent.click(await screen.findByText('main', { selector: 'span.truncate' }));
+      fireEvent.click(await screen.findByText('git.checkoutBranch:main'));
+    };
+
+    it('offers Smart Checkout and leaves changes untouched when cancelled', async () => {
+      mockApi.checkoutGitBranch.mockResolvedValue({ requiresSmartCheckout: true });
+      render(<GitBranchesButton {...defaultProps} status={mockStatus} />);
+
+      await selectMain();
+
+      expect(await screen.findByText('git.smartCheckoutMessage:main')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }));
+      expect(mockApi.checkoutGitBranch).toHaveBeenCalledTimes(1);
+      expect(mockApi.checkoutGitBranch).toHaveBeenCalledWith('/project', 'task-123', 'main', false, false, false);
+      expect(screen.queryByText('git.smartCheckoutMessage:main')).not.toBeInTheDocument();
+      expect(showErrorNotification).not.toHaveBeenCalled();
+    });
+
+    it('retries with Smart Checkout only after confirmation', async () => {
+      mockApi.checkoutGitBranch.mockResolvedValueOnce({ requiresSmartCheckout: true }).mockResolvedValueOnce({});
+      render(<GitBranchesButton {...defaultProps} status={mockStatus} />);
+
+      await selectMain();
+      fireEvent.click(await screen.findByRole('button', { name: 'git.smartCheckout' }));
+
+      await waitFor(() => expect(mockApi.checkoutGitBranch).toHaveBeenCalledTimes(2));
+      expect(mockApi.checkoutGitBranch).toHaveBeenLastCalledWith('/project', 'task-123', 'main', false, false, true);
+      expect(screen.queryByText('git.smartCheckoutMessage:main')).not.toBeInTheDocument();
+    });
+
+    it('leaves conflicts to the existing message and actions without opening another dialog', async () => {
+      let completeCheckout: (result: { conflictedFiles: string[]; backupRef: string }) => void = () => {};
+      mockApi.checkoutGitBranch.mockResolvedValueOnce({ requiresSmartCheckout: true }).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            completeCheckout = resolve;
+          }),
+      );
+      render(<GitBranchesButton {...defaultProps} status={mockStatus} />);
+
+      await selectMain();
+      fireEvent.click(await screen.findByRole('button', { name: 'git.smartCheckout' }));
+      await waitFor(() => expect(mockApi.checkoutGitBranch).toHaveBeenCalledTimes(2));
+      mockApi.listGitBranches.mockClear();
+      completeCheckout({ conflictedFiles: ['file.txt'], backupRef: 'backup-hash' });
+
+      await waitFor(() => expect(mockApi.listGitBranches).toHaveBeenCalled());
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+      expect(showInfoNotification).not.toHaveBeenCalled();
+      expect(showErrorNotification).not.toHaveBeenCalled();
+      expect(defaultProps.onResolveConflictsWithAgent).not.toHaveBeenCalled();
     });
   });
 

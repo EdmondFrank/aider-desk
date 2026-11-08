@@ -15,6 +15,7 @@
 - added an option to fork tasks from pre-compaction history through the Undo dropdown while preserving the current task
 - fixed Langfuse Cloud agent tracing by migrating to OpenTelemetry ingestion and flushing traces on shutdown
 - fixed concurrent git mutations racing on one repository via unified repo-level locking and made worktree uncommitted-changes recovery preserve both change sets
+- added Smart Checkout to carry uncommitted changes across branches with conflict resolution and recovery backups
 
 ## [0.90.0]
 

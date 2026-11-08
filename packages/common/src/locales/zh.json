@@ -2280,6 +2280,9 @@
     "caCertPathPlaceholder": "/path/to/ca.pem"
   },
   "git": {
+    "conflictsDescription": "在以下文件中检测到冲突。请手动解决或使用 AI 智能体协助。",
+    "smartCheckout": "智能检出",
+    "smartCheckoutMessage": "本地更改阻止切换到 {{branch}}。智能检出会暂存已跟踪和未跟踪文件的更改，切换分支，然后重新应用更改。部分更改可能会变为未暂存状态。如果发生冲突，可以在目标分支上解决。",
     "askpass": {
       "passwordTitle": "Git 身份验证",
       "usernameTitle": "Git 用户名",

@@ -125,6 +125,8 @@ export const GitBranchesButton = ({
   const [newBranchName, setNewBranchName] = useState('');
 
   const [branchToCheckout, setBranchToCheckout] = useState<BranchInfo | null>(null);
+  const [smartCheckoutRequest, setSmartCheckoutRequest] = useState<{ branch: BranchInfo; takeOver: boolean } | null>(null);
+  const checkoutInProgress = useRef(false);
   const [branchToBase, setBranchToBase] = useState<BranchInfo | null>(null);
   const [newBranchFromName, setNewBranchFromName] = useState('');
   const [branchToMerge, setBranchToMerge] = useState<BranchInfo | null>(null);
@@ -365,22 +367,47 @@ export const GitBranchesButton = ({
     });
   };
 
-  const performCheckout = async (branch: BranchInfo, takeOver = false) => {
+  const performCheckout = async (branch: BranchInfo, takeOver = false, smartCheckout = false) => {
     if (isWorktree) {
       showErrorNotification(t('git.actionNotAvailableInWorktree'));
       return;
     }
+    if (checkoutInProgress.current) {
+      return;
+    }
 
+    checkoutInProgress.current = true;
     handleCloseDropdown();
+    setSmartCheckoutRequest(null);
     try {
-      await api.checkoutGitBranch(baseDir, taskId, branch.name, branch.isRemote, takeOver);
-      showInfoNotification(t('git.checkedOutBranch', { branch: branch.name }));
+      const result = await api.checkoutGitBranch(baseDir, taskId, branch.name, branch.isRemote, takeOver, smartCheckout);
+      if (result.requiresSmartCheckout) {
+        setSmartCheckoutRequest({ branch, takeOver });
+        return;
+      }
+      if (!result.conflictedFiles?.length) {
+        showInfoNotification(t('git.checkedOutBranch', { branch: branch.name }));
+      }
       trackRecentBranch(branch.name);
       await loadBranches();
       await loadSyncCommits();
     } catch (error) {
       handleError(error);
+      await loadBranches();
+      await loadSyncCommits();
+    } finally {
+      checkoutInProgress.current = false;
     }
+  };
+
+  const handleSmartCheckoutConfirm = () => {
+    if (smartCheckoutRequest) {
+      void performCheckout(smartCheckoutRequest.branch, smartCheckoutRequest.takeOver, true);
+    }
+  };
+
+  const handleCancelSmartCheckout = () => {
+    setSmartCheckoutRequest(null);
   };
 
   const performMerge = async (branch: BranchInfo) => {
@@ -999,6 +1026,18 @@ export const GitBranchesButton = ({
             onRequestClose={handleCloseDropdown}
           />
         </div>
+      )}
+
+      {smartCheckoutRequest && (
+        <ConfirmDialog
+          title={t('git.smartCheckout')}
+          onConfirm={handleSmartCheckoutConfirm}
+          onCancel={handleCancelSmartCheckout}
+          confirmButtonText={t('git.smartCheckout')}
+          closeOnEscape
+        >
+          <p className="text-sm">{t('git.smartCheckoutMessage', { branch: smartCheckoutRequest.branch.name })}</p>
+        </ConfirmDialog>
       )}
 
       {branchToCheckout && (

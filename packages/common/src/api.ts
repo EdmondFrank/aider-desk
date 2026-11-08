@@ -15,6 +15,7 @@ import {
   EditFormat,
   EnvironmentVariable,
   GitSyncCommits,
+  GitCheckoutResult,
   FileEdit,
   InputHistoryData,
   LogData,
@@ -351,7 +352,14 @@ export interface ApplicationAPI {
   listGitBranches: (baseDir: string, taskId: string, includeRemote?: boolean) => Promise<BranchInfo[]>;
   getSyncCommits: (baseDir: string, taskId: string, targetBranch?: string) => Promise<GitSyncCommits>;
   createGitBranch: (baseDir: string, taskId: string, name: string, startPoint?: string, checkout?: boolean) => Promise<void>;
-  checkoutGitBranch: (baseDir: string, taskId: string, branch: string, createTracking?: boolean, takeOver?: boolean) => Promise<void>;
+  checkoutGitBranch: (
+    baseDir: string,
+    taskId: string,
+    branch: string,
+    createTracking?: boolean,
+    takeOver?: boolean,
+    smartCheckout?: boolean,
+  ) => Promise<GitCheckoutResult>;
   deleteGitBranch: (baseDir: string, taskId: string, branch: string, force?: boolean) => Promise<void>;
   mergeIntoCurrentBranch: (baseDir: string, taskId: string, branch: string) => Promise<{ conflictedFiles?: string[] }>;
   rebaseOntoBranch: (baseDir: string, taskId: string, branch: string) => Promise<{ conflictedFiles?: string[] }>;

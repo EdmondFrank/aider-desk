@@ -2126,6 +2126,9 @@
     "TODO": "할 일"
   },
   "git": {
+    "conflictsDescription": "다음 파일에서 충돌이 감지되었습니다. 직접 해결하거나 AI 에이전트의 도움을 받으세요.",
+    "smartCheckout": "스마트 체크아웃",
+    "smartCheckoutMessage": "로컬 변경 사항으로 인해 {{branch}} 브랜치로 전환할 수 없습니다. 스마트 체크아웃은 추적 및 미추적 파일의 변경 사항을 임시로 스태시에 저장하고 브랜치를 전환한 뒤 다시 적용합니다. 일부 변경 사항은 스테이징이 해제될 수 있습니다. 충돌이 발생하면 대상 브랜치에서 해결할 수 있습니다.",
     "askpass": {
       "passwordTitle": "Git 인증",
       "usernameTitle": "Git 사용자 이름",

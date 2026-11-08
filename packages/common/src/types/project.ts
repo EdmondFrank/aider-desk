@@ -8,3 +8,9 @@ export type ProjectCheckResult = {
   mcpServers: ProjectCheckItem[];
   extensions: ProjectCheckItem[];
 };
+
+export type GitCheckoutResult = {
+  requiresSmartCheckout?: boolean;
+  conflictedFiles?: string[];
+  backupRef?: string;
+};

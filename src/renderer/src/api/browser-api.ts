@@ -62,6 +62,7 @@ import {
   MemoryEmbeddingProgress,
   BranchInfo,
   GitSyncCommits,
+  GitCheckoutResult,
   SwitchToLocalOptions,
   SwitchToWorktreeOptions,
   TaskGitStatus,
@@ -1364,13 +1365,21 @@ export class BrowserApi implements ApplicationAPI {
     });
   }
 
-  async checkoutGitBranch(baseDir: string, taskId: string, branch: string, createTracking?: boolean, takeOver?: boolean): Promise<void> {
-    await this.post('/project/git/branch/checkout', {
+  async checkoutGitBranch(
+    baseDir: string,
+    taskId: string,
+    branch: string,
+    createTracking?: boolean,
+    takeOver?: boolean,
+    smartCheckout?: boolean,
+  ): Promise<GitCheckoutResult> {
+    return this.post('/project/git/branch/checkout', {
       projectDir: baseDir,
       taskId,
       branch,
       createTracking,
       takeOver,
+      smartCheckout,
     });
   }
 

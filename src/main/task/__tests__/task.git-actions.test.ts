@@ -6,6 +6,9 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CONFLICT_RESOLUTION_PROFILE } from '@common/agent';
+
+const { runConflictAgent } = vi.hoisted(() => ({ runConflictAgent: vi.fn() }));
 
 vi.mock('@/logger', () => ({
   default: {
@@ -24,6 +27,7 @@ vi.mock('fs/promises', () => ({
     stat: vi.fn().mockRejectedValue(new Error('File not found')),
     readdir: vi.fn().mockResolvedValue([]),
     rm: vi.fn().mockResolvedValue(undefined),
+    unlink: vi.fn().mockResolvedValue(undefined),
   },
   mkdir: vi.fn().mockResolvedValue(undefined),
   writeFile: vi.fn().mockResolvedValue(undefined),
@@ -37,6 +41,7 @@ vi.mock('@/utils', () => ({
   fileExists: vi.fn().mockResolvedValue(false),
   filterIgnoredFiles: vi.fn().mockResolvedValue([]),
   isDirectory: vi.fn().mockResolvedValue(true),
+  execWithShellPath: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }),
 }));
 
 vi.mock('@/constants', () => ({
@@ -62,6 +67,7 @@ vi.mock('@/constants', () => ({
 vi.mock('@/agent', () => ({
   Agent: class {
     run = vi.fn();
+    runAgent = runConflictAgent;
     dispose = vi.fn();
   },
   McpManager: class {},
@@ -123,10 +129,18 @@ vi.mock('uuid', () => ({
 
 import { Task } from '../task';
 
+import type { PromptsManager } from '@/prompts';
+
+import { execWithShellPath } from '@/utils';
+
 describe('Task - git actions', () => {
   const baseDir = '/test/project';
   const worktreePath = '/test/worktrees/task-1';
   const worktreeBranch = 'aider-desk/task/worktree-branch';
+  const mockPromptsManager = {
+    getConflictResolutionPrompt: vi.fn().mockResolvedValue('Resolve the conflict'),
+    getConflictResolutionSystemPrompt: vi.fn().mockResolvedValue('Conflict resolution'),
+  };
 
   let task: Task;
   let mockProject: any;
@@ -148,7 +162,7 @@ describe('Task - git actions', () => {
       {} as any,
       mockGitManager,
       {} as any,
-      {} as any,
+      mockPromptsManager as unknown as PromptsManager,
       { isInitialized: vi.fn(() => false) } as any,
       {} as any,
       workingMode === 'worktree'
@@ -185,7 +199,7 @@ describe('Task - git actions', () => {
       listBranches: vi.fn().mockResolvedValue([]),
       getSyncCommits: vi.fn().mockResolvedValue({ behindCount: 1, aheadCount: 2 }),
       createBranch: vi.fn().mockResolvedValue(undefined),
-      checkoutBranch: vi.fn().mockResolvedValue(undefined),
+      checkoutBranch: vi.fn().mockResolvedValue({}),
       deleteBranch: vi.fn().mockResolvedValue(undefined),
       mergeIntoCurrent: vi.fn().mockResolvedValue({ output: 'merged' }),
       rebaseOnto: vi.fn().mockResolvedValue({ output: 'rebased' }),
@@ -232,7 +246,27 @@ describe('Task - git actions', () => {
 
     it('checkoutGitBranch delegates with task repo path', async () => {
       await task.checkoutGitBranch('feature', true, false);
-      expect(mockGitManager.checkoutBranch).toHaveBeenCalledWith(baseDir, 'feature', true, false);
+      expect(mockGitManager.checkoutBranch).toHaveBeenCalledWith(baseDir, 'feature', true, false, undefined);
+    });
+
+    it('returns the Smart Checkout prompt result without reporting a Git error', async () => {
+      mockGitManager.checkoutBranch.mockResolvedValue({ requiresSmartCheckout: true });
+      const reportError = vi.spyOn(task, 'reportGitActionError');
+
+      await expect(task.checkoutGitBranch('feature')).resolves.toEqual({ requiresSmartCheckout: true });
+
+      expect(reportError).not.toHaveBeenCalled();
+    });
+
+    it('passes Smart Checkout through and logs a persistent conflict resolution action', async () => {
+      const result = { conflictedFiles: ['file.txt'], backupRef: 'backup-hash' };
+      mockGitManager.checkoutBranch.mockResolvedValue(result);
+      const addLog = vi.spyOn(task, 'addLogMessage').mockImplementation(() => {});
+
+      await expect(task.checkoutGitBranch('feature', false, false, true)).resolves.toEqual(result);
+
+      expect(mockGitManager.checkoutBranch).toHaveBeenCalledWith(baseDir, 'feature', false, false, true);
+      expect(addLog).toHaveBeenCalledWith('warning', expect.stringContaining('backup-hash'), true, undefined, [{ id: 'resolve-conflicts-with-agent' }], true);
     });
 
     it('mergeIntoCurrentBranch delegates with task repo path', async () => {
@@ -325,7 +359,7 @@ describe('Task - git actions', () => {
   describe('checkoutGitBranch takeOver guard', () => {
     it('delegates takeOver checkout for local task', async () => {
       await task.checkoutGitBranch('feature', false, true);
-      expect(mockGitManager.checkoutBranch).toHaveBeenCalledWith(baseDir, 'feature', false, true);
+      expect(mockGitManager.checkoutBranch).toHaveBeenCalledWith(baseDir, 'feature', false, true, undefined);
     });
 
     it('rejects takeOver checkout for worktree task', async () => {
@@ -393,6 +427,65 @@ describe('Task - git actions', () => {
 
       await expect(worktreeTask.sendUpdatedFilesUpdated()).resolves.toBeUndefined();
       expect(mockEventManager.sendUpdatedFilesUpdated).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('resolveConflictsWithAgent', () => {
+    beforeEach(() => {
+      runConflictAgent.mockReset().mockResolvedValue(undefined);
+      mockGitManager.getRebaseState.mockResolvedValue({ inProgress: false, hasUnmergedPaths: true, unmergedFiles: ['message.txt'] });
+      mockGitManager.listConflictedFiles = vi.fn().mockResolvedValue(['message.txt']);
+      mockGitManager.collectConflictContext = vi.fn().mockResolvedValue({
+        base: 'original',
+        ours: 'main version',
+        theirs: 'local edits',
+        current: 'conflict markers',
+      });
+    });
+
+    const prepareResolution = (target: Task) => {
+      vi.spyOn(target, 'getTaskAgentProfile').mockResolvedValue(CONFLICT_RESOLUTION_PROFILE);
+      vi.spyOn(target, 'saveTask').mockResolvedValue(target.task);
+      vi.spyOn(target, 'addLogMessage').mockImplementation(() => {});
+      return vi.spyOn(target, 'getUpdatedFiles').mockResolvedValue([{ path: 'message.txt', additions: 1, deletions: 1, hasConflicts: false }]);
+    };
+
+    it.each(['local', 'worktree'] as const)('refreshes Updated Files after staging resolved conflicts in %s mode', async (mode) => {
+      const target = mode === 'worktree' ? createTask('worktree') : task;
+      const directoryPath = mode === 'worktree' ? worktreePath : baseDir;
+      const getUpdatedFiles = prepareResolution(target);
+
+      await target.resolveConflictsWithAgent();
+
+      expect(runConflictAgent).toHaveBeenCalledOnce();
+      expect(execWithShellPath).toHaveBeenCalledWith('git add -- "message.txt"', { cwd: directoryPath });
+      expect(mockEventManager.sendUpdatedFilesUpdated).toHaveBeenCalledWith(baseDir, 'test-task-id', directoryPath, [
+        { path: 'message.txt', additions: 1, deletions: 1, hasConflicts: false },
+      ]);
+      expect(vi.mocked(execWithShellPath).mock.invocationCallOrder[0]).toBeLessThan(getUpdatedFiles.mock.invocationCallOrder[0]);
+      expect(mockEventManager.sendTaskGitStatusUpdated).toHaveBeenCalled();
+    });
+
+    it('refreshes Updated Files even when conflict resolution fails', async () => {
+      prepareResolution(task);
+      runConflictAgent.mockRejectedValueOnce(new Error('Resolution failed'));
+
+      await task.resolveConflictsWithAgent();
+
+      expect(execWithShellPath).not.toHaveBeenCalled();
+      expect(mockEventManager.sendUpdatedFilesUpdated).toHaveBeenCalledOnce();
+      expect(mockEventManager.sendTaskGitStatusUpdated).toHaveBeenCalledOnce();
+    });
+
+    it('refreshes Updated Files when conflicts disappear before resolution starts', async () => {
+      prepareResolution(task);
+      mockGitManager.listConflictedFiles.mockResolvedValue([]);
+
+      await task.resolveConflictsWithAgent();
+
+      expect(runConflictAgent).not.toHaveBeenCalled();
+      expect(mockEventManager.sendUpdatedFilesUpdated).toHaveBeenCalledOnce();
+      expect(mockEventManager.sendTaskGitStatusUpdated).toHaveBeenCalledOnce();
     });
   });
 

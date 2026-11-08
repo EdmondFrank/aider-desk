@@ -646,9 +646,12 @@ export const setupIpcHandlers = (eventsHandler: EventsHandler, serverController:
     await eventsHandler.createGitBranch(baseDir, taskId, name, startPoint, checkout);
   });
 
-  ipcMain.handle('checkout-git-branch', async (_, baseDir: string, taskId: string, branch: string, createTracking?: boolean, takeOver?: boolean) => {
-    await eventsHandler.checkoutGitBranch(baseDir, taskId, branch, createTracking, takeOver);
-  });
+  ipcMain.handle(
+    'checkout-git-branch',
+    async (_, baseDir: string, taskId: string, branch: string, createTracking?: boolean, takeOver?: boolean, smartCheckout?: boolean) => {
+      return await eventsHandler.checkoutGitBranch(baseDir, taskId, branch, createTracking, takeOver, smartCheckout);
+    },
+  );
 
   ipcMain.handle('delete-git-branch', async (_, baseDir: string, taskId: string, branch: string, force?: boolean) => {
     await eventsHandler.deleteGitBranch(baseDir, taskId, branch, force);

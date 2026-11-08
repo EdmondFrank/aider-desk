@@ -429,6 +429,7 @@ const CheckoutGitBranchSchema = z.object({
   branch: z.string().min(1, 'Branch name is required'),
   createTracking: z.boolean().optional(),
   takeOver: z.boolean().optional(),
+  smartCheckout: z.boolean().optional(),
 });
 
 const DeleteGitBranchSchema = z.object({
@@ -1325,9 +1326,9 @@ export class ProjectApi extends BaseApi {
           return;
         }
 
-        const { projectDir, taskId, branch, createTracking, takeOver } = parsed;
-        await this.eventsHandler.checkoutGitBranch(projectDir, taskId, branch, createTracking, takeOver);
-        res.status(200).json({ message: 'Branch checked out' });
+        const { projectDir, taskId, branch, createTracking, takeOver, smartCheckout } = parsed;
+        const result = await this.eventsHandler.checkoutGitBranch(projectDir, taskId, branch, createTracking, takeOver, smartCheckout);
+        res.status(200).json(result);
       }),
     );
 

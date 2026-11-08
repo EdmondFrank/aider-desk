@@ -2251,6 +2251,9 @@
     "caCertPathPlaceholder": "/path/to/ca.pem"
   },
   "git": {
+    "conflictsDescription": "In den folgenden Dateien wurden Konflikte erkannt. Löse sie manuell oder mit Unterstützung des KI-Agenten.",
+    "smartCheckout": "Intelligenter Checkout",
+    "smartCheckoutMessage": "Deine lokalen Änderungen verhindern den Wechsel zu {{branch}}. Der intelligente Checkout sichert Änderungen an versionierten und unversionierten Dateien in einem Stash, wechselt den Branch und wendet sie erneut an. Einige Änderungen sind danach möglicherweise nicht mehr vorgemerkt. Konflikte kannst du im Zielbranch lösen.",
     "askpass": {
       "passwordTitle": "Git-Authentifizierung",
       "usernameTitle": "Git-Benutzername",

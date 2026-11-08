@@ -12,6 +12,7 @@ import {
   EnvironmentVariable,
   FileEdit,
   GitSyncCommits,
+  GitCheckoutResult,
   InstalledExtension,
   ExtensionToolInfo,
   McpOAuthStatusData,
@@ -838,8 +839,15 @@ export class EventsHandler {
     await this.getTaskOrThrow(baseDir, taskId).createGitBranch(name, startPoint, checkout);
   }
 
-  async checkoutGitBranch(baseDir: string, taskId: string, branch: string, createTracking?: boolean, takeOver?: boolean): Promise<void> {
-    await this.getTaskOrThrow(baseDir, taskId).checkoutGitBranch(branch, createTracking, takeOver);
+  async checkoutGitBranch(
+    baseDir: string,
+    taskId: string,
+    branch: string,
+    createTracking?: boolean,
+    takeOver?: boolean,
+    smartCheckout?: boolean,
+  ): Promise<GitCheckoutResult> {
+    return await this.getTaskOrThrow(baseDir, taskId).checkoutGitBranch(branch, createTracking, takeOver, smartCheckout);
   }
 
   async deleteGitBranch(baseDir: string, taskId: string, branch: string, force?: boolean): Promise<void> {

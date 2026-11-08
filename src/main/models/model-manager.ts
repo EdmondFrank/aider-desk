@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
+import { resolveAiderSettings } from '@common/aider';
 import { AVAILABLE_PROVIDERS, getDefaultProviderParams, LlmProvider, LlmProviderName } from '@common/agent';
 import { ProviderDefinition, ProviderToolApprovalHandler } from '@common/extensions';
 import {
@@ -754,7 +755,12 @@ export class ModelManager {
       };
     }
 
-    return strategy.getAiderMapping(provider, modelId, this.store.getSettings(), projectDir);
+    return strategy.getAiderMapping(
+      provider,
+      modelId,
+      resolveAiderSettings(this.store.getSettings(), this.store.getProjectSettings(projectDir).aider),
+      projectDir,
+    );
   }
 
   getModelSettings(providerId: string, modelId: string, useModelInfoFallback = false): Model | undefined {

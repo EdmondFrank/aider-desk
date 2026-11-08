@@ -209,6 +209,10 @@
         "3": ".env und .aider.conf.yaml werden ebenfalls gelesen wie bei Aider"
       },
       "configureLater": "Sie können das auch später in den Einstellungen machen.",
+      "modelTitle": "Aider-Modell auswählen",
+      "modelDescription": "Wählen Sie das Hauptmodell für neue Aider-Aufgaben. Automatisch wählt ein verfügbares Modell Ihrer konfigurierten Anbieter. Sie können diese Vorgaben später unter Einstellungen → Aider ändern.",
+      "advancedSettings": "Erweiterte Einstellungen (optional)",
+      "noModels": "Es sind noch keine Modelle verfügbar. Gehen Sie zurück, um einen Anbieter zu verbinden, oder fahren Sie mit Automatisch fort und konfigurieren Sie später einen Anbieter in den Einstellungen.",
       "fineTuneTitle": "Aider feinjustieren (optional)",
       "fineTuneDescription": "Fortgeschrittene Benutzer können zusätzliche Aider-Einstellungen und Umgebungsvariablen konfigurieren. Dieser Schritt ist vollständig optional und kann sicher übersprungen werden.",
       "fineTuneNote": "Hinweis: Diese Einstellungen sind für fortgeschrittene Benutzer, die das Verhalten von Aider anpassen möchten. Die meisten Benutzer können diesen Schritt überspringen und diese später in den Einstellungen konfigurieren.",
@@ -1010,7 +1014,16 @@
       "envVarsDocumentation": "Die Dokumentation für Umgebungsvariablen finden Sie unter",
       "context": "Kontext",
       "addRuleFiles": "Regeldateien aus dem Verzeichnis <file>.aider-desk/rules</file> des Projekts als Nur-Lesen-Dateien hinzufügen.",
-      "confirmBeforeEdit": "Vor dem Bearbeiten von Dateien bestätigen"
+      "confirmBeforeEdit": "Vor dem Bearbeiten von Dateien bestätigen",
+      "models": "Modelle",
+      "auto": "Automatisch",
+      "inherited": "Geerbt",
+      "automaticModel": "Automatisch",
+      "inheritMainModel": "Vom Hauptmodell erben",
+      "globalSettings": "Global",
+      "additionalOptions": "Zusätzliche Aider-Optionen",
+      "addRuleFilesLabel": "Projektregeldateien einbeziehen",
+      "projectEnvironmentHint": "Projektschlüssel überschreiben entsprechende globale Umgebungsvariablen. Andere globale Schlüssel bleiben verfügbar."
     },
     "common": {
       "showSecrets": "Geheimnisse anzeigen",

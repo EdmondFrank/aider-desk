@@ -448,13 +448,11 @@ export class Store {
       this.setOpenProjects(projects);
       logger.info(`Project settings saved for baseDir: ${baseDir}`, {
         baseDir,
-        settings,
       });
       return settings;
     } else {
       logger.warn(`No project found for baseDir: ${baseDir}`, {
         baseDir,
-        settings,
       });
 
       return settings;

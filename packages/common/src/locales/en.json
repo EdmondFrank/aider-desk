@@ -209,6 +209,10 @@
         "3": ".env and .aider.conf.yaml are also read as they would with Aider"
       },
       "configureLater": "You can also do that later in the Settings.",
+      "modelTitle": "Choose your Aider model",
+      "modelDescription": "Choose the main model to use by default for new Aider tasks. Automatic picks an available model from your configured providers. You can change these defaults later in Settings → Aider.",
+      "advancedSettings": "Advanced settings (optional)",
+      "noModels": "No models are available yet. Go back to connect a provider, or continue with Automatic and configure a provider later in Settings.",
       "fineTuneTitle": "Fine-Tune Aider (Optional)",
       "fineTuneDescription": "Advanced users can configure additional Aider settings and environment variables. This step is completely optional and can be safely skipped.",
       "fineTuneNote": "Note: These settings are for advanced users who want to customize Aider's behavior. Most users can skip this step and configure these later in Settings if needed.",
@@ -1014,11 +1018,23 @@
       "envVarsDocumentation": "Check the documentation for environment variables at",
       "context": "Context",
       "addRuleFiles": "Add rule files from project's <file>.aider-desk/rules</file> directory as read-only files.",
-      "confirmBeforeEdit": "Confirm before editing files"
+      "confirmBeforeEdit": "Confirm before editing files",
+      "models": "Models",
+      "auto": "Auto",
+      "inherited": "Inherited",
+      "automaticModel": "Automatic",
+      "inheritMainModel": "Inherit from Main",
+      "globalSettings": "Global",
+      "additionalOptions": "Additional Aider options",
+      "addRuleFilesLabel": "Include project rule files",
+      "projectEnvironmentHint": "Project keys override matching global environment variables. Other global keys remain available."
     },
     "common": {
       "showSecrets": "Show Secrets",
-      "learnMore": "Learn more"
+      "learnMore": "Learn more",
+      "scopeGlobal": "Global",
+      "previousContext": "Previous context",
+      "nextContext": "Next context"
     },
     "notificationsEnabled": "Notifications enabled",
     "zoom": "Zoom level",

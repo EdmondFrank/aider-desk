@@ -186,6 +186,7 @@ describe('Project - createNewTask', () => {
       sendTaskDeleted: vi.fn(),
     };
     mockModelManager = {
+      getProviders: vi.fn(() => []),
       getProviderModels: vi.fn(() => Promise.resolve({ models: [] })),
       getAiderModelMapping: vi.fn(() => ({
         modelName: 'default-model',

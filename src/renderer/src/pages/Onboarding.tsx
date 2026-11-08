@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { isEqual } from 'lodash';
 import { DEFAULT_AGENT_PROFILE, DEFAULT_PROVIDER_MODELS } from '@common/agent';
 import { SettingsData } from '@common/types';
+import { findDefaultAiderModel } from '@common/aider';
 
 import { useSaveSettings, useSettingsStore } from '@/stores/settingsStore';
 import { useAgents } from '@/contexts/AgentsContext';
@@ -265,11 +266,14 @@ export const Onboarding = () => {
         if (selectedPath === 'aider') {
           return (
             <div className="space-y-6">
-              <h2 className="text-xl font-bold text-text-primary uppercase !mb-4">{t('onboarding.aider.fineTuneTitle')}</h2>
-              <div className="p-3 bg-info-subtle rounded-lg border border-info-light-emphasis">
-                <p className="text-xs text-info-lightest">{t('onboarding.aider.fineTuneNote')}</p>
-              </div>
-              <AiderSettings settings={localSettings!} setSettings={setLocalSettings} initialShowEnvVars={true} />
+              <h2 className="text-xl font-bold text-text-primary uppercase !mb-4">{t('onboarding.aider.modelTitle')}</h2>
+              <p className="text-text-tertiary text-sm">{t('onboarding.aider.modelDescription')}</p>
+              {!findDefaultAiderModel(providers, models) && (
+                <div className="p-3 bg-info-subtle rounded-lg border border-info-light-emphasis">
+                  <p className="text-xs text-info-lightest">{t('onboarding.aider.noModels')}</p>
+                </div>
+              )}
+              <AiderSettings settings={localSettings!} setSettings={setLocalSettings} onboarding />
               <div className="p-3 bg-info-subtle rounded-lg border border-info-light-emphasis">
                 <p className="text-xs text-info-lightest">{t('onboarding.aider.agentSwitchNote')}</p>
               </div>

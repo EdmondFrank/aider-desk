@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 
+import { resolveAiderSettings } from '@common/aider';
 import {
   AgentProfile,
   BranchInfo,
@@ -32,7 +33,7 @@ import { PromptsManager } from '@/prompts';
 import { ExtensionManager } from '@/extensions/extension-manager';
 import { AIDER_DESK_TASKS_DIR, AIDER_DESK_WATCH_FILES_LOCK } from '@/constants';
 import { PythonDependenciesInstaller } from '@/python-dependencies-installer';
-import { determineMainModel, determineWeakModel } from '@/utils';
+import { determineMainModel } from '@/utils';
 import { FileWatcherManager } from '@/file-watcher-manager';
 
 export class Project {
@@ -153,12 +154,22 @@ export class Project {
         ...normalizedParams,
       };
     } else {
-      const providerModels = await this.modelManager.getProviderModels();
       initialTaskData = {
-        mainModel: determineMainModel(this.store.getSettings(), this.modelManager.getProviders(), providerModels.models || [], this.baseDir),
-        weakModel: determineWeakModel(this.baseDir),
         currentMode: defaultProjectMode,
         workingMode: defaultWorkingMode,
+        ...normalizedParams,
+      };
+    }
+
+    if (!parentTask) {
+      const settings = resolveAiderSettings(this.store.getSettings(), this.store.getProjectSettings(this.baseDir).aider);
+      const providerModels = await this.modelManager.getProviderModels();
+      initialTaskData = {
+        ...initialTaskData,
+        mainModel: determineMainModel(settings, this.modelManager.getProviders(), providerModels.models || [], this.baseDir),
+        weakModel: settings.aider.weakModel ?? null,
+        weakModelLocked: Boolean(settings.aider.weakModel),
+        architectModel: settings.aider.architectModel ?? null,
         ...normalizedParams,
       };
     }

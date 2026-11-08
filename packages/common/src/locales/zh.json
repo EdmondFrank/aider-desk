@@ -209,6 +209,10 @@
         "3": ".env 和 .aider.conf.yaml 文件也会像使用 Aider 一样被读取"
       },
       "configureLater": "您也可以稍后在设置中进行配置。",
+      "modelTitle": "选择 Aider 模型",
+      "modelDescription": "选择新 Aider 任务默认使用的主模型。“自动”会从已配置的提供商中选择可用模型。您可以稍后在设置 → Aider 中更改这些默认值。",
+      "advancedSettings": "高级设置（可选）",
+      "noModels": "暂无可用模型。请返回上一步连接提供商，或使用“自动”继续，稍后在设置中配置提供商。",
       "fineTuneTitle": "微调 Aider（可选）",
       "fineTuneDescription": "高级用户可以配置额外的 Aider 设置和环境变量。此步骤完全可选，可以安全跳过。",
       "fineTuneNote": "注意：这些设置适用于想要自定义 Aider 行为的高级用户。大多数用户可以跳过此步骤，如需要可稍后在设置中配置。",
@@ -1011,11 +1015,23 @@
       "optionsDocumentation": "查看文档了解可用选项：https://aider.chat/docs/faq.html#how-can-i-pass-command-line-options-to-aider",
       "envVarsDocumentation": "查看文档了解环境变量：https://aider.chat/docs/llms.html",
       "addRuleFiles": "将项目中的 `.aider-desk/rules` 目录下的规则文件添加为只读文件。",
-      "confirmBeforeEdit": "编辑文件前确认"
+      "confirmBeforeEdit": "编辑文件前确认",
+      "models": "模型",
+      "auto": "自动",
+      "inherited": "继承",
+      "automaticModel": "自动选择",
+      "inheritMainModel": "继承主模型",
+      "globalSettings": "全局",
+      "additionalOptions": "附加 Aider 选项",
+      "addRuleFilesLabel": "包含项目规则文件",
+      "projectEnvironmentHint": "项目中的键会覆盖同名全局环境变量，其他全局键仍然可用。"
     },
     "common": {
       "showSecrets": "显示密钥",
-      "learnMore": "了解更多"
+      "learnMore": "了解更多",
+      "scopeGlobal": "全局",
+      "previousContext": "上一个上下文",
+      "nextContext": "下一个上下文"
     },
     "notificationsEnabled": "通知已启用",
     "zoom": "缩放级别",

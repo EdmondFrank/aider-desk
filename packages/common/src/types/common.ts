@@ -433,7 +433,23 @@ export interface WindowState {
   isMaximized: boolean;
 }
 
+export const AiderSettingsSchema = z.object({
+  options: z.string(),
+  environmentVariables: z.string(),
+  addRuleFiles: z.boolean(),
+  autoCommits: z.boolean(),
+  cachingEnabled: z.boolean(),
+  watchFiles: z.boolean(),
+  confirmBeforeEdit: z.boolean(),
+  mainModel: z.string().nullable().optional(),
+  weakModel: z.string().nullable().optional(),
+  architectModel: z.string().nullable().optional(),
+});
+
+export type AiderSettingsData = z.infer<typeof AiderSettingsSchema>;
+
 export const ProjectSettingsSchema = z.object({
+  aider: AiderSettingsSchema.partial().optional(),
   // @deprecated: These properties are deprecated in favor of task-level settings
   // They are kept for backward compatibility and as defaults for new tasks
   mainModel: z.string(),
@@ -812,15 +828,7 @@ export interface SettingsData {
   diffViewMode?: DiffViewMode;
   messageViewMode?: MessageViewMode;
   showMessageMap?: boolean;
-  aider: {
-    options: string;
-    environmentVariables: string;
-    addRuleFiles: boolean;
-    autoCommits: boolean;
-    cachingEnabled: boolean;
-    watchFiles: boolean;
-    confirmBeforeEdit: boolean;
-  };
+  aider: AiderSettingsData;
   preferredModels: string[];
 
   llmProviders: {

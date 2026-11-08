@@ -209,6 +209,10 @@
         "3": ".env e .aider.conf.yaml vengono letti anche come avviene con Aider"
       },
       "configureLater": "Puoi anche farlo in seguito nelle Impostazioni.",
+      "modelTitle": "Scegli il tuo modello Aider",
+      "modelDescription": "Scegli il modello principale predefinito per le nuove attività Aider. Automatico seleziona un modello disponibile dai provider configurati. Puoi modificare questi valori in seguito in Impostazioni → Aider.",
+      "advancedSettings": "Impostazioni avanzate (opzionali)",
+      "noModels": "Non ci sono ancora modelli disponibili. Torna indietro per collegare un provider oppure continua con Automatico e configura un provider in seguito nelle Impostazioni.",
       "fineTuneTitle": "Ottimizza Aider (Opzionale)",
       "fineTuneDescription": "Gli utenti avanzati possono configurare impostazioni aggiuntive di Aider e variabili d'ambiente. Questo passaggio è completamente opzionale e può essere saltato senza problemi.",
       "fineTuneNote": "Nota: Queste impostazioni sono per utenti avanzati che desiderano personalizzare il comportamento di Aider. La maggior parte degli utenti può saltare questo passaggio e configurare queste opzioni in seguito nelle Impostazioni, se necessario.",
@@ -1014,7 +1018,16 @@
       "envVarsDocumentation": "Consulta la documentazione per le variabili d'ambiente su",
       "context": "Contesto",
       "addRuleFiles": "Aggiungi file di regola dalla directory <file>.aider-desk/rules</file> del progetto come file di sola lettura.",
-      "confirmBeforeEdit": "Conferma prima di modificare i file"
+      "confirmBeforeEdit": "Conferma prima di modificare i file",
+      "models": "Modelli",
+      "auto": "Auto",
+      "inherited": "Ereditato",
+      "automaticModel": "Automatico",
+      "inheritMainModel": "Eredita dal modello principale",
+      "globalSettings": "Globale",
+      "additionalOptions": "Opzioni Aider aggiuntive",
+      "addRuleFilesLabel": "Includi i file delle regole del progetto",
+      "projectEnvironmentHint": "Le chiavi del progetto sostituiscono le variabili di ambiente globali corrispondenti. Le altre chiavi globali restano disponibili."
     },
     "common": {
       "showSecrets": "Mostra i segreti",

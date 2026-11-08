@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { homedir } from 'os';
 
+import { resolveAiderSettings } from '@common/aider';
 import {
   AgentProfile,
   AIDER_COMMANDS,
@@ -752,7 +753,8 @@ export class Task {
       });
     }
     if (connector.listenTo.includes('update-env-vars')) {
-      const environmentVariables = getEnvironmentVariablesForAider(this.store.getSettings(), this.project.baseDir);
+      const settings = resolveAiderSettings(this.store.getSettings(), this.store.getProjectSettings(this.project.baseDir).aider);
+      const environmentVariables = getEnvironmentVariablesForAider(settings, this.project.baseDir);
       this.sendUpdateEnvVars(environmentVariables);
     }
     if (connector.listenTo.includes('request-context-info')) {
@@ -4027,17 +4029,31 @@ export class Task {
       return;
     }
 
-    // Check for changes in Aider
+    const projectSettings = this.store.getProjectSettings(this.project.baseDir);
+    await this.aiderSettingsChanged(resolveAiderSettings(oldSettings, projectSettings.aider), resolveAiderSettings(newSettings, projectSettings.aider));
+  }
+
+  private async aiderSettingsChanged(oldSettings: SettingsData, newSettings: SettingsData) {
+    if (!this.initialized) {
+      return;
+    }
     const aiderEnvVarsChanged = oldSettings.aider.environmentVariables !== newSettings.aider.environmentVariables;
     const aiderOptionsChanged = oldSettings.aider.options !== newSettings?.aider.options;
     const aiderAutoCommitsChanged = oldSettings.aider.autoCommits !== newSettings?.aider.autoCommits;
     const aiderWatchFilesChanged = oldSettings.aider.watchFiles !== newSettings?.aider.watchFiles;
     const aiderCachingEnabledChanged = oldSettings.aider.cachingEnabled !== newSettings?.aider.cachingEnabled;
     const aiderConfirmBeforeEditChanged = oldSettings.aider.confirmBeforeEdit !== newSettings?.aider.confirmBeforeEdit;
+    const aiderRulesChanged = oldSettings.aider.addRuleFiles !== newSettings.aider.addRuleFiles;
     const proxyChanged = oldSettings.proxy?.enabled !== newSettings.proxy?.enabled || oldSettings.proxy?.url !== newSettings.proxy?.url;
 
     if (
-      (aiderOptionsChanged || aiderAutoCommitsChanged || aiderWatchFilesChanged || aiderCachingEnabledChanged || aiderConfirmBeforeEditChanged) &&
+      (aiderOptionsChanged ||
+        aiderEnvVarsChanged ||
+        aiderAutoCommitsChanged ||
+        aiderWatchFilesChanged ||
+        aiderCachingEnabledChanged ||
+        aiderConfirmBeforeEditChanged ||
+        aiderRulesChanged) &&
       (await this.shouldStartAider())
     ) {
       logger.debug('Aider options changed, restarting Aider.');
@@ -4057,6 +4073,8 @@ export class Task {
   }
 
   async projectSettingsChanged(oldSettings: ProjectSettings, newSettings: ProjectSettings) {
+    const globalSettings = this.store.getSettings();
+    await this.aiderSettingsChanged(resolveAiderSettings(globalSettings, oldSettings.aider), resolveAiderSettings(globalSettings, newSettings.aider));
     const modeChanged = oldSettings.currentMode !== newSettings.currentMode;
     const agentProfileIdChanged = oldSettings.agentProfileId !== newSettings.agentProfileId;
     const disabledRulesChanged = JSON.stringify(oldSettings.disabledRuleFiles) !== JSON.stringify(newSettings.disabledRuleFiles);

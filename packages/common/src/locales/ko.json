@@ -209,6 +209,10 @@
         "3": "Aider와 마찬가지로 .env 및 .aider.conf.yaml 파일도 읽습니다"
       },
       "configureLater": "이 작업은 나중에 설정에서도 할 수 있습니다.",
+      "modelTitle": "Aider 모델 선택",
+      "modelDescription": "새 Aider 작업에서 기본으로 사용할 메인 모델을 선택하세요. 자동은 구성된 공급자의 사용 가능한 모델을 선택합니다. 나중에 설정 → Aider에서 기본값을 변경할 수 있습니다.",
+      "advancedSettings": "고급 설정 (선택 사항)",
+      "noModels": "아직 사용 가능한 모델이 없습니다. 이전 단계로 돌아가 공급자를 연결하거나, 자동으로 계속한 뒤 나중에 설정에서 공급자를 구성하세요.",
       "fineTuneTitle": "Aider 세부 조정 (선택 사항)",
       "fineTuneDescription": "고급 사용자는 추가 Aider 설정과 환경 변수를 구성할 수 있습니다. 이 단계는 완전히 선택 사항이며 건너뛰어도 안전합니다.",
       "fineTuneNote": "참고: 이 설정은 Aider의 동작을 사용자 지정하려는 고급 사용자를 위한 것입니다. 대부분의 사용자는 이 단계를 건너뛰고 필요할 때 설정에서 나중에 구성해도 됩니다.",
@@ -1013,11 +1017,23 @@
       "envVarsDocumentation": "환경 변수는 다음 문서를 확인하세요",
       "context": "컨텍스트",
       "addRuleFiles": "프로젝트의 <file>.aider-desk/rules</file> 디렉터리에 있는 규칙 파일을 읽기 전용 파일로 추가합니다.",
-      "confirmBeforeEdit": "파일 편집 전 확인"
+      "confirmBeforeEdit": "파일 편집 전 확인",
+      "models": "모델",
+      "auto": "자동",
+      "inherited": "상속됨",
+      "automaticModel": "자동 선택",
+      "inheritMainModel": "기본 모델에서 상속",
+      "globalSettings": "전역",
+      "additionalOptions": "추가 Aider 옵션",
+      "addRuleFilesLabel": "프로젝트 규칙 파일 포함",
+      "projectEnvironmentHint": "프로젝트 키는 일치하는 전역 환경 변수를 재정의합니다. 다른 전역 키는 계속 사용할 수 있습니다."
     },
     "common": {
       "showSecrets": "비밀 값 표시",
-      "learnMore": "더 알아보기"
+      "learnMore": "더 알아보기",
+      "scopeGlobal": "전역",
+      "previousContext": "이전 컨텍스트",
+      "nextContext": "다음 컨텍스트"
     },
     "notificationsEnabled": "알림 사용",
     "zoom": "확대/축소 수준",

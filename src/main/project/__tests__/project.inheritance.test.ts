@@ -6,6 +6,7 @@ import { TaskData, Worktree } from '@common/types';
 import { Project } from '../project';
 
 import { INTERNAL_TASK_ID, Task } from '@/task';
+import { determineMainModel } from '@/utils';
 
 // Mock dependencies
 vi.mock('@/logger');
@@ -54,6 +55,7 @@ describe('Project Inheritance', () => {
     };
 
     mockModelManager = {
+      getProviders: vi.fn(() => []),
       getProviderModels: vi.fn().mockResolvedValue({ models: [] }),
     };
 
@@ -223,5 +225,20 @@ describe('Project Inheritance', () => {
     const newTask = await project.createNewTask({ parentId: 'subtask-id' });
 
     expect(newTask.parentId).toBe('subtask-id');
+  });
+
+  it('applies project model defaults to new top-level tasks', async () => {
+    mockStore.getSettings.mockReturnValue({
+      taskSettings: {},
+      aider: { options: '', mainModel: 'global/main', weakModel: 'global/weak', architectModel: 'global/architect' },
+    });
+    mockStore.getProjectSettings.mockReturnValue({ aider: { mainModel: 'project/main', weakModel: null } });
+    vi.mocked(determineMainModel).mockImplementationOnce((settings) => settings.aider.mainModel!);
+
+    const task = await project.createNewTask();
+    expect(task.mainModel).toBe('project/main');
+    expect(task.weakModel).toBeNull();
+    expect(task.architectModel).toBe('global/architect');
+    expect(task.weakModelLocked).toBe(false);
   });
 });

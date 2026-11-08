@@ -35,7 +35,7 @@
         "tools",
         "ui"
       ],
-      "installCount": 46
+      "installCount": 47
     },
     {
       "id": "wakatime",
@@ -139,7 +139,7 @@
       "capabilities": [
         "optimization"
       ],
-      "installCount": 56
+      "installCount": 57
     },
     {
       "id": "external-rules",
@@ -163,7 +163,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 81
+      "installCount": 82
     },
     {
       "id": "learn",
@@ -176,7 +176,7 @@
         "commands",
         "tools"
       ],
-      "installCount": 109
+      "installCount": 110
     },
     {
       "id": "legacy-system-prompt",
@@ -233,7 +233,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 35
+      "installCount": 36
     },
     {
       "id": "redact-secrets",
@@ -282,7 +282,7 @@
         "context",
         "commands"
       ],
-      "installCount": 88
+      "installCount": 89
     },
     {
       "id": "context-autocompletion-words",
@@ -307,7 +307,7 @@
         "tools",
         "code-intelligence"
       ],
-      "installCount": 97
+      "installCount": 98
     },
     {
       "id": "plannotator",
@@ -346,7 +346,7 @@
         "ui",
         "example"
       ],
-      "installCount": 21
+      "installCount": 22
     },
     {
       "id": "multi-model-run",
@@ -359,7 +359,7 @@
         "ui",
         "workflows"
       ],
-      "installCount": 18
+      "installCount": 19
     },
     {
       "id": "providers-quota-extension",
@@ -400,7 +400,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 45
+      "installCount": 46
     },
     {
       "id": "searxng-search",
@@ -430,7 +430,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 20
+      "installCount": 21
     },
     {
       "id": "tps-counter",
@@ -442,7 +442,7 @@
       "capabilities": [
         "metrics"
       ],
-      "installCount": 118
+      "installCount": 119
     },
     {
       "id": "verifier",
@@ -455,7 +455,7 @@
         "workflows",
         "ui"
       ],
-      "installCount": 66
+      "installCount": 67
     },
     {
       "id": "bmad",
@@ -557,7 +557,7 @@
         "tools",
         "search"
       ],
-      "installCount": 92
+      "installCount": 93
     },
     {
       "id": "kanban",
@@ -594,7 +594,7 @@
         "agents",
         "example"
       ],
-      "installCount": 75
+      "installCount": 76
     },
     {
       "id": "wigolo",
@@ -607,7 +607,7 @@
         "tools",
         "search"
       ],
-      "installCount": 75
+      "installCount": 76
     },
     {
       "id": "destructive-command-guard",
@@ -644,7 +644,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 177
+      "installCount": 178
     },
     {
       "id": "task-scheduler",
@@ -670,7 +670,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 154
+      "installCount": 155
     },
     {
       "id": "dbx",
@@ -695,7 +695,7 @@
         "ui",
         "commands"
       ],
-      "installCount": 20
+      "installCount": 22
     }
   ]
 }

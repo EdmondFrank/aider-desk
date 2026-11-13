@@ -1,11 +1,21 @@
 import * as os from 'os';
 
-import * as pty from '@homebridge/node-pty-prebuilt-multiarch';
 import { v4 as uuidv4 } from 'uuid';
+
+import type * as pty from '@homebridge/node-pty-prebuilt-multiarch';
 
 import logger from '@/logger';
 import { TelemetryManager } from '@/telemetry';
 import { EventManager } from '@/events';
+
+type PtyModule = typeof import('@homebridge/node-pty-prebuilt-multiarch');
+
+let ptyModulePromise: Promise<PtyModule> | null = null;
+
+const loadPty = (): Promise<PtyModule> => {
+  ptyModulePromise ??= import('@homebridge/node-pty-prebuilt-multiarch');
+  return ptyModulePromise;
+};
 
 const MAX_OUTPUT_BUFFER_LENGTH = 100_000;
 
@@ -63,6 +73,7 @@ export class TerminalManager {
 
       logger.info('Creating terminal:', { terminalId, baseDir, cwd, shell, args, cols, rows });
 
+      const pty = await loadPty();
       const ptyProcess = pty.spawn(shell, args, {
         name: 'xterm-color',
         cols,

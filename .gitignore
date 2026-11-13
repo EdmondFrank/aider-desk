@@ -19,6 +19,7 @@ tsconfig.*.tsbuildinfo
 # uv binaries
 resources/*/uv*
 resources/*/probe*
+resources/probe-*
 
 dev-app-update.yml
 
@@ -42,3 +43,6 @@ e2e/.playwright
 
 # Benchmarks
 benchmarks
+
+# Lite fork: Bun's lockfile is generated locally by `npm run install:lite`
+bun.lock

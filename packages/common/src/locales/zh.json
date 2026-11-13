@@ -1411,6 +1411,8 @@
     "submitAllRequests": "请求更改",
     "submittingRequests": "提交中...",
     "collapseComments": "收起面板",
+    "toggleFileList": "切换文件列表",
+    "closeFileList": "关闭文件列表",
     "expandComments": "展开面板",
     "empty": {
       "title": "没有上下文文件",

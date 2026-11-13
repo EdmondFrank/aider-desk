@@ -1475,6 +1475,8 @@
     "submitAllRequests": "변경 요청",
     "submittingRequests": "제출하는 중...",
     "collapseComments": "패널 접기",
+    "toggleFileList": "파일 목록 전환",
+    "closeFileList": "파일 목록 닫기",
     "expandComments": "패널 펼치기",
     "empty": {
       "title": "컨텍스트 파일 없음",

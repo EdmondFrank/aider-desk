@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- added a collapsible file list to the updated-files diff dialog, opening it as a drawer on mobile and rendering diffs unified on small screens so the code keeps the full width
+
 ## [0.91.0]
 
 - fixed OS command injection via commit messages and file paths in git operations

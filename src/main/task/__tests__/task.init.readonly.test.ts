@@ -49,6 +49,8 @@ vi.mock('@/constants', () => ({
   WORKTREE_BRANCH_PREFIX: 'aider-desk/task/',
   AIDER_DESK_MEMORY_FILE: '/data/memory.db',
   LOGS_DIR: '/logs',
+  // Mirrors `isLiteFork()` in src/main/constants.ts.
+  isLiteFork: () => false,
 }));
 
 vi.mock('@/agent', () => ({

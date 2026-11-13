@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
+  AIDER_MODES,
   ContextCompactionType,
   DiffViewMode,
   FileWatchMode,
@@ -12,6 +13,7 @@ import {
   SettingsData,
   SuggestionMode,
   WindowState,
+  Mode,
 } from '@common/types';
 import { AIDER_DESK_EXTENSIONS_REPO_URL } from '@common/extensions';
 import { normalizeBaseDir } from '@common/utils';
@@ -31,6 +33,7 @@ import { migrateV11ToV12 } from './migrations/v11-to-v12';
 import { migrateV12ToV13 } from './migrations/v12-to-v13';
 
 import { getDefaultProjectSettings } from '@/utils';
+import { isLiteFork } from '@/constants';
 import logger from '@/logger';
 import { migrateProvidersV13toV14 } from '@/store/migrations/v13-to-v14';
 import { migrateSettingsV14toV15 } from '@/store/migrations/v14-to-v15';
@@ -41,6 +44,11 @@ import { migrateSettingsV18toV19 } from '@/store/migrations/v18-to-v19';
 import { migrateSettingsV19toV20 } from '@/store/migrations/v19-to-v20';
 import { migrateProvidersV20toV21 } from '@/store/migrations/v20-to-v21';
 import { migrateSettingsV21toV22 } from '@/store/migrations/v21-to-v22';
+
+// The lite fork has no Python/Aider connector (see docs/lite-fork.md), so modes that point at Aider
+// are mapped to `agent` when they are read. The stored settings are left untouched: if the same data
+// directory is later opened with the full build, the user's own mode choice is still there.
+const toLiteMode = (mode: Mode | 'last' | undefined): Mode | 'last' | undefined => (mode && AIDER_MODES.includes(mode as Mode) ? 'agent' : mode);
 
 export const DEFAULT_SETTINGS: SettingsData = {
   language: 'en',
@@ -181,7 +189,17 @@ export class Store {
       this.cachedSettings = this.loadSettings();
     }
 
-    return structuredClone(this.cachedSettings);
+    const settings = structuredClone(this.cachedSettings);
+
+    if (isLiteFork() && settings.taskSettings) {
+      settings.taskSettings = {
+        ...settings.taskSettings,
+        defaultTaskMode: toLiteMode(settings.taskSettings.defaultTaskMode),
+        defaultProjectMode: toLiteMode(settings.taskSettings.defaultProjectMode),
+      };
+    }
+
+    return settings;
   }
 
   private loadSettings(): SettingsData {
@@ -433,7 +451,14 @@ export class Store {
   getProjectSettings(baseDir: string): ProjectSettings {
     const projects = this.getOpenProjects();
     const project = projects.find((p) => compareBaseDirs(p.baseDir, baseDir));
-    return project?.settings || getDefaultProjectSettings(this, [], baseDir);
+    const settings = project?.settings || getDefaultProjectSettings(this, [], baseDir);
+
+    if (!isLiteFork()) {
+      return settings;
+    }
+
+    // Read-time fallback only (never persisted): see toLiteMode.
+    return { ...settings, currentMode: AIDER_MODES.includes(settings.currentMode as Mode) ? 'agent' : settings.currentMode };
   }
 
   saveProjectSettings(baseDir: string, settings: ProjectSettings): ProjectSettings {

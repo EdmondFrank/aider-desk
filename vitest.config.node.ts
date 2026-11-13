@@ -16,7 +16,7 @@ export default defineConfig({
       'packages/common/src/**/__tests__/**/*.{test,spec}.{ts,tsx}',
     ],
     exclude: ['node_modules', 'dist', 'out'],
-    setupFiles: ['./src/main/__tests__/setup.ts'],
+    setupFiles: ['./src/main/__tests__/setup.ts', './scripts/zlib-zstd-shim.cjs'],
   },
   resolve: {
     alias: {

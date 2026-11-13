@@ -19,6 +19,7 @@ import { AgentSettings } from '@/components/settings/agent/AgentSettings';
 import { Button } from '@/components/common/Button';
 import { OnboardingStepper } from '@/components/onboarding/OnboardingStepper';
 import { ROUTES } from '@/utils/routes';
+import { isLiteFork } from '@/utils/lite-fork';
 import { showErrorNotification, showInfoNotification } from '@/utils/notifications';
 
 export const Onboarding = () => {
@@ -30,7 +31,8 @@ export const Onboarding = () => {
   const { providers, models } = useModelProviders();
   const [localSettings, setLocalSettings] = useState<SettingsData | null>(originalSettings);
   const [agentProfiles, setAgentProfiles] = useState(originalAgentProfiles);
-  const [selectedPath, setSelectedPath] = useState<OnboardingPath | null>(null);
+  // The lite fork only supports the agent path, so it is pre-selected.
+  const [selectedPath, setSelectedPath] = useState<OnboardingPath | null>(isLiteFork() ? 'agent' : null);
   const [step, setStep] = useState(1);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);

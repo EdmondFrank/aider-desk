@@ -1475,6 +1475,8 @@
     "submitAllRequests": "Запросить изменения",
     "submittingRequests": "Отправка...",
     "collapseComments": "Свернуть панель",
+    "toggleFileList": "Показать или скрыть список файлов",
+    "closeFileList": "Закрыть список файлов",
     "expandComments": "Развернуть панель",
     "empty": {
       "title": "Нет файлов контекста",

@@ -1471,6 +1471,8 @@
     "submitAllRequests": "Änderungen anfordern",
     "submittingRequests": "Wird übermittelt...",
     "collapseComments": "Panel einklappen",
+    "toggleFileList": "Dateiliste umschalten",
+    "closeFileList": "Dateiliste schließen",
     "expandComments": "Panel ausklappen",
     "empty": {
       "title": "Keine Kontextdateien",

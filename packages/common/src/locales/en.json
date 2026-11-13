@@ -1478,6 +1478,8 @@
     "submitAllRequests": "Request Changes",
     "submittingRequests": "Submitting...",
     "collapseComments": "Collapse panel",
+    "toggleFileList": "Toggle file list",
+    "closeFileList": "Close file list",
     "expandComments": "Expand panel",
     "empty": {
       "title": "No Context Files",

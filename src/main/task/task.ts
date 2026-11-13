@@ -102,6 +102,7 @@ import {
   AIDER_DESK_TMP_DIR,
   AIDER_DESK_TODOS_FILE,
   WORKTREE_BRANCH_PREFIX,
+  isLiteFork,
 } from '@/constants';
 import { Agent, AgentProfileManager, McpConfigManager, McpManager } from '@/agent';
 import { DurabilityManager } from '@/agent/durability/durability-manager';
@@ -146,6 +147,10 @@ export const EMPTY_TASK_DATA: TaskData = {
   parentId: null,
   lastAgentProviderMetadata: undefined,
 };
+
+// Module-level on purpose: the lite build explains the missing Python/Aider connector once per project,
+// not once per task, so opening a second task in the same project does not repeat the notice.
+const aiderUnavailableNotifiedProjects = new Set<string>();
 
 const getTaskFinishedNotificationText = (task: TaskData) => {
   return `📋 ${task.name}${
@@ -3502,12 +3507,43 @@ export class Task {
   }
 
   private getCurrentMode() {
-    return this.task.currentMode || this.store.getProjectSettings(this.project.baseDir).currentMode || 'agent';
+    const mode = this.task.currentMode || this.store.getProjectSettings(this.project.baseDir).currentMode || 'agent';
+
+    // Read-time only, like the store's settings mapping: a task persisted in an aider mode by the full
+    // build is treated as `agent` here, so nothing is rewritten when the data dir is shared.
+    return isLiteFork() && AIDER_MODES.includes(mode) ? 'agent' : mode;
   }
 
   private async shouldStartAider(): Promise<boolean> {
     const agentProfile = await this.getTaskAgentProfile();
-    return AIDER_MODES.includes(this.getCurrentMode()) || (agentProfile?.useAiderTools ?? false) || (agentProfile?.includeRepoMap ?? false);
+    const aiderRequested = AIDER_MODES.includes(this.getCurrentMode()) || (agentProfile?.useAiderTools ?? false) || (agentProfile?.includeRepoMap ?? false);
+
+    if (aiderRequested && isLiteFork()) {
+      // The lite build has no Python/Aider connector: never try to spawn it, and tell the user once why.
+      if (aiderUnavailableNotifiedProjects.has(this.project.baseDir)) {
+        logger.debug('Lite build: Aider (Python connector) unavailable, skipping Aider start', {
+          baseDir: this.project.baseDir,
+          taskId: this.taskId,
+          mode: this.getCurrentMode(),
+          agentProfileId: agentProfile?.id,
+        });
+      } else {
+        aiderUnavailableNotifiedProjects.add(this.project.baseDir);
+        logger.warn('Lite build: Aider (Python connector) is unavailable, skipping Aider start', {
+          baseDir: this.project.baseDir,
+          taskId: this.taskId,
+          mode: this.getCurrentMode(),
+          agentProfileId: agentProfile?.id,
+        });
+        this.addLogMessage(
+          'warning',
+          'Aider (Python connector) is not available in the lite build, so this task runs in agent mode. Switch to agent mode, or disable "Aider tools"/"Repo map" in the agent profile.',
+        );
+      }
+      return false;
+    }
+
+    return aiderRequested;
   }
 
   private async reloadConnectorMessages() {
@@ -4406,6 +4442,15 @@ ${error.stderr}`,
   }
 
   async restartAiderConnector() {
+    if (isLiteFork()) {
+      logger.warn('Lite build: Aider (Python connector) unavailable, ignoring restart request', {
+        baseDir: this.project.baseDir,
+        taskId: this.taskId,
+      });
+      this.addLogMessage('warning', 'Aider (Python connector) is not available in the lite build, so there is no connector to restart.');
+      return;
+    }
+
     await this.aiderManager.start(true);
   }
 
@@ -4421,7 +4466,7 @@ ${error.stderr}`,
 
     // Check if currentMode changed and start aider if new mode requires it
     const oldMode = this.getCurrentMode();
-    if (updates.currentMode !== undefined && updates.currentMode !== oldMode && AIDER_MODES.includes(updates.currentMode)) {
+    if (updates.currentMode !== undefined && updates.currentMode !== oldMode && AIDER_MODES.includes(updates.currentMode) && !isLiteFork()) {
       logger.debug('Task currentMode changed to aider-requiring mode, starting Aider.', {
         oldMode,
         newMode: updates.currentMode,

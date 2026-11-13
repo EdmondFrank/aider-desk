@@ -3,6 +3,9 @@ import { homedir } from 'os';
 
 import { getDataDir, getResourceDir } from './paths';
 
+// Set by the lite fork entry point (`runner-lite.ts`); the Python/Aider connector is not available there.
+export const isLiteFork = (): boolean => process.env.AIDER_DESK_LITE === 'true';
+
 export const AIDER_DESK_TITLE = 'AiderDesk';
 export const AIDER_DESK_WEBSITE = 'https://aiderdesk.dev';
 export const AIDER_DESK_DATA_DIR = getDataDir();

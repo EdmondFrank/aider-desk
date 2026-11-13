@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { HiChevronLeft, HiChevronRight, HiSparkles, HiViewList } from 'react-icons/hi';
-import { MdClose, MdOutlineCommit, MdUndo, MdUnfoldLess, MdUnfoldMore } from 'react-icons/md';
+import { HiChevronLeft, HiChevronRight, HiOutlineChevronDoubleLeft, HiOutlineChevronDoubleRight, HiSparkles, HiViewList } from 'react-icons/hi';
+import { MdClose, MdOutlineCommit, MdOutlineMenu, MdUndo, MdUnfoldLess, MdUnfoldMore } from 'react-icons/md';
+import { AnimatePresence, motion } from 'framer-motion';
 import { CgSpinner } from 'react-icons/cg';
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -27,6 +28,8 @@ import { useApi } from '@/contexts/ApiContext';
 import { useCommitChanges } from '@/hooks/useCommitChanges';
 import { useUpdatedFileDiff } from '@/hooks/useUpdatedFileDiff';
 import { useUpdatedFileContents } from '@/hooks/useUpdatedFileContents';
+import { useResponsive } from '@/hooks/useResponsive';
+import { useBooleanState } from '@/hooks/useBooleanState';
 
 type PendingComment = {
   id: string;
@@ -75,6 +78,11 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
   const { isCommitting, commit, cancelCommit } = useCommitChanges(baseDir, taskId);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [isAllFilesView, setIsAllFilesView] = useLocalStorage('diff-modal-all-files-view', false);
+  const { isMobile } = useResponsive();
+  // Desktop: the file list is docked and its collapsed state is remembered.
+  // Mobile: it is a drawer that starts closed so the diff gets the whole width.
+  const [isFileSidebarCollapsed, setIsFileSidebarCollapsed] = useLocalStorage('diff-modal-files-sidebar-collapsed', false);
+  const [isFileListOpen, , hideFileList, toggleFileList] = useBooleanState();
   const [pendingComments, setPendingComments] = useState<PendingComment[]>([]);
   const [createNewTask, setCreateNewTask] = useState(false);
   const [deselectedFilePaths, setDeselectedFilePaths] = useState<Set<string>>(new Set());
@@ -102,6 +110,10 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
   const flatFiles = useMemo(() => {
     return orderedGroups.flatMap((group) => group.files);
   }, [orderedGroups]);
+
+  // The file list is only worth showing when there is more than one file to pick from.
+  const hasFileSidebar = flatFiles.length > 1;
+  const showFileSidebar = hasFileSidebar && (isMobile ? isFileListOpen : !isFileSidebarCollapsed);
 
   // Files eligible for commit: only uncommitted files (committed files are shown for reference only)
   const committableFiles = useMemo(() => orderedGroups.filter((g) => !g.commitHash).flatMap((g) => g.files), [orderedGroups]);
@@ -446,8 +458,11 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
       if (isAllFilesView) {
         scrollToFile(file);
       }
+      if (isMobile) {
+        hideFileList();
+      }
     },
-    [isAllFilesView, resetLineState, scrollToFile],
+    [isAllFilesView, resetLineState, scrollToFile, isMobile, hideFileList],
   );
 
   const handlePreviousInAllFiles = useCallback(() => {
@@ -618,8 +633,8 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
       openInWindowTitle={openInWindowTitle}
     >
       {/* Main content area: file sidebar on left (full height), header + diff viewer center, comments panel right */}
-      <div className="flex-1 flex overflow-hidden">
-        {flatFiles.length > 1 && (
+      <div className="flex-1 flex overflow-hidden relative">
+        {!isMobile && showFileSidebar && (
           <DiffFilesSidebar
             groups={groups}
             currentFile={currentFile}
@@ -629,10 +644,66 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
             onToggleFolderSelection={handleToggleFolderSelection}
           />
         )}
+
+        {/* Mobile: the file list opens as a drawer so the diff keeps the full width */}
+        {isMobile && hasFileSidebar && (
+          <AnimatePresence>
+            {isFileListOpen && (
+              <>
+                <motion.div
+                  key="file-list-backdrop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 z-20 bg-black/50"
+                  data-testid="file-list-backdrop"
+                  onClick={hideFileList}
+                />
+                <motion.div
+                  key="file-list-drawer"
+                  initial={{ x: '-100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '-100%' }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="absolute inset-y-0 left-0 z-30 w-[85%] max-w-[320px] shadow-xl"
+                >
+                  <DiffFilesSidebar
+                    groups={groups}
+                    currentFile={currentFile}
+                    onFileSelect={handleFileSelect}
+                    selectedFilePaths={selectedFilePaths}
+                    onToggleFileSelection={handleToggleFileSelection}
+                    onToggleFolderSelection={handleToggleFolderSelection}
+                    isDrawer
+                    onClose={hideFileList}
+                  />
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        )}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <div className="flex items-center border-b border-border-default justify-center bg-bg-secondary h-11 px-4">
             <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                {hasFileSidebar && (
+                  <IconButton
+                    icon={
+                      isMobile ? (
+                        <MdOutlineMenu className="h-5 w-5" />
+                      ) : showFileSidebar ? (
+                        <HiOutlineChevronDoubleLeft className="h-4 w-4" />
+                      ) : (
+                        <HiOutlineChevronDoubleRight className="h-4 w-4" />
+                      )
+                    }
+                    data-testid="toggle-file-list"
+                    onClick={isMobile ? toggleFileList : () => setIsFileSidebarCollapsed((prev) => !prev)}
+                    tooltip={t('contextFiles.toggleFileList')}
+                    className="p-1.5 rounded-md transition-colors hover:bg-bg-tertiary text-text-secondary shrink-0"
+                  />
+                )}
                 {/* Group badge in single-file mode */}
                 {!isAllFilesView && currentGroup && (
                   <span

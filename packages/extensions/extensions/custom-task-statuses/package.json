@@ -1,0 +1,12 @@
+{
+  "name": "aiderdesk-custom-task-statuses",
+  "version": "1.0.0",
+  "description": "Manage custom task states alongside read-only built-in states",
+  "main": "index.ts",
+  "type": "module",
+  "author": "AiderDesk",
+  "license": "MIT",
+  "dependencies": {
+    "i18next": "24.2.3"
+  }
+}

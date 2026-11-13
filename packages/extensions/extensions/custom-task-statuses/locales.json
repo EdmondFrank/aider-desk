@@ -1,0 +1,182 @@
+{
+  "en": {
+    "translation": {
+      "customTaskStatuses": {
+        "description": "Built-in states are read-only. Use the arrows to position custom states between them.",
+        "idHint": "IDs must be unique and contain only letters, numbers, hyphens, or underscores. Renaming an ID does not migrate existing tasks.",
+        "validation": "Use unique valid IDs, non-empty names, and hex colors before saving.",
+        "builtIn": "Built-in",
+        "id": "ID",
+        "name": "Name",
+        "color": "Color",
+        "hexColor": "Hex color",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "remove": "Remove",
+        "add": "Add custom state",
+        "newState": "New state",
+        "removalHint": "Removing a definition does not change existing tasks; they keep their state ID."
+      },
+      "taskState": {
+        "DELEGATED": "Delegated",
+        "DONE": "Done",
+        "IN_PROGRESS": "In Progress",
+        "INTERRUPTED": "Interrupted",
+        "MORE_INFO_NEEDED": "More Info Needed",
+        "READY_FOR_REVIEW": "Ready for Review",
+        "READY_FOR_IMPLEMENTATION": "Ready for Implementation",
+        "TODO": "Todo"
+      }
+    }
+  },
+  "de": {
+    "translation": {
+      "customTaskStatuses": {
+        "description": "Integrierte Status sind schreibgeschützt. Ordne eigene Status mit den Pfeilen dazwischen ein.",
+        "idHint": "IDs müssen eindeutig sein und dürfen nur Buchstaben, Zahlen, Bindestriche oder Unterstriche enthalten. Das Ändern einer ID migriert bestehende Aufgaben nicht.",
+        "validation": "Verwende vor dem Speichern eindeutige gültige IDs, nicht leere Namen und Hex-Farben.",
+        "builtIn": "Integriert",
+        "id": "ID",
+        "name": "Name",
+        "color": "Farbe",
+        "hexColor": "Hex-Farbe",
+        "moveUp": "Nach oben",
+        "moveDown": "Nach unten",
+        "remove": "Entfernen",
+        "add": "Eigenen Status hinzufügen",
+        "newState": "Neuer Status",
+        "removalHint": "Das Entfernen einer Definition ändert bestehende Aufgaben nicht; ihre Status-ID bleibt erhalten."
+      },
+      "taskState": {
+        "DELEGATED": "Delegiert",
+        "DONE": "Erledigt",
+        "IN_PROGRESS": "In Bearbeitung",
+        "INTERRUPTED": "Unterbrochen",
+        "MORE_INFO_NEEDED": "Weitere Informationen erforderlich",
+        "READY_FOR_REVIEW": "Bereit zur Überprüfung",
+        "READY_FOR_IMPLEMENTATION": "Bereit zur Umsetzung",
+        "TODO": "Zu erledigen"
+      }
+    }
+  },
+  "it": {
+    "translation": {
+      "customTaskStatuses": {
+        "description": "Gli stati predefiniti sono di sola lettura. Usa le frecce per posizionare gli stati personalizzati tra di essi.",
+        "idHint": "Gli ID devono essere univoci e contenere solo lettere, numeri, trattini o trattini bassi. Rinominare un ID non aggiorna le attività esistenti.",
+        "validation": "Prima di salvare, usa ID validi e univoci, nomi non vuoti e colori esadecimali.",
+        "builtIn": "Predefinito",
+        "id": "ID",
+        "name": "Nome",
+        "color": "Colore",
+        "hexColor": "Colore esadecimale",
+        "moveUp": "Sposta su",
+        "moveDown": "Sposta giù",
+        "remove": "Rimuovi",
+        "add": "Aggiungi stato personalizzato",
+        "newState": "Nuovo stato",
+        "removalHint": "Rimuovere una definizione non modifica le attività esistenti, che mantengono il proprio ID di stato."
+      },
+      "taskState": {
+        "DELEGATED": "Delegato",
+        "DONE": "Completato",
+        "IN_PROGRESS": "In corso",
+        "INTERRUPTED": "Interrotto",
+        "MORE_INFO_NEEDED": "Informazioni aggiuntive richieste",
+        "READY_FOR_REVIEW": "Pronto per la revisione",
+        "READY_FOR_IMPLEMENTATION": "Pronto per l'implementazione",
+        "TODO": "Da fare"
+      }
+    }
+  },
+  "zh": {
+    "translation": {
+      "customTaskStatuses": {
+        "description": "内置状态为只读。使用箭头将自定义状态排列在它们之间。",
+        "idHint": "ID 必须唯一，且只能包含字母、数字、连字符或下划线。重命名 ID 不会迁移现有任务。",
+        "validation": "保存前，请使用唯一且有效的 ID、非空名称和十六进制颜色。",
+        "builtIn": "内置",
+        "id": "ID",
+        "name": "名称",
+        "color": "颜色",
+        "hexColor": "十六进制颜色",
+        "moveUp": "上移",
+        "moveDown": "下移",
+        "remove": "删除",
+        "add": "添加自定义状态",
+        "newState": "新状态",
+        "removalHint": "删除定义不会更改现有任务；它们将保留其状态 ID。"
+      },
+      "taskState": {
+        "DELEGATED": "已委派",
+        "DONE": "已完成",
+        "IN_PROGRESS": "进行中",
+        "INTERRUPTED": "已中断",
+        "MORE_INFO_NEEDED": "需要更多信息",
+        "READY_FOR_REVIEW": "待审核",
+        "READY_FOR_IMPLEMENTATION": "待实现",
+        "TODO": "待办"
+      }
+    }
+  },
+  "ru": {
+    "translation": {
+      "customTaskStatuses": {
+        "description": "Встроенные статусы доступны только для чтения. Используйте стрелки, чтобы разместить собственные статусы между ними.",
+        "idHint": "ID должны быть уникальными и содержать только буквы, цифры, дефисы или подчёркивания. Изменение ID не обновляет существующие задачи.",
+        "validation": "Перед сохранением укажите уникальные допустимые ID, непустые имена и цвета в шестнадцатеричном формате.",
+        "builtIn": "Встроенный",
+        "id": "ID",
+        "name": "Имя",
+        "color": "Цвет",
+        "hexColor": "HEX-цвет",
+        "moveUp": "Вверх",
+        "moveDown": "Вниз",
+        "remove": "Удалить",
+        "add": "Добавить статус",
+        "newState": "Новый статус",
+        "removalHint": "Удаление определения не изменяет существующие задачи: они сохраняют ID своего статуса."
+      },
+      "taskState": {
+        "DELEGATED": "Делегирована",
+        "DONE": "Завершена",
+        "IN_PROGRESS": "В процессе",
+        "INTERRUPTED": "Прервана",
+        "MORE_INFO_NEEDED": "Нужна дополнительная информация",
+        "READY_FOR_REVIEW": "Готова к проверке",
+        "READY_FOR_IMPLEMENTATION": "Готова к реализации",
+        "TODO": "К выполнению"
+      }
+    }
+  },
+  "ko": {
+    "translation": {
+      "customTaskStatuses": {
+        "description": "기본 상태는 읽기 전용입니다. 화살표를 사용하여 사용자 지정 상태를 기본 상태 사이에 배치하세요.",
+        "idHint": "ID는 고유해야 하며 영문자, 숫자, 하이픈 또는 밑줄만 포함할 수 있습니다. ID를 변경해도 기존 작업은 이전되지 않습니다.",
+        "validation": "저장하기 전에 유효하고 고유한 ID, 비어 있지 않은 이름, 16진수 색상을 입력하세요.",
+        "builtIn": "기본 제공",
+        "id": "ID",
+        "name": "이름",
+        "color": "색상",
+        "hexColor": "16진수 색상",
+        "moveUp": "위로 이동",
+        "moveDown": "아래로 이동",
+        "remove": "삭제",
+        "add": "사용자 지정 상태 추가",
+        "newState": "새 상태",
+        "removalHint": "정의를 삭제해도 기존 작업은 변경되지 않으며 상태 ID가 유지됩니다."
+      },
+      "taskState": {
+        "DELEGATED": "위임됨",
+        "DONE": "완료됨",
+        "IN_PROGRESS": "진행 중",
+        "INTERRUPTED": "중단됨",
+        "MORE_INFO_NEEDED": "추가 정보 필요",
+        "READY_FOR_REVIEW": "검토 준비 완료",
+        "READY_FOR_IMPLEMENTATION": "구현 준비 완료",
+        "TODO": "할 일"
+      }
+    }
+  }
+}

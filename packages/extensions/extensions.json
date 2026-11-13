@@ -1,6 +1,20 @@
 {
   "extensions": [
     {
+      "id": "custom-task-statuses",
+      "name": "Custom Task Statuses",
+      "description": "Manage custom task states, colors, and ordering alongside read-only built-in states",
+      "folder": "custom-task-statuses",
+      "type": "folder",
+      "hasDependencies": true,
+      "capabilities": [
+        "task-states",
+        "commands",
+        "ui"
+      ],
+      "installCount": 0
+    },
+    {
       "id": "sudo",
       "name": "Sudo",
       "description": "Linux sudo password dialog with optional in-memory session remembering for Power bash",

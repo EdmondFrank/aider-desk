@@ -1,0 +1,35 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <!-- White background -->
+  <rect width="256" height="256" fill="#ffffff"/>
+
+  <!-- Subtle vertical workflow connector line -->
+  <line x1="68" y1="68" x2="68" y2="188" stroke="#cbd5e1" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Row 1: Built-in / Completed-like state -->
+  <g>
+    <rect x="40" y="46" width="160" height="44" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="3.5"/>
+    <circle cx="68" cy="68" r="10" fill="#10b981"/>
+    <rect x="92" y="62" width="84" height="12" rx="6" fill="#64748b"/>
+  </g>
+
+  <!-- Row 2: Custom highlighted state -->
+  <g>
+    <rect x="40" y="106" width="176" height="44" rx="14" fill="#fffbeb" stroke="#f59e0b" stroke-width="4"/>
+    <circle cx="68" cy="128" r="10" fill="#f59e0b"/>
+    <rect x="92" y="122" width="96" height="12" rx="6" fill="#1e293b"/>
+  </g>
+
+  <!-- Row 3: Custom state -->
+  <g>
+    <rect x="40" y="166" width="152" height="44" rx="14" fill="#eef2ff" stroke="#6366f1" stroke-width="4"/>
+    <circle cx="68" cy="188" r="10" fill="#6366f1"/>
+    <rect x="92" y="182" width="76" height="12" rx="6" fill="#334155"/>
+  </g>
+
+  <!-- Plus badge indicating "custom / add state" -->
+  <g transform="translate(178, 168)">
+    <circle cx="28" cy="28" r="28" fill="#ffffff"/>
+    <circle cx="28" cy="28" r="24" fill="#0f172a"/>
+    <path d="M28 17 V39 M17 28 H39" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round"/>
+  </g>
+</svg>

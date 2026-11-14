@@ -552,3 +552,18 @@ describe('finalized model output', () => {
     expect(toModelOutput).not.toHaveBeenCalled();
   });
 });
+
+describe('tool finalization cancellation', () => {
+  it('passes the execution abort signal to onToolFinished', async () => {
+    const fixture = createFixture();
+    const controller = new AbortController();
+    const tools = fixture.wrap({ service: { inputSchema: z.object({}), execute: async () => 'done' } });
+    await tools.service.execute!({}, { ...options('call'), abortSignal: controller.signal });
+    expect(fixture.dispatchEvent).toHaveBeenCalledWith(
+      'onToolFinished',
+      expect.objectContaining({ abortSignal: controller.signal }),
+      fixture.task.project,
+      fixture.task,
+    );
+  });
+});

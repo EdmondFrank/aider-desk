@@ -642,6 +642,7 @@ export interface ToolFinishedEvent {
   readonly toolName: string;
   readonly agentProfile: AgentProfile;
   readonly input: Record<string, unknown> | undefined;
+  readonly abortSignal?: AbortSignal;
   output: unknown;
 }
 

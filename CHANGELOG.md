@@ -29,6 +29,7 @@
 - updated OpenCode Go endpoints and model routing
 - improved programmatic tool calls to accept alternative tool name separators and fixed collision-suffixed tool names
 - fixed failed and inactive tasks resuming after restarts, cleaned up stale recovery journals, and ensured redo interrupted the current run
+- added cancellation support to the onToolFinished extension hook
 
 ## [0.91.0]
 
@@ -139,6 +140,7 @@
 
 ## [0.85.0]
 
+- added Atlas Cloud provider
 - added file watcher for refreshing task files, worktree status and autocompletion while a task runs
 - added find in file support to the file editor with Ctrl+F / Cmd+F
 - fixed duplicate keys in git branches popup rows

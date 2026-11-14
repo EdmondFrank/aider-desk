@@ -667,7 +667,7 @@ export class Agent {
             {
               const finished = await this.extensionManager.dispatchEvent(
                 'onToolFinished',
-                { toolCallId: options.toolCallId, toolName, agentProfile: profile, input: effectiveInput, output: result },
+                { toolCallId: options.toolCallId, toolName, agentProfile: profile, input: effectiveInput, output: result, abortSignal: options.abortSignal },
                 task.project,
                 task,
               );

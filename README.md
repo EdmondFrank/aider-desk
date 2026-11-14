@@ -9,7 +9,8 @@
 <p align="center">
   <a href="https://aiderdesk.dev/docs"><img src="https://img.shields.io/badge/Docs-blue?logo=ReadTheDocs&logoColor=white" alt="Documentation" /></a>
   <a href="https://discord.com/invite/dyM3G9nTe4"><img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
-  <a href="https://deepwiki.com/magiksoft/aider-desk"><img src="https://deepwiki.com/badge.svg" alt="DeepWiki" /></a>
+  <a href="https://github.com/sponsors/magiksoft"><img src="https://img.shields.io/badge/Sponsor-EA4AAA?logo=githubsponsors&logoColor=white" alt="Sponsor AiderDesk" /></a>
+  <a href="https://deepwiki.com/magiksoft/aider-desk"><img src="https://img.shields.io/badge/Ask-DeepWiki-007ec6" alt="Ask DeepWiki" /></a>
   <a href="https://gitmcp.io/magiksoft/aider-desk"><img src="https://img.shields.io/endpoint?url=https://gitmcp.io/badge/magiksoft/aider-desk" alt="GitMCP" /></a>
 </p>
 
@@ -151,6 +152,14 @@ mindmap
       Custom shell commands
       35+ example extensions
 ```
+
+---
+
+## ❤️ Support AiderDesk
+
+If AiderDesk makes your development workflow better, consider [sponsoring Magiksoft on GitHub](https://github.com/sponsors/magiksoft). Your support helps sustain ongoing development and maintenance.
+
+Sponsorship is entirely optional. Reporting bugs, contributing code, sharing feedback, and spreading the word are valuable ways to support the project too.
 
 ---
 

@@ -26,6 +26,7 @@
 - added a cost-by-model pie chart alongside token usage in the Usage Dashboard
 - added Atlas Cloud as first class provider
 - improved extension loading startup performance by caching transpiled files on disk
+- updated OpenCode Go endpoints and model routing
 
 ## [0.91.0]
 

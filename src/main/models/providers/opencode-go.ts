@@ -2,6 +2,8 @@ import { Model, ProviderProfile, SettingsData, TlsPolicyRegistrar } from '@commo
 import { isOpenCodeGoProvider, LlmProvider, OpenCodeGoProvider } from '@common/agent';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogle } from '@ai-sdk/google';
+import { app } from 'electron';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { omit } from 'lodash';
 
@@ -12,7 +14,10 @@ import type { LanguageModel, ModelMessage, ToolSet } from 'ai';
 import { AiderModelMapping, LlmProviderStrategy, LoadModelsResponse } from '@/models';
 import { getEffectiveEnvironmentVariable } from '@/utils';
 
-const ENDPOINT_BASE_URL = 'https://opencode.ai/zen/go/v1';
+const ENDPOINT_BASE_URL = 'https://opencode.ai/inference/go';
+const OPENAI_BASE_URL = `${ENDPOINT_BASE_URL}/openai/v1`;
+const ANTHROPIC_BASE_URL = `${ENDPOINT_BASE_URL}/anthropic/v1`;
+const GOOGLE_BASE_URL = `${ENDPOINT_BASE_URL}/google/v1beta`;
 
 interface OpenCodeGoModel {
   id: string;
@@ -26,35 +31,33 @@ interface OpenCodeGoModelsResponse {
   data: OpenCodeGoModel[];
 }
 
-type ModelEndpointType = 'openai-responses' | 'anthropic' | 'openai-compatible';
+enum ModelEndpointType {
+  OpenAIResponses = 'openai-responses',
+  Anthropic = 'anthropic',
+  Gemini = 'gemini',
+  OpenAICompatible = 'openai-compatible',
+}
 
-// Based on the documented Go endpoints (https://opencode.ai/docs/go#endpoints). Model IDs for Go
-// don't follow a predictable naming scheme, so unlike the OpenCode Zen provider we map them explicitly.
 const MODEL_ENDPOINT_TYPES: Record<string, ModelEndpointType> = {
-  'grok-4.5': 'openai-responses',
-  'gpt-5.6-luna': 'openai-responses',
-  'muse-spark-1.2-contributor': 'openai-responses',
-  'minimax-m3': 'anthropic',
-  'minimax-m2.7': 'anthropic',
-  'minimax-m2.5': 'anthropic',
-  'qwen3.8-max': 'anthropic',
-  'qwen3.7-max': 'anthropic',
-  'qwen3.7-plus': 'anthropic',
-  'qwen3.6-plus': 'anthropic',
+  'minimax-m3': ModelEndpointType.Anthropic,
+  'minimax-m2.7': ModelEndpointType.Anthropic,
+  'minimax-m2.5': ModelEndpointType.Anthropic,
 };
 
 const getModelEndpointType = (modelId: string): ModelEndpointType => {
   if (MODEL_ENDPOINT_TYPES[modelId]) {
     return MODEL_ENDPOINT_TYPES[modelId];
   }
-  // Fallback for models not yet in the documented list.
-  if (modelId.startsWith('minimax-') || modelId.startsWith('qwen')) {
-    return 'anthropic';
+  if (modelId.startsWith('claude-') || modelId.startsWith('qwen')) {
+    return ModelEndpointType.Anthropic;
+  }
+  if (modelId.startsWith('gemini-')) {
+    return ModelEndpointType.Gemini;
   }
   if (modelId.startsWith('grok-') || modelId.startsWith('gpt-') || modelId.startsWith('muse-')) {
-    return 'openai-responses';
+    return ModelEndpointType.OpenAIResponses;
   }
-  return 'openai-compatible';
+  return ModelEndpointType.OpenAICompatible;
 };
 
 const loadOpencodeGoModels = async (profile: ProviderProfile, settings: SettingsData): Promise<LoadModelsResponse> => {
@@ -72,9 +75,10 @@ const loadOpencodeGoModels = async (profile: ProviderProfile, settings: Settings
   }
 
   try {
-    const response = await fetch(`${ENDPOINT_BASE_URL}/models`, {
+    const response = await fetch(`${ENDPOINT_BASE_URL}/v1/models`, {
       headers: {
         Authorization: `Bearer ${effectiveApiKey}`,
+        'User-Agent': `AiderDesk/${app.getVersion()}`,
       },
     });
     if (!response.ok) {
@@ -109,11 +113,11 @@ export const getOpencodeGoAiderMapping = (provider: ProviderProfile, modelId: st
   const effectiveVar = getEffectiveEnvironmentVariable('OPENCODE_GO_API_KEY', settings, projectDir);
   const apiKey = opencodeGoProvider.apiKey || effectiveVar?.value;
 
-  if (endpointType === 'anthropic') {
+  if (endpointType === ModelEndpointType.Anthropic) {
     if (apiKey) {
       envVars.ANTHROPIC_API_KEY = apiKey;
     }
-    envVars.ANTHROPIC_BASE_URL = ENDPOINT_BASE_URL.slice(0, -3);
+    envVars.ANTHROPIC_BASE_URL = `${ENDPOINT_BASE_URL}/anthropic`;
 
     return {
       modelName: `anthropic/${modelId}`,
@@ -124,7 +128,7 @@ export const getOpencodeGoAiderMapping = (provider: ProviderProfile, modelId: st
   if (apiKey) {
     envVars.OPENAI_API_KEY = apiKey;
   }
-  envVars.OPENAI_API_BASE = ENDPOINT_BASE_URL;
+  envVars.OPENAI_API_BASE = OPENAI_BASE_URL;
 
   return {
     modelName: `openai/${modelId}`,
@@ -159,6 +163,7 @@ export const createOpencodeGoLlm = (
   }
 
   const headers: Record<string, string> = {
+    'User-Agent': `AiderDesk/${app.getVersion()}`,
     ...profile.headers,
     ...(sessionId ? { 'x-opencode-session': sessionId } : {}),
   };
@@ -167,27 +172,35 @@ export const createOpencodeGoLlm = (
   const endpointType = getModelEndpointType(modelId);
 
   switch (endpointType) {
-    case 'openai-responses': {
+    case ModelEndpointType.OpenAIResponses: {
       const openai = createOpenAI({
         apiKey,
-        baseURL: ENDPOINT_BASE_URL,
+        baseURL: OPENAI_BASE_URL,
         headers,
       });
       return openai.responses(modelId);
     }
-    case 'anthropic': {
+    case ModelEndpointType.Anthropic: {
       const anthropic = createAnthropic({
         apiKey,
-        baseURL: ENDPOINT_BASE_URL,
+        baseURL: ANTHROPIC_BASE_URL,
         headers,
       });
       return anthropic(modelId);
+    }
+    case ModelEndpointType.Gemini: {
+      const google = createGoogle({
+        apiKey,
+        baseURL: GOOGLE_BASE_URL,
+        headers,
+      });
+      return google(modelId);
     }
     default: {
       const compatible = createOpenAICompatible({
         name: 'opencode-go',
         apiKey,
-        baseURL: ENDPOINT_BASE_URL,
+        baseURL: OPENAI_BASE_URL,
         headers,
       });
       return compatible(modelId);
@@ -203,7 +216,7 @@ const normalizeOpencodeGoMessages = (llmProvider: LlmProvider, model: Model, mes
     return messages;
   }
 
-  if (getModelEndpointType(model.id) !== 'openai-responses' || !model.id.startsWith('grok')) {
+  if (getModelEndpointType(model.id) !== ModelEndpointType.OpenAIResponses || !model.id.startsWith('grok')) {
     return messages;
   }
 

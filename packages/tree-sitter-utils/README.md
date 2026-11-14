@@ -146,6 +146,40 @@ interface SymbolOptions {
 - `extractSymbols(filePaths: string[], options?: SymbolOptions): Promise<Symbol[]>` - Extract symbols
 - `parseFile(filePath: string): Promise<ParseResult>` - Parse single file
 
+## Background repository maps
+
+The `getRepoMap` convenience function runs discovery, parsing, SQLite access, ranking, and rendering in a shared background worker. `TreeSitterAnalyzer` remains the direct, in-process API; use it only where synchronous CPU work is acceptable, such as an existing worker.
+
+For an independently disposable service:
+
+```typescript
+import { RepoMapService } from '@aiderdesk/tree-sitter-utils';
+
+const service = new RepoMapService();
+const controller = new AbortController();
+try {
+  const map = await service.getRepoMap({
+    root: '/absolute/path/to/task-checkout',
+    maxLines: 2000,
+    signal: controller.signal,
+  });
+} finally {
+  service.dispose();
+}
+```
+
+Pass the actual task checkout/worktree root, not a parent project's directory. Identical concurrent requests share a job; cancelling one subscriber does not cancel other subscribers. Abandoned active jobs terminate their worker, and idle workers expire after five minutes. Worker failures reject the request instead of performing work on the caller's thread.
+
+File metadata is checked on every request. Unchanged snapshots reuse parsed tags, dependency analysis, and matching rendered results; persistent tags also survive worker restarts. The first complete parse of a large repository can still take substantial time, even though it no longer blocks the caller's event loop.
+
+`TreeSitterAnalyzer` and `TreeSitterParser` also expose asynchronous `dispose()` methods to release their resources.
+
+See [BENCHMARK.md](BENCHMARK.md) for measured results, correctness checks, reproduction commands, and limitations. These tests and benchmarks invoke generation directly without the AiderDesk extension API.
+
 ## License
 
 MIT
+
+### Prewarming repository analysis
+
+`getRepoMap(root, { excludePatterns, prepareOnly: true, signal })` builds/refreshes the cached tags and dependency index in the same worker used by normal generation. It returns an empty string without ranking or rendering. A later normal request still validates the inventory and file metadata before reusing analysis and applies its own prompt-specific ranking and rendering options. Use a background-owned signal for prewarming, rather than the signal of an individual agent run.

@@ -18,6 +18,11 @@ export { getAllFiles } from './file-utils';
 
 // Convenience functions
 import { TreeSitterAnalyzer } from './tree-sitter-analyzer';
+import { RepoMapService } from './repo-map-service';
+
+export { RepoMapService } from './repo-map-service';
+
+const repoMapService = new RepoMapService();
 
 let defaultAnalyzer: TreeSitterAnalyzer | null = null;
 
@@ -47,6 +52,5 @@ export async function extractSymbols(filePaths: string[], options?: import('./ty
  * @returns Formatted repository map string
  */
 export async function getRepoMap(root: string, options?: Omit<import('./types').RepoMapOptions, 'root'>): Promise<string> {
-  const analyzer = await getAnalyzer();
-  return analyzer.getRepoMap({ ...options, root });
+  return repoMapService.getRepoMap({ ...options, root });
 }

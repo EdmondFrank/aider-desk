@@ -1,10 +1,11 @@
 import * as fs from 'fs/promises';
+import * as path from 'path';
 
 import { RankedDefinition } from './types';
 import logger from './logger';
 
 export class TreeRenderer {
-  async render(rankedDefinitions: RankedDefinition[], chatFiles: Set<string>, maxLines?: number): Promise<string> {
+  async render(rankedDefinitions: RankedDefinition[], chatFiles: Set<string>, maxLines?: number, root = process.cwd()): Promise<string> {
     // Filter out chat files
     const filtered = rankedDefinitions.filter((def) => !chatFiles.has(def.rel_fname));
 
@@ -16,10 +17,13 @@ export class TreeRenderer {
       byFile.set(def.rel_fname, fileDefs);
     }
 
+    const maximumRanks = new Map<string, number>();
+    for (const def of filtered) maximumRanks.set(def.rel_fname, Math.max(maximumRanks.get(def.rel_fname) ?? -Infinity, def.rank));
+
     // Sort files by highest rank in file
     const sortedFiles = Array.from(byFile.entries()).sort((a, b) => {
-      const maxRankA = Math.max(...a[1].map((d) => d.rank));
-      const maxRankB = Math.max(...b[1].map((d) => d.rank));
+      const maxRankA = maximumRanks.get(a[0])!;
+      const maxRankB = maximumRanks.get(b[0])!;
       return maxRankB - maxRankA;
     });
 
@@ -27,11 +31,11 @@ export class TreeRenderer {
 
     // If no maxLines specified, render everything
     if (!maxLines) {
-      return this.renderAllFiles(sortedFiles);
+      return this.renderAllFiles(sortedFiles, root);
     }
 
     // If more files than maxLines, just list filenames
-    if (totalFiles > maxLines) {
+    if (totalFiles * 2 > maxLines) {
       return this.renderFileListOnly(sortedFiles, maxLines);
     }
 
@@ -41,10 +45,10 @@ export class TreeRenderer {
     const availableLines = maxLines - headerLines;
     const linesPerFile = Math.max(1, Math.floor(availableLines / totalFiles));
 
-    return this.renderWithLineLimit(sortedFiles, linesPerFile);
+    return this.renderWithLineLimit(sortedFiles, linesPerFile, root);
   }
 
-  private async renderAllFiles(sortedFiles: [string, RankedDefinition[]][]): Promise<string> {
+  private async renderAllFiles(sortedFiles: [string, RankedDefinition[]][], root: string): Promise<string> {
     let output = '';
     for (const [file, definitions] of sortedFiles) {
       output += `\n${file}:\n`;
@@ -54,7 +58,7 @@ export class TreeRenderer {
 
       // Get unique lines and render
       const lines = Array.from(new Set(definitions.map((d) => d.line)));
-      const treeLines = await this.renderFileTree(file, lines, Infinity);
+      const treeLines = await this.renderFileTree(path.resolve(root, file), lines, Infinity);
       output += treeLines;
     }
 
@@ -76,7 +80,7 @@ export class TreeRenderer {
     return output.trim();
   }
 
-  private async renderWithLineLimit(sortedFiles: [string, RankedDefinition[]][], linesPerFile: number): Promise<string> {
+  private async renderWithLineLimit(sortedFiles: [string, RankedDefinition[]][], linesPerFile: number, root: string): Promise<string> {
     let output = '';
 
     for (const [file, definitions] of sortedFiles) {
@@ -95,7 +99,7 @@ export class TreeRenderer {
 
       output += `${file}:\n`;
 
-      const treeLines = await this.renderFileTree(file, limitedLines, linesPerFile, isTruncated);
+      const treeLines = await this.renderFileTree(path.resolve(root, file), limitedLines, linesPerFile, isTruncated);
       output += treeLines;
     }
 

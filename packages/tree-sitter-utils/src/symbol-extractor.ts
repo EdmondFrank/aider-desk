@@ -1,3 +1,6 @@
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
 import { Tag } from './types';
 import { TreeSitterParser } from './tree-sitter-parser';
 import { isLanguageSupported } from './language-detector';
@@ -6,64 +9,70 @@ import logger from './logger';
 
 export class SymbolExtractor {
   private cacheManager: CacheManager | null = null;
+  private memory = new Map<string, { fingerprint: string; tags: Tag[] }>();
+  private lastRoot: string | undefined;
+  private lastFiles = '';
+  revision = 0;
 
   constructor(private readonly parser: TreeSitterParser) {}
 
-  setCacheManager(cacheManager: CacheManager): void {
+  setCacheManager(cacheManager: CacheManager | null): void {
     this.cacheManager = cacheManager;
   }
 
-  async extractTags(files: string[], rootDir?: string): Promise<Tag[]> {
+  async extractTags(files: string[], rootDir?: string, signal?: AbortSignal, compactReferences = false): Promise<Tag[]> {
     const allTags: Tag[] = [];
-    const supportedFiles = files.filter(isLanguageSupported);
-
-    logger.info(`[SymbolExtractor] Extracting tags from ${supportedFiles.length} supported files out of ${files.length} total`);
-
-    // Process files in parallel batches to avoid memory issues
-    const batchSize = 50;
-    for (let i = 0; i < supportedFiles.length; i += batchSize) {
-      const batch = supportedFiles.slice(i, i + batchSize);
-      const batchTags = await Promise.all(
-        batch.map(async (file) => {
+    const supported = files.filter(isLanguageSupported);
+    const fileKey = JSON.stringify([compactReferences, supported]);
+    if (this.lastRoot !== rootDir || this.lastFiles !== fileKey) {
+      this.revision++;
+      this.memory.clear();
+      this.lastRoot = rootDir;
+      this.lastFiles = fileKey;
+    }
+    for (let i = 0; i < supported.length; i += 50) {
+      signal?.throwIfAborted();
+      const results = await Promise.all(
+        supported.slice(i, i + 50).map(async (file) => {
           try {
-            // Check cache first
-            if (this.cacheManager) {
-              const currentMtime = await this.cacheManager.getFileMtime(file);
-
-              if (currentMtime !== null) {
-                const cached = await this.cacheManager.getFileCache(file);
-
-                // Use cache if mtime matches
-                if (cached && cached.mtime === currentMtime) {
-                  logger.debug(`[SymbolExtractor] Cache hit for ${file}`);
-                  // Update relative paths in cached tags if rootDir is provided
-                  if (rootDir) {
-                    const path = await import('path');
-                    const relPath = path.relative(rootDir, file);
-                    return cached.tags.map((tag) => ({ ...tag, rel_fname: relPath }));
-                  }
-                  return cached.tags;
-                }
-
-                // Parse file and update cache
-                const tags = await this.parser.parseFile(file, rootDir);
-                await this.cacheManager.setFileCache(file, currentMtime, tags);
+            const before = await fs.stat(file);
+            const fingerprint = `${compactReferences}:${before.mtimeMs}:${before.ctimeMs}:${before.size}`;
+            const memory = this.memory.get(file);
+            if (this.cacheManager && memory?.fingerprint === fingerprint) {
+              return memory.tags;
+            }
+            this.revision++;
+            const cached = await this.cacheManager?.getFileCache(file);
+            let tags: Tag[];
+            if (cached?.fingerprint === fingerprint) {
+              const relative = rootDir ? path.relative(rootDir, file).replaceAll(path.sep, '/') : file;
+              tags = cached.tags.map((tag) => ({
+                ...tag,
+                rel_fname: relative,
+              }));
+            } else {
+              tags = await this.parser.parseFile(file, rootDir, compactReferences);
+              const after = await fs.stat(file);
+              if (`${compactReferences}:${after.mtimeMs}:${after.ctimeMs}:${after.size}` !== fingerprint) {
                 return tags;
               }
+              await this.cacheManager?.setFileCache(file, before.mtimeMs, tags, fingerprint);
             }
-
-            // Fallback to parsing without cache
-            return await this.parser.parseFile(file, rootDir);
+            this.memory.set(file, { fingerprint, tags });
+            return tags;
           } catch (error) {
+            this.revision++;
+            this.memory.delete(file);
             logger.error(`[SymbolExtractor] Error processing ${file}:`, error);
             return [];
           }
         }),
       );
-      allTags.push(...batchTags.flat());
+      for (const tags of results) {
+        for (const tag of tags) allTags.push(tag);
+      }
     }
-
-    logger.info(`[SymbolExtractor] Extracted ${allTags.length} tags total`);
+    signal?.throwIfAborted();
     return allTags;
   }
 

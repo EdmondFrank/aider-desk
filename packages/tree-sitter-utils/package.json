@@ -1,6 +1,6 @@
 {
   "name": "@aiderdesk/tree-sitter-utils",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Tree-sitter utilities for code analysis, symbol extraction, and repository mapping",
   "author": "Magiksoft s.r.o.",
   "homepage": "https://aiderdesk.dev",
@@ -24,11 +24,13 @@
   "files": [
     "dist",
     "resources",
-    "README.md"
+    "README.md",
+    "BENCHMARK.md"
   ],
   "scripts": {
-    "build": "tsc --emitDeclarationOnly --declaration && esbuild src/index.ts --bundle --platform=node --packages=external --format=cjs --outfile=dist/index.js --sourcemap",
+    "build": "tsc --emitDeclarationOnly --declaration && esbuild src/index.ts src/repo-map-worker.ts --bundle --platform=node --packages=external --format=cjs --outdir=dist --sourcemap",
     "build:check": "tsc --noEmit",
+    "test": "npm run build && vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
@@ -45,6 +47,7 @@
     "glob": "^13.0.6",
     "graphology": "^0.26.0",
     "graphology-metrics": "^2.4.0",
+    "minimatch": "10.2.6",
     "simple-git": "^4.0.2",
     "web-tree-sitter": "^0.26.6"
   },

@@ -4,6 +4,7 @@ export interface Tag {
   line: number;
   name: string;
   kind: 'def' | 'ref';
+  count?: number;
 }
 
 export interface Symbol {
@@ -22,6 +23,8 @@ export interface RepoMapOptions {
   mentionedIdents?: Set<string>;
   chatFiles?: Set<string>;
   maxLines?: number;
+  prepareOnly?: boolean;
+  signal?: AbortSignal;
 }
 
 export interface SymbolOptions {

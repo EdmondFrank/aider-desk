@@ -3,7 +3,7 @@
  ) @definition.class
 
 (class_declaration
-   bases: (base_list (_) @name.reference.class)
+   (base_list (_) @name.reference.class)
  ) @reference.class
 
 (interface_declaration
@@ -11,7 +11,7 @@
  ) @definition.interface
 
 (interface_declaration
- bases: (base_list (_) @name.reference.interface)
+ (base_list (_) @name.reference.interface)
  ) @reference.interface
 
 (method_declaration
@@ -23,10 +23,10 @@
  ) @reference.class
 
 (type_parameter_constraints_clause
- target: (identifier) @name.reference.class
+ (identifier) @name.reference.class
  ) @reference.class
 
-(type_constraint
+(type_parameter_constraint
  type: (identifier) @name.reference.class
  ) @reference.class
 
@@ -44,3 +44,8 @@
 (namespace_declaration
  name: (identifier) @name.definition.module
 ) @definition.module
+
+(struct_declaration name: (identifier) @name.definition.class)
+(record_declaration name: (identifier) @name.definition.class)
+(enum_declaration name: (identifier) @name.definition.class)
+(file_scoped_namespace_declaration name: (identifier) @name.definition.module)

@@ -66,8 +66,8 @@ const LANGUAGE_WASM_MAP: Record<string, { url: string; file: string }> = {
     file: 'tree-sitter-ocaml_interface.wasm',
   },
   c_sharp: {
-    url: 'https://unpkg.com/tree-sitter-c-sharp/tree-sitter-c_sharp.wasm',
-    file: 'tree-sitter-c_sharp.wasm',
+    url: 'https://unpkg.com/tree-sitter-c-sharp@0.23.5/tree-sitter-c_sharp.wasm',
+    file: 'tree-sitter-c_sharp-0.23.5.wasm',
   },
   haskell: {
     url: 'https://unpkg.com/tree-sitter-haskell/tree-sitter-haskell.wasm',

@@ -1,139 +1,108 @@
+import * as path from 'path';
+
 import { TreeSitterParser } from './tree-sitter-parser';
 import { SymbolExtractor } from './symbol-extractor';
-import { GraphBuilder } from './graph-builder';
-import { PageRankCalculator } from './pagerank';
+import { DependencyIndex } from './dependency-index';
 import { TreeRenderer } from './tree-renderer';
 import { CacheManager } from './cache-manager';
 import { getAllFiles } from './file-utils';
-import { RepoMapOptions, SymbolOptions, Tag, Symbol, ParseResult } from './types';
-import logger from './logger';
+import { RepoMapOptions, SymbolOptions, Symbol, ParseResult } from './types';
 
 export class TreeSitterAnalyzer {
-  private readonly parser: TreeSitterParser;
-  private readonly symbolExtractor: SymbolExtractor;
-  private readonly graphBuilder: GraphBuilder;
-  private readonly pageRankCalculator: PageRankCalculator;
-  private readonly treeRenderer: TreeRenderer;
+  private readonly parser = new TreeSitterParser();
+  private readonly symbolExtractor = new SymbolExtractor(this.parser);
+  private readonly treeRenderer = new TreeRenderer();
   private readonly cacheManager: CacheManager;
-  private initialized = false;
+  private initialization: Promise<void> | undefined;
+  private queue: Promise<unknown> = Promise.resolve();
+  private graph: DependencyIndex | undefined;
+  private revision = -1;
+  private outputs = new Map<string, string>();
 
-  constructor() {
-    this.parser = new TreeSitterParser();
-    this.cacheManager = new CacheManager();
-    this.symbolExtractor = new SymbolExtractor(this.parser);
+  constructor(options: { cachePath?: string } = {}) {
+    this.cacheManager = new CacheManager(options.cachePath);
     this.symbolExtractor.setCacheManager(this.cacheManager);
-    this.graphBuilder = new GraphBuilder();
-    this.pageRankCalculator = new PageRankCalculator();
-    this.treeRenderer = new TreeRenderer();
   }
 
-  async initialize(): Promise<void> {
-    if (this.initialized) {
-      return;
+  initialize(): Promise<void> {
+    this.initialization ??= Promise.all([this.parser.initialize(), this.cacheManager.initialize()]).then(() => undefined);
+    return this.initialization;
+  }
+
+  getRepoMap(options: RepoMapOptions): Promise<string> {
+    const result = this.queue.then(() => this.generateRepoMap(options));
+    this.queue = result.catch(() => undefined);
+    return result;
+  }
+
+  private async generateRepoMap(options: RepoMapOptions): Promise<string> {
+    options.signal?.throwIfAborted();
+    await this.initialize();
+    const root = path.resolve(options.root);
+    const normalize = (files: Set<string> = new Set()): Set<string> =>
+      new Set([...files].map((file) => path.relative(root, path.resolve(root, file)).replaceAll(path.sep, '/')));
+    const mentionedFiles = normalize(options.mentionedFiles);
+    const chatFiles = normalize(options.chatFiles);
+    const mentionedIdents = options.mentionedIdents ?? new Set<string>();
+    const files = options.files?.length ? options.files.map((file) => path.resolve(root, file)) : await getAllFiles(root, options.excludePatterns);
+    options.signal?.throwIfAborted();
+    const tags = await this.symbolExtractor.extractTags(files, root, options.signal, true);
+    if (!tags.length) return '';
+    if (this.revision !== this.symbolExtractor.revision) {
+      this.graph = new DependencyIndex(tags);
+      this.revision = this.symbolExtractor.revision;
+      this.outputs.clear();
     }
-
-    await this.parser.initialize();
-    await this.cacheManager.initialize();
-    this.initialized = true;
-    logger.info('[TreeSitterAnalyzer] Initialized');
+    if (options.prepareOnly) return '';
+    const key = JSON.stringify([[...mentionedFiles].sort(), [...mentionedIdents].sort(), [...chatFiles].sort(), options.maxLines]);
+    const cached = this.outputs.get(key);
+    if (cached !== undefined) return cached;
+    options.signal?.throwIfAborted();
+    const ranked = this.graph!.rank(mentionedFiles, mentionedIdents);
+    options.signal?.throwIfAborted();
+    const output = await this.treeRenderer.render(ranked, chatFiles, options.maxLines, root);
+    options.signal?.throwIfAborted();
+    if (this.outputs.size >= 8) this.outputs.delete(this.outputs.keys().next().value!);
+    this.outputs.set(key, output);
+    return output;
   }
 
-  async getRepoMap(options: RepoMapOptions): Promise<string> {
-    if (!this.initialized) {
+  extractSymbols(filePaths: string[], options?: SymbolOptions): Promise<Symbol[]> {
+    const result = this.queue.then(async () => {
       await this.initialize();
-    }
-
-    const { root, files, excludePatterns = [], mentionedFiles = new Set(), mentionedIdents = new Set(), chatFiles = new Set(), maxLines } = options;
-
-    try {
-      // Get files to process
-      let filesToProcess: string[];
-      if (files && files.length > 0) {
-        filesToProcess = files;
-      } else {
-        filesToProcess = await getAllFiles(root, excludePatterns);
-      }
-
-      logger.info(`[TreeSitterAnalyzer] Processing ${filesToProcess.length} files for repository map`);
-
-      // Extract tags from all files
-      const tags = await this.symbolExtractor.extractTags(filesToProcess, root);
-
-      if (tags.length === 0) {
-        return '';
-      }
-
-      // Build dependency graph
-      const { graph, defines: _defines, references: _references } = this.graphBuilder.buildDependencyGraph(tags);
-
-      // Calculate PageRank
-      const rankedDefinitions = this.pageRankCalculator.calculate(graph, tags, mentionedFiles, mentionedIdents);
-
-      // Render tree
-      const output = await this.treeRenderer.render(rankedDefinitions, chatFiles, maxLines);
-
-      logger.info(`[TreeSitterAnalyzer] Generated repository map with ${rankedDefinitions.length} definitions`);
-
-      return output;
-    } catch (error) {
-      logger.error('[TreeSitterAnalyzer] Error generating repository map:', error);
-      return '';
-    }
-  }
-
-  async extractSymbols(filePaths: string[], options?: SymbolOptions): Promise<Symbol[]> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
-
-    const useCache = options?.useCache !== false;
-
-    try {
-      // Temporarily disable cache if requested
-      const originalCacheManager = useCache ? this.cacheManager : null;
-      if (!useCache) {
-        this.symbolExtractor.setCacheManager(null as any);
-      }
-
-      const tags = await this.symbolExtractor.extractTags(filePaths, options?.rootDir);
-
-      // Restore cache manager
-      if (!useCache) {
+      if (options?.useCache === false) this.symbolExtractor.setCacheManager(null);
+      try {
+        const tags = await this.symbolExtractor.extractTags(filePaths, options?.rootDir);
+        return tags.map((tag) => ({
+          name: tag.name,
+          kind: tag.kind,
+          line: tag.line,
+          file: tag.fname,
+          relativeFile: tag.rel_fname,
+        }));
+      } finally {
         this.symbolExtractor.setCacheManager(this.cacheManager);
       }
-
-      // Convert tags to symbols
-      const symbols: Symbol[] = tags.map((tag) => ({
-        name: tag.name,
-        kind: tag.kind,
-        line: tag.line,
-        file: tag.fname,
-        relativeFile: tag.rel_fname,
-      }));
-
-      logger.info(`[TreeSitterAnalyzer] Extracted ${symbols.length} symbols from ${filePaths.length} files`);
-
-      return symbols;
-    } catch (error) {
-      logger.error('[TreeSitterAnalyzer] Error extracting symbols:', error);
-      return [];
-    }
+    });
+    this.queue = result.catch(() => undefined);
+    return result;
   }
 
   async parseFile(filePath: string): Promise<ParseResult> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
-
+    await this.initialize();
     const { detectLanguage } = await import('./language-detector');
-    const language = detectLanguage(filePath) || 'unknown';
-
-    const tags = await this.parser.parseFile(filePath);
-
     return {
-      tags,
+      tags: await this.parser.parseFile(filePath),
       file: filePath,
-      language,
+      language: detectLanguage(filePath) || 'unknown',
     };
+  }
+
+  async dispose(): Promise<void> {
+    await this.queue;
+    await this.parser.dispose();
+    this.cacheManager.close();
+    this.graph = undefined;
+    this.outputs.clear();
   }
 }

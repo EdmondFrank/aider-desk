@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, StatementSync } from 'node:sqlite';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as os from 'os';
@@ -6,127 +6,105 @@ import * as os from 'os';
 import { Tag } from './types';
 import logger from './logger';
 
-function getCacheDbPath(): string {
-  const platform = os.platform();
-  const homeDir = os.homedir();
-
-  let cacheDir: string;
-  if (platform === 'darwin') {
-    cacheDir = path.join(homeDir, 'Library', 'Caches', 'aiderdesk', 'tree-sitter');
-  } else if (platform === 'win32') {
-    cacheDir = path.join(process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming'), 'aiderdesk', 'tree-sitter');
-  } else {
-    cacheDir = path.join(homeDir, '.cache', 'aiderdesk', 'tree-sitter');
-  }
-
-  return path.join(cacheDir, 'cache.db');
-}
+const getCacheDbPath = (): string => {
+  const home = os.homedir();
+  const directory =
+    process.platform === 'darwin'
+      ? path.join(home, 'Library', 'Caches')
+      : process.platform === 'win32'
+        ? process.env.APPDATA || path.join(home, 'AppData', 'Roaming')
+        : path.join(home, '.cache');
+  return path.join(directory, 'aiderdesk', 'tree-sitter', 'cache.db');
+};
 
 export class CacheManager {
   private db: DatabaseSync | null = null;
-  private dbPath: string;
+  private select: StatementSync | undefined;
+  private insert: StatementSync | undefined;
 
-  constructor(dbPath?: string) {
-    this.dbPath = dbPath || getCacheDbPath();
-  }
+  constructor(private readonly dbPath = getCacheDbPath()) {}
 
   async initialize(): Promise<void> {
     try {
       await fs.mkdir(path.dirname(this.dbPath), { recursive: true });
       this.db = new DatabaseSync(this.dbPath);
-
-      const createTableSQL = `
-        CREATE TABLE IF NOT EXISTS file_cache (
+      this.db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 1000;');
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS file_cache_v3 (
           file_path TEXT PRIMARY KEY,
-          mtime INTEGER NOT NULL,
-          tags TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          mtime REAL NOT NULL,
+          fingerprint TEXT NOT NULL,
+          tags TEXT NOT NULL
         )
-      `;
-
-      this.db.exec(createTableSQL);
-      logger.info(`[CacheManager] Cache database initialized at ${this.dbPath}`);
+      `);
+      this.select = this.db.prepare('SELECT mtime, fingerprint, tags FROM file_cache_v3 WHERE file_path = ?');
+      this.insert = this.db.prepare(`
+        INSERT INTO file_cache_v3 (file_path, mtime, fingerprint, tags) VALUES (?, ?, ?, ?)
+        ON CONFLICT(file_path) DO UPDATE SET mtime = excluded.mtime, fingerprint = excluded.fingerprint, tags = excluded.tags
+      `);
     } catch (error) {
-      logger.error('[CacheManager] Failed to initialize cache database:', error);
-      this.db = null;
+      logger.warn('[CacheManager] Persistent cache unavailable:', error);
+      this.close();
     }
   }
 
-  async getFileCache(filePath: string): Promise<{ tags: Tag[]; mtime: number } | null> {
-    if (!this.db) {
-      return null;
-    }
-
+  async getFileCache(file: string): Promise<{ tags: Tag[]; mtime: number; fingerprint: string } | null> {
     try {
-      const sql = 'SELECT mtime, tags FROM file_cache WHERE file_path = ?';
-      const stmt = this.db.prepare(sql);
-      const result = stmt.get(filePath) as { mtime: number; tags: string } | undefined;
-
-      if (result) {
-        const tags = JSON.parse(result.tags) as Tag[];
-        return { tags, mtime: result.mtime };
-      }
-
-      return null;
+      const result = this.select?.get(file) as { tags: string; mtime: number; fingerprint: string } | undefined;
+      if (!result) return null;
+      const stored = JSON.parse(result.tags) as {
+        relative: string;
+        tags: [number, string, Tag['kind'], number?][];
+      };
+      return {
+        ...result,
+        tags: stored.tags.map(([line, name, kind, count]) => ({
+          fname: file,
+          rel_fname: stored.relative,
+          line,
+          name,
+          kind,
+          count,
+        })),
+      };
     } catch (error) {
-      logger.error(`[CacheManager] Failed to get cache for ${filePath}:`, error);
+      logger.warn(`[CacheManager] Failed to read ${file}:`, error);
       return null;
     }
   }
 
-  async setFileCache(filePath: string, mtime: number, tags: Tag[]): Promise<void> {
-    if (!this.db) {
-      return;
-    }
-
+  async setFileCache(file: string, mtime: number, tags: Tag[], fingerprint = String(mtime)): Promise<void> {
     try {
-      const sql = `
-        INSERT INTO file_cache (file_path, mtime, tags, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(file_path) DO UPDATE SET
-          mtime = excluded.mtime,
-          tags = excluded.tags,
-          updated_at = CURRENT_TIMESTAMP
-      `;
-
-      const stmt = this.db.prepare(sql);
-      stmt.run(filePath, mtime, JSON.stringify(tags));
-      logger.debug(`[CacheManager] Cached ${tags.length} tags for ${filePath}`);
+      this.insert?.run(
+        file,
+        mtime,
+        fingerprint,
+        JSON.stringify({
+          relative: tags[0]?.rel_fname ?? file,
+          tags: tags.map((tag) => [tag.line, tag.name, tag.kind, tag.count]),
+        }),
+      );
     } catch (error) {
-      logger.error(`[CacheManager] Failed to set cache for ${filePath}:`, error);
+      logger.warn(`[CacheManager] Failed to cache ${file}:`, error);
     }
   }
 
-  async getFileMtime(filePath: string): Promise<number | null> {
+  async getFileMtime(file: string): Promise<number | null> {
     try {
-      const stats = await fs.stat(filePath);
-      return stats.mtimeMs;
-    } catch (error) {
-      logger.error(`[CacheManager] Failed to get mtime for ${filePath}:`, error);
+      return (await fs.stat(file)).mtimeMs;
+    } catch {
       return null;
     }
   }
 
   async clearCache(): Promise<void> {
-    if (!this.db) {
-      return;
-    }
-
-    try {
-      const sql = 'DELETE FROM file_cache';
-      this.db.exec(sql);
-      logger.info('[CacheManager] Cache cleared');
-    } catch (error) {
-      logger.error('[CacheManager] Failed to clear cache:', error);
-    }
+    this.db?.exec('DELETE FROM file_cache_v3');
   }
 
   close(): void {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-      logger.info('[CacheManager] Cache database closed');
-    }
+    this.select = undefined;
+    this.insert = undefined;
+    this.db?.close();
+    this.db = null;
   }
 }

@@ -1628,6 +1628,9 @@ export class Agent {
       if (profile.isSubagent) {
         throw error;
       }
+      if (isDurable) {
+        durability.clear(executionId!);
+      }
       await task.updateTask({
         state: DefaultTaskState.Interrupted,
       });

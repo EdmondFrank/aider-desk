@@ -28,6 +28,7 @@
 - improved extension loading startup performance by caching transpiled files on disk
 - updated OpenCode Go endpoints and model routing
 - improved programmatic tool calls to accept alternative tool name separators and fixed collision-suffixed tool names
+- fixed failed and inactive tasks resuming after restarts, cleaned up stale recovery journals, and ensured redo interrupted the current run
 
 ## [0.91.0]
 

@@ -87,6 +87,10 @@ export class Project {
         this.eventManager.sendProjectStarted(this.baseDir);
         await this.tasksLoadingPromise;
         for (const task of this.tasks.values()) {
+          if (task.task.state !== DefaultTaskState.InProgress) {
+            task.durabilityManager.clear();
+            continue;
+          }
           void task.recoverDurableExecutions().catch((error) => {
             logger.error('Failed to recover durable task', { taskId: task.taskId, error });
           });
@@ -257,15 +261,19 @@ export class Project {
 
   private async getTaskIdsFromDisk(): Promise<string[]> {
     const tasksDir = path.join(this.baseDir, AIDER_DESK_TASKS_DIR);
-    if (!(await fileExists(tasksDir))) {
+    try {
+      const taskFolders = await fs.readdir(tasksDir, { withFileTypes: true });
+      return taskFolders
+        .filter((dirent) => dirent.isDirectory())
+        .map((dirent) => dirent.name)
+        .filter((taskId) => taskId !== INTERNAL_TASK_ID);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+      await fs.access(this.baseDir);
       return [];
     }
-
-    const taskFolders = await fs.readdir(tasksDir, { withFileTypes: true });
-    return taskFolders
-      .filter((dirent) => dirent.isDirectory())
-      .map((dirent) => dirent.name)
-      .filter((taskId) => taskId !== INTERNAL_TASK_ID);
   }
 
   private async loadTasks() {
@@ -285,7 +293,19 @@ export class Project {
       });
 
       await this.indexTaskMetadata(taskDirs);
+      const retainedTaskIds = taskDirs.filter((taskId) => {
+        const data = this.tasks.get(taskId)?.task ?? this.deferredTasks.get(taskId);
+        return !data || data.state === DefaultTaskState.InProgress;
+      });
+      const deletedExecutions = this.dataManager.cleanupAgentExecutions(this.baseDir, retainedTaskIds);
+      if (deletedExecutions > 0) {
+        logger.info('Removed stale agent execution journals', { baseDir: this.baseDir, deletedExecutions });
+      }
+
       for (const taskId of taskDirs) {
+        if (!this.tasks.has(taskId) && !this.deferredTasks.has(taskId)) {
+          continue;
+        }
         if (!this.isTaskArchived(taskId) || this.deferredTasks.get(taskId)?.state === DefaultTaskState.InProgress) {
           await this.prepareTask(taskId);
         }
@@ -312,7 +332,15 @@ export class Project {
       }
       try {
         const settingsPath = path.join(this.baseDir, AIDER_DESK_TASKS_DIR, taskId, 'settings.json');
-        const data = (await fileExists(settingsPath)) ? (JSON.parse(await fs.readFile(settingsPath, 'utf8')) as Partial<TaskData>) : {};
+        let data: Partial<TaskData>;
+        try {
+          data = JSON.parse(await fs.readFile(settingsPath, 'utf8')) as Partial<TaskData>;
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+            throw error;
+          }
+          data = {};
+        }
         this.deferredTasks.set(taskId, data);
       } catch (error) {
         logger.error('Failed to read task metadata', { baseDir: this.baseDir, taskId, error });

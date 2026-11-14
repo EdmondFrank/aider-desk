@@ -3440,6 +3440,11 @@ export class Task {
       hasUpdatedImages: !!updatedImages,
     });
 
+    if (this.isPromptRunning()) {
+      await this.interruptResponse();
+      await this.waitForCurrentAgentToFinish();
+    }
+
     this.durabilityManager.clear();
     const removedMessages = this.contextManager.removeMessagesUpToUserMessage(messageId);
     const originalUserMessage = removedMessages[0];

@@ -51,6 +51,7 @@ describe('Project - deferred archived tasks', () => {
       tasksLoadingPromise: Promise.resolve(),
       extensionManager: { dispatchEvent },
       eventManager,
+      dataManager: { cleanupAgentExecutions: vi.fn(() => 0) },
     });
     internals = project as unknown as ProjectInternals;
     vi.spyOn(internals, 'prepareInternalTask').mockResolvedValue();

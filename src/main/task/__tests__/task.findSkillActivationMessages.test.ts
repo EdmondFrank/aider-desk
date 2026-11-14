@@ -57,6 +57,7 @@ vi.mock('@/agent', () => ({
   Agent: class {
     run = vi.fn();
     dispose = vi.fn();
+    isRunning = vi.fn(() => false);
   },
   McpManager: class {},
   AgentProfileManager: class {},

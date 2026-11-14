@@ -126,6 +126,19 @@ export class DataManager {
     this.db.prepare('DELETE FROM agent_execution_journal WHERE project = ? AND task_id = ? AND prompt_context_id = ?').run(project, taskId, promptContextId);
   }
 
+  public cleanupAgentExecutions(project: string, retainedTaskIds: string[]): number {
+    const retainedTasks = new Set(retainedTaskIds);
+    const journalTasks = this.db.prepare('SELECT DISTINCT task_id FROM agent_execution_journal WHERE project = ?').all(project) as { task_id: string }[];
+    const deleteTaskExecutions = this.db.prepare('DELETE FROM agent_execution_journal WHERE project = ? AND task_id = ?');
+    let deleted = 0;
+    for (const { task_id: taskId } of journalTasks) {
+      if (!retainedTasks.has(taskId)) {
+        deleted += Number(deleteTaskExecutions.run(project, taskId).changes);
+      }
+    }
+    return deleted;
+  }
+
   /**
    * Saves a message to the database.
    * @param id The unique identifier for the message.

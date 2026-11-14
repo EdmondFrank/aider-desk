@@ -1,6 +1,6 @@
 import { screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TaskData, ModelsData, Message } from '@common/types';
+import { TaskData, ModelsData, Message, DefaultTaskState } from '@common/types';
 import { toast } from 'react-toastify';
 
 import { TaskView } from '../TaskView';
@@ -144,13 +144,15 @@ vi.mock('../../PromptField', () => ({
     addFiles,
     editUserMessage,
     savePrompt,
+    processing,
   }: {
+    processing?: boolean;
     runPrompt: (prompt: string) => void;
     addFiles: (files: string[], readOnly: boolean) => void;
     editUserMessage: () => void;
     savePrompt: (prompt: string) => Promise<void>;
   }) => (
-    <div data-testid="prompt-field">
+    <div data-testid="prompt-field" data-processing={String(processing)}>
       <button onClick={() => runPrompt('hello')}>Run Prompt</button>
       <button onClick={() => addFiles(['file1.ts'], false)}>Add File</button>
       <button onClick={editUserMessage}>Edit Last Prompt</button>
@@ -226,6 +228,28 @@ describe('TaskView', () => {
     vi.mocked(useModelProviders).mockReturnValue(createMockModelProviderContext());
     vi.mocked(useAgents).mockReturnValue(createMockAgentsContext());
     vi.mocked(useResponsive).mockReturnValue(createMockResponsive());
+  });
+
+  it('F2 reproduction: only persisted InProgress state enables the prompt Stop-control contract', async () => {
+    const view = (state: DefaultTaskState) => (
+      <TaskView
+        projectDir={projectDir}
+        task={{ ...mockTask, state }}
+        updateTask={mockUpdateTask}
+        updateOptimisticTaskState={mockUpdateOptimisticTaskState}
+        inputHistory={[]}
+      />
+    );
+    const result = render(view(DefaultTaskState.InProgress));
+    await act(async () => {});
+    expect(screen.getByTestId('prompt-field')).toHaveAttribute('data-processing', 'true');
+    for (const state of [DefaultTaskState.Interrupted, DefaultTaskState.ReadyForReview, DefaultTaskState.Todo]) {
+      await act(async () => {
+        result.rerender(view(state));
+      });
+      expect(screen.getByTestId('prompt-field')).toHaveAttribute('data-processing', 'false');
+      console.log(JSON.stringify({ finding: 'F2', state, promptFieldDOM: screen.getByTestId('prompt-field').outerHTML }));
+    }
   });
 
   it('renders core components when loaded', async () => {

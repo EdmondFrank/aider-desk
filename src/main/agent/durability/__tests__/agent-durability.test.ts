@@ -7,6 +7,7 @@ import { ModelModality, ToolRecoveryMode, ContextCompactionType, DefaultTaskStat
 import { DurabilityManager } from '../durability-manager';
 
 import { Agent } from '@/agent/agent';
+import { Task } from '@/task/task';
 import * as compaction from '@/agent/compaction';
 import { createMockAgentProfile, createMockTask, createMockSettings } from '@/__tests__/mocks';
 
@@ -225,6 +226,39 @@ describe('Agent execution recovery', () => {
     });
     return { fixture, agent, profile, execute, model, persisted };
   };
+
+  it('clears a failed root before publishing Interrupted and does not retry it after reopening', async () => {
+    const { fixture, agent, profile, model } = await createRecoveryFixture();
+    model.doGenerate = vi.fn(async () => {
+      throw new Error('Provider rejects malformed conversation');
+    });
+    vi.mocked(fixture.task.updateTask).mockImplementation(async () => {
+      expect(new DurabilityManager(fixture.storage, '/project', 'task').getRecoverableRoots()).toEqual([]);
+      expect(fixture.storage.deleteAgentExecution).toHaveBeenCalledWith('/project', 'task', 'execution');
+      return fixture.task.task;
+    });
+
+    Object.assign(fixture.task, {
+      store: { getSettings: () => ({ resumeAgentAfterRestart: true }) },
+      init: vi.fn(async () => undefined),
+      getTaskAgentProfile: vi.fn(async () => profile),
+      extensionManager: { dispatchEvent: fixture.dispatchEvent },
+      runPromptInAgent: vi.fn(async () => agent.runAgent(fixture.task, profile, null, 'agent', { id: 'execution' })),
+    });
+    await Task.prototype.recoverDurableExecutions.call(fixture.task);
+    expect(agent.isRunning()).toBe(false);
+    expect(fixture.task.updateTask).toHaveBeenCalledExactlyOnceWith({ state: DefaultTaskState.Interrupted });
+
+    for (let reopen = 0; reopen < 4; reopen++) {
+      const restored = new DurabilityManager(fixture.storage, '/project', 'task');
+      Object.assign(fixture.task, { durabilityManager: restored });
+      expect(restored.get('execution')).toBeUndefined();
+      expect(restored.getRecoverableRoots()).toEqual([]);
+      await Task.prototype.recoverDurableExecutions.call(fixture.task);
+    }
+    expect(model.doGenerate).toHaveBeenCalledOnce();
+    expect(fixture.task.runPromptInAgent).toHaveBeenCalledOnce();
+  });
 
   it.each([true, false])('handles streamed usage-limit errors without silently succeeding (isSubagent=%s)', async (isSubagent) => {
     const { fixture, agent, profile, model } = await createRecoveryFixture();

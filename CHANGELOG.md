@@ -24,6 +24,7 @@
 - added getTaskStates to the Extension API to support custom task states
 - added configurable MCP server scope (task/project/global) that shares connectors across tasks by default and frees them on task or project close to reduce process and memory usage
 - added a cost-by-model pie chart alongside token usage in the Usage Dashboard
+- added Atlas Cloud as first class provider
 
 ## [0.91.0]
 
@@ -134,7 +135,6 @@
 
 ## [0.85.0]
 
-- added Atlas Cloud provider
 - added file watcher for refreshing task files, worktree status and autocompletion while a task runs
 - added find in file support to the file editor with Ctrl+F / Cmd+F
 - fixed duplicate keys in git branches popup rows

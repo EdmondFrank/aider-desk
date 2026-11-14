@@ -1569,7 +1569,8 @@ export class ExtensionManager {
   }
 
   getTaskStateDefinitions(project?: Project): TaskStateDefinition[] {
-    const definitions = new Map(BUILT_IN_TASK_STATE_DEFINITIONS.map((state) => [state.id, { ...state }]));
+    const definitions = new Map<string, TaskStateDefinition>();
+    const builtInIds = new Set(BUILT_IN_TASK_STATE_DEFINITIONS.map((state) => state.id));
     const extensions = this.filterEnabledExtensions(this.registry.getExtensions(project?.baseDir))
       .filter((extension) => extension.initialized && (!extension.projectDir || extension.projectDir === project?.baseDir))
       .sort(
@@ -1594,7 +1595,7 @@ export class ExtensionManager {
             logger.error(`[Extensions] Invalid task-state definition from '${loaded.id}'`);
             continue;
           }
-          if (definitions.has(state.id)) {
+          if (builtInIds.has(state.id) || definitions.has(state.id)) {
             logger.warn(`[Extensions] Ignoring duplicate task-state ID '${state.id}' from '${loaded.id}'`);
             continue;
           }

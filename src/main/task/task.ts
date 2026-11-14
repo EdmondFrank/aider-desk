@@ -3,6 +3,7 @@ import path from 'path';
 import { homedir } from 'os';
 
 import { resolveAiderSettings } from '@common/aider';
+import { mergeTaskStateDefinitions } from '@common/task-states';
 import {
   AgentProfile,
   AIDER_COMMANDS,
@@ -1469,9 +1470,9 @@ export class Task {
       });
 
       const trimmedAnswer = answer.trim();
-      const validStates = [DefaultTaskState.MoreInfoNeeded, DefaultTaskState.ReadyForImplementation, DefaultTaskState.ReadyForReview];
+      const validStates = mergeTaskStateDefinitions(this.extensionManager.getTaskStateDefinitions(this.project)).map((state) => state.id);
 
-      if (validStates.includes(trimmedAnswer as DefaultTaskState)) {
+      if (validStates.includes(trimmedAnswer)) {
         logger.debug(`Determined task state: ${trimmedAnswer}`);
 
         return trimmedAnswer;

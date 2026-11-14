@@ -45,6 +45,7 @@ import {
   SwitchToWorktreeOptions,
 } from '@common/types';
 import { compareBaseDirs, normalizeBaseDir } from '@common/utils';
+import { mergeTaskStateDefinitions } from '@common/task-states';
 // @ts-expect-error istextorbinary is not typed properly
 import { isBinary } from 'istextorbinary';
 
@@ -1496,7 +1497,7 @@ export class EventsHandler {
     if (projectDir !== undefined && !project) {
       throw new Error('Project not found');
     }
-    return this.extensionManager.getTaskStateDefinitions(project);
+    return mergeTaskStateDefinitions(this.extensionManager.getTaskStateDefinitions(project));
   }
 
   getUIComponents(placement?: string, projectDir?: string, taskId?: string): ExtensionUIComponent[] {

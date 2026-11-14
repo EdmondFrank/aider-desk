@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { BUILT_IN_TASK_STATE_DEFINITIONS } from '@common/task-states';
 
 import { EventsHandler } from '../events-handler';
 
@@ -95,7 +96,11 @@ describe('EventsHandler task-state metadata', () => {
       expect(() => handler.getTaskStateDefinitions(scope)).toThrow('Project not found');
       expect(getTaskStateDefinitions).not.toHaveBeenCalled();
     } else {
-      expect(handler.getTaskStateDefinitions(scope)).toEqual(definitions);
+      expect(handler.getTaskStateDefinitions(scope)).toEqual([
+        ...BUILT_IN_TASK_STATE_DEFINITIONS.slice(0, 2),
+        ...definitions,
+        ...BUILT_IN_TASK_STATE_DEFINITIONS.slice(2),
+      ]);
       expect(getTaskStateDefinitions).toHaveBeenCalledExactlyOnceWith(scope === undefined ? undefined : project);
     }
     if (scope === undefined) {

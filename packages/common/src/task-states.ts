@@ -14,6 +14,16 @@ export const BUILT_IN_TASK_STATE_DEFINITIONS: TaskStateDefinition[] = [
 export const compareTaskStates = (a: Pick<TaskStateDefinition, 'priority' | 'id'>, b: Pick<TaskStateDefinition, 'priority' | 'id'>): number =>
   a.priority - b.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
+export const mergeTaskStateDefinitions = (customStates: TaskStateDefinition[]): TaskStateDefinition[] => {
+  const definitions = new Map(BUILT_IN_TASK_STATE_DEFINITIONS.map((state) => [state.id, { ...state }]));
+  for (const state of customStates) {
+    if (!definitions.has(state.id)) {
+      definitions.set(state.id, { ...state });
+    }
+  }
+  return [...definitions.values()].sort(compareTaskStates);
+};
+
 export const isValidTaskStateDefinition = (value: unknown): value is TaskStateDefinition => {
   if (!value || typeof value !== 'object') {
     return false;

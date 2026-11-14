@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DefaultTaskState, SettingsData, TaskStateDefinition } from '@common/types';
-import { BUILT_IN_TASK_STATE_DEFINITIONS } from '@common/task-states';
 
 import { ExtensionManager } from '../extension-manager';
 import { ExtensionLoader } from '../extension-loader';
@@ -49,11 +48,14 @@ describe('task-state contributions', () => {
     );
   });
 
-  it('preserves all built-ins and interleaves custom definitions by ascending priority and ID', async () => {
+  it('returns no definitions without extension contributions', () => {
+    expect(manager.getTaskStateDefinitions(project)).toEqual([]);
+  });
+
+  it('returns only custom definitions sorted by ascending priority and ID', async () => {
     await register('states', { getTaskStates: () => [definition('z', 25), definition('a', 25), definition('first', -5)] });
     const states = manager.getTaskStateDefinitions(project);
-    expect(states.filter((state) => Object.values(DefaultTaskState).includes(state.id as DefaultTaskState))).toEqual(BUILT_IN_TASK_STATE_DEFINITIONS);
-    expect(states.map((state) => state.id).slice(0, 6)).toEqual(['first', 'TODO', 'READY_FOR_IMPLEMENTATION', 'a', 'z', 'IN_PROGRESS']);
+    expect(states.map((state) => state.id)).toEqual(['first', 'a', 'z']);
     states[0].name = 'mutated';
     expect(manager.getTaskStateDefinitions(project)[0].name).toBe('State first');
   });
@@ -74,11 +76,7 @@ describe('task-state contributions', () => {
     await register('pending', { getTaskStates: () => [definition('pending')] }, undefined, false);
     const disabled = await register('disabled', { getTaskStates: () => [definition('disabled')] });
     settings.extensions!.disabled = [disabled.filePath];
-    const ids = (scope?: Project) =>
-      manager
-        .getTaskStateDefinitions(scope)
-        .filter((state) => !BUILT_IN_TASK_STATE_DEFINITIONS.some((item) => item.id === state.id))
-        .map((state) => state.id);
+    const ids = (scope?: Project) => manager.getTaskStateDefinitions(scope).map((state) => state.id);
     expect(ids(project)).toEqual(['global', 'local']);
     expect(ids(globalProject)).toEqual(['global', 'other']);
     expect(ids()).toEqual(['global']);
@@ -95,7 +93,7 @@ describe('task-state contributions', () => {
     );
     expect(manager.getTaskStateDefinitions(project).find((state) => state.id === 'same')?.name).toBe('project a');
     expect(manager.getTaskStateDefinitions().find((state) => state.id === 'same')?.name).toBe('global a');
-    expect(manager.getTaskStateDefinitions(project).find((state) => state.id === DefaultTaskState.Todo)).toEqual(BUILT_IN_TASK_STATE_DEFINITIONS[0]);
+    expect(manager.getTaskStateDefinitions(project).some((state) => state.id === DefaultTaskState.Todo)).toBe(false);
   });
 
   it('isolates throwing extensions, malformed returns, and individual invalid entries', async () => {
@@ -108,12 +106,7 @@ describe('task-state contributions', () => {
     await register('mixed', {
       getTaskStates: () => [null, {}, definition('ok'), { ...definition('bad'), priority: Infinity }, definition('also_ok')] as TaskStateDefinition[],
     });
-    expect(
-      manager
-        .getTaskStateDefinitions()
-        .slice(2, 4)
-        .map((state) => state.id),
-    ).toEqual(['also_ok', 'ok']);
+    expect(manager.getTaskStateDefinitions().map((state) => state.id)).toEqual(['also_ok', 'ok']);
   });
 
   it('refreshes on configuration saves and explicit context requests, and excludes unloaded states', async () => {

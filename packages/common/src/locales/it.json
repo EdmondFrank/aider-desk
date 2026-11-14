@@ -2041,6 +2041,7 @@
       "costBreakdown": "Dettaglio costi",
       "messageBreakdown": "Dettaglio messaggi",
       "modelUsageDistribution": "Distribuzione utilizzo modelli",
+      "modelCostDistribution": "Distribuzione dei costi per modello",
       "inputTokens": "Token di input",
       "outputTokens": "Token di output",
       "noData": "Nessun dato disponibile per il periodo selezionato",

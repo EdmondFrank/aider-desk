@@ -23,6 +23,7 @@
 - fixed agent conflict resolution reporting success and staging unresolved files after agent errors
 - added getTaskStates to the Extension API to support custom task states
 - added configurable MCP server scope (task/project/global) that shares connectors across tasks by default and frees them on task or project close to reduce process and memory usage
+- added a cost-by-model pie chart alongside token usage in the Usage Dashboard
 
 ## [0.91.0]
 

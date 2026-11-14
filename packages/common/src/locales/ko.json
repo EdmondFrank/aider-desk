@@ -2046,6 +2046,7 @@
       "costBreakdown": "비용 분석",
       "messageBreakdown": "메시지 분석",
       "modelUsageDistribution": "모델 사용 분포",
+      "modelCostDistribution": "모델별 비용 분포",
       "inputTokens": "입력 토큰",
       "outputTokens": "출력 토큰",
       "noData": "선택한 기간에 사용 가능한 데이터가 없습니다",

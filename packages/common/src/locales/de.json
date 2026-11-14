@@ -2020,6 +2020,7 @@
       "costBreakdown": "Kostenaufschlüsselung",
       "messageBreakdown": "Nachrichtenaufschlüsselung",
       "modelUsageDistribution": "Modellnutzungsverteilung",
+      "modelCostDistribution": "Modellkostenverteilung",
       "inputTokens": "Eingabe-Token",
       "outputTokens": "Ausgabe-Token",
       "noData": "Keine Daten für den ausgewählten Zeitraum verfügbar",

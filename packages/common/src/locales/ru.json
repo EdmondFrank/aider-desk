@@ -2046,6 +2046,7 @@
       "costBreakdown": "Детализация затрат",
       "messageBreakdown": "Детализация сообщений",
       "modelUsageDistribution": "Распределение использования моделей",
+      "modelCostDistribution": "Распределение затрат по моделям",
       "inputTokens": "Входные токены",
       "outputTokens": "Выходные токены",
       "noData": "Нет данных за выбранный период",

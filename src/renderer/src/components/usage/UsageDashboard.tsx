@@ -12,7 +12,7 @@ import { UsageTable } from './UsageTable';
 import { TokenUsageTrendChart } from './TokenUsageTrendChart';
 import { CostBreakdownChart } from './CostBreakdownChart';
 import { MessageBreakdownChart } from './MessageBreakdownChart';
-import { ModelUsageDistributionChart } from './ModelUsageDistributionChart';
+import { ModelDistributionMetric, ModelUsageDistributionChart } from './ModelUsageDistributionChart';
 import { CacheHitRateTrendChart } from './CacheHitRateTrendChart';
 import { CacheSavingsChart } from './CacheSavingsChart';
 import { GroupBy } from './utils';
@@ -238,8 +238,9 @@ export const UsageDashboard = ({ onClose }: Props) => {
           {activeTab === ViewTab.Charts && (
             <div className="flex-grow p-2 overflow-y-auto scrollbar-thin scrollbar-track-bg-primary-light scrollbar-thumb-bg-secondary-light hover:scrollbar-thumb-bg-tertiary">
               <div className="grid grid-cols-1 xl:grid-cols-2">
-                <TokenUsageTrendChart data={filteredData} groupBy={selectedGroupBy} />
                 <ModelUsageDistributionChart data={filteredData} />
+                <ModelUsageDistributionChart data={filteredData} metric={ModelDistributionMetric.Cost} />
+                <TokenUsageTrendChart data={filteredData} groupBy={selectedGroupBy} />
                 <CostBreakdownChart data={filteredData} groupBy={selectedGroupBy} />
                 <MessageBreakdownChart data={filteredData} groupBy={selectedGroupBy} />
                 <CacheHitRateTrendChart data={filteredData} groupBy={selectedGroupBy} />

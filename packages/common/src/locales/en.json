@@ -2050,6 +2050,7 @@
       "costBreakdown": "Cost Breakdown",
       "messageBreakdown": "Message Breakdown",
       "modelUsageDistribution": "Model Usage Distribution",
+      "modelCostDistribution": "Model Cost Distribution",
       "inputTokens": "Input Tokens",
       "outputTokens": "Output Tokens",
       "noData": "No data available for the selected period",

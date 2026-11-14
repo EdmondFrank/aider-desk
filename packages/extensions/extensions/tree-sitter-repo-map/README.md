@@ -123,7 +123,7 @@ These are automatically downloaded using the `scripts/download-tree-sitter-wasm.
 
 ## Technical Details
 
-- **Singleton Pattern**: Uses a singleton RepoMapManager for efficiency
+- **Shared worker service**: Uses `@aiderdesk/tree-sitter-utils` for background analysis and snapshot reuse
 - **Lazy Initialization**: Parsers and languages are loaded on first use
 - **Error Handling**: Gracefully handles parsing errors and unsupported languages
 - **Performance**: Caches parsed files and reuses them across runs
@@ -139,3 +139,23 @@ node scripts/download-tree-sitter-wasm.mjs
 ## License
 
 MIT
+
+## Initialization banner
+
+Opening a task with **Include repository map** enabled in its resolved agent profile starts analysis in the background. A banner above the prompt shows initialization status. Disabled or unresolved profiles do not start analysis or display the banner; changing the selected profile rechecks eligibility.
+
+If a run starts before initialization finishes, the banner explains that the agent is waiting and offers **Continue without map**. This releases only that task's waiting run without a map, while initialization continues for subsequent runs. The completed map is never injected into an already-running model call.
+
+**Cancel initialization** cancels the shared initialization for that checkout and lets all waiting runs continue without a map. It does not automatically restart on the next run; **Retry initialization** explicitly restarts it. An ordinary agent Stop releases that run's wait without cancelling independent prewarming. Closing a task releases its wait; unloading the extension cancels its pending initialization jobs.
+
+Tasks sharing an actual checkout and exclusion settings share initialization. Distinct worktrees are isolated. Prewarming builds tags and the dependency index without ranking/rendering a prompt-specific map; normal generation still validates file changes and applies the run's context. A ready banner disappears after three seconds. Errors and cancellation retain a retry action.
+
+The banner uses English text and the existing extension UI API; no core translation API changes are required. It requires the updated `@aiderdesk/tree-sitter-utils` package with worker support and `prepareOnly`. Reloading an extension alone cannot update an older installed library. When developing in this repository, build the tree-sitter-utils workspace first.
+
+### Tests
+
+```bash
+npm run build:tree-sitter-utils
+npx vitest run --config packages/extensions/extensions/tree-sitter-repo-map/vitest.config.ts --no-color
+npx tsc --noEmit -p packages/extensions/extensions/tree-sitter-repo-map/tsconfig.json
+```

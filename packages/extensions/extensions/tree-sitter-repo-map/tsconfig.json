@@ -4,6 +4,10 @@
     "module": "ES2020",
     "lib": ["ES2020"],
     "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@aiderdesk/tree-sitter-utils": ["../../../tree-sitter-utils/dist/index.d.ts"]
+    },
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": false,

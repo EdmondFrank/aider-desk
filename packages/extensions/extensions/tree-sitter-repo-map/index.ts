@@ -12,11 +12,27 @@
  * tree-sitter based implementation.
  */
 
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import { getRepoMap } from '@aiderdesk/tree-sitter-utils';
 
 import { loadConfig, saveConfig } from './config';
+import { RepositoryInitialization } from './initialization';
 
-import type { Extension, ExtensionContext, AgentStartedEvent, CommandDefinition } from '@aiderdesk/extensions';
+import type {
+  Extension,
+  ExtensionContext,
+  AgentStartedEvent,
+  CommandDefinition,
+  UIComponentDefinition,
+  TaskUpdatedEvent,
+  TaskClosedEvent,
+} from '@aiderdesk/extensions';
+
+const INITIALIZATION_COMPONENT = 'repository-map-initialization';
+const INITIALIZATION_JSX = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'InitializationBanner.jsx'), 'utf8');
 
 const REPO_MAP_USER_PREFIX = 'Here is a map of the repository:';
 const REPO_MAP_ASSISTANT_RESPONSE = 'Ok, I will use the repository map as a reference.';
@@ -109,18 +125,98 @@ const REPO_MAP_COMMAND: CommandDefinition = {
 export default class TreeSitterRepoMapExtension implements Extension {
   static metadata = {
     name: 'Tree-Sitter Repo Map',
-    version: '1.1.0',
+    version: '1.2.0',
     description: 'Provides enhanced repository map using tree-sitter parsing with PageRank-based symbol ranking',
     author: 'wladimiiir',
     iconUrl: 'https://raw.githubusercontent.com/magiksoft/aider-desk/refs/heads/main/packages/extensions/extensions/tree-sitter-repo-map/icon.png',
-    capabilities: ['context', 'commands'],
+    capabilities: ['context', 'commands', 'ui'],
   };
 
+  private unloaded = false;
+  private readonly tasks = new Map<string, { key: string; context: ExtensionContext; taskId: string }>();
+  private readonly initialization = new RepositoryInitialization(
+    (root, excludePatterns, signal) => getRepoMap(root, { excludePatterns, signal, prepareOnly: true }),
+    (key) => {
+      for (const task of this.tasks.values()) {
+        if (task.key === key) task.context.triggerUIDataRefresh(INITIALIZATION_COMPONENT, task.taskId);
+      }
+    },
+    (error) => {
+      for (const task of this.tasks.values()) task.context.log(`Repository map initialization failed: ${error}`, 'error');
+    },
+  );
+
+  private taskKey(context: ExtensionContext): string {
+    return JSON.stringify([context.getProjectDir(), context.getTaskContext()?.data.id]);
+  }
+
+  private async initializeTask(context: ExtensionContext, retry = false): Promise<string | undefined> {
+    const task = context.getTaskContext();
+    if (!task || this.unloaded) return;
+    const profile = await task.getTaskAgentProfile();
+    if (!profile?.includeRepoMap) {
+      this.initialization.closeTask(this.taskKey(context));
+      this.tasks.delete(this.taskKey(context));
+      return;
+    }
+    const root = task.getTaskDir();
+    if (!root) return;
+    const config = await loadConfig();
+    const currentProfile = await task.getTaskAgentProfile();
+    if (this.unloaded || !currentProfile?.includeRepoMap) return;
+    const key = this.initialization.start(task.getTaskDir(), config.exclude, retry);
+    this.tasks.set(this.taskKey(context), { key, context, taskId: task.data.id });
+    context.triggerUIDataRefresh(INITIALIZATION_COMPONENT, task.data.id);
+    return key;
+  }
+
+  getUIComponents(): UIComponentDefinition[] {
+    return [{ id: INITIALIZATION_COMPONENT, placement: 'task-input-above', jsx: INITIALIZATION_JSX, loadData: true, noDataCache: true }];
+  }
+
+  async getUIExtensionData(componentId: string, context: ExtensionContext): Promise<unknown> {
+    if (componentId !== INITIALIZATION_COMPONENT) return null;
+    const taskKey = this.taskKey(context);
+    const task = this.tasks.get(taskKey);
+    return task ? this.initialization.state(task.key, taskKey) : null;
+  }
+
+  async executeUIExtensionAction(componentId: string, action: string, args: unknown[], context: ExtensionContext): Promise<void> {
+    if (componentId !== INITIALIZATION_COMPONENT) return;
+    if (action === 'initialize' || action === 'retry') {
+      await this.initializeTask(context, action === 'retry');
+      return;
+    }
+    const taskKey = this.taskKey(context);
+    const task = this.tasks.get(taskKey);
+    if (!task || args[0] !== task.key) return;
+    if (action === 'background') this.initialization.background(task.key, taskKey);
+    if (action === 'cancel') this.initialization.cancel(task.key);
+  }
+
+  async onTaskUpdated(event: TaskUpdatedEvent, context: ExtensionContext): Promise<void> {
+    if (event.task.id && this.tasks.has(this.taskKey(context))) await this.initializeTask(context);
+  }
+
+  async onTaskClosed(event: TaskClosedEvent, context: ExtensionContext): Promise<void> {
+    if (!event.task.id) return;
+    const key = this.taskKey(context);
+    this.initialization.closeTask(key);
+    this.tasks.delete(key);
+  }
+
+  async onUnload(): Promise<void> {
+    this.unloaded = true;
+    this.initialization.dispose();
+    this.tasks.clear();
+  }
+
   async onLoad(context: ExtensionContext): Promise<void> {
+    this.unloaded = false;
     context.log('Tree-Sitter Repo Map Extension loaded', 'info');
   }
 
-  getCommands(_context: ExtensionContext): CommandDefinition[] {
+  getCommands(): CommandDefinition[] {
     return [REPO_MAP_COMMAND];
   }
 
@@ -130,18 +226,28 @@ export default class TreeSitterRepoMapExtension implements Extension {
       return undefined;
     }
 
+    const withoutMap = { agentProfile: { ...event.agentProfile, includeRepoMap: false } };
     context.log('Generating tree-sitter based repository map', 'info');
 
     try {
       // Get project directory
-      const projectDir = context.getProjectDir();
+      const projectDir = context.getTaskContext()?.getTaskDir() || context.getProjectDir();
       if (!projectDir) {
         context.log('No project directory available, skipping repo map', 'warn');
-        return undefined;
+        return withoutMap;
       }
 
       // Load config to get maxLines
       const config = await loadConfig();
+      if (this.unloaded) return withoutMap;
+
+      const taskKey = this.taskKey(context);
+      const key = this.initialization.start(projectDir, config.exclude);
+      const task = context.getTaskContext();
+      if (task) this.tasks.set(taskKey, { key, context, taskId: task.data.id });
+      const ready = await this.initialization.wait(key, taskKey, event.modelCallSettings?.abortSignal);
+      if (event.modelCallSettings?.abortSignal?.aborted) return { blocked: true };
+      if (!ready) return withoutMap;
 
       // Extract mentioned files and identifiers from context
       const mentionedFiles = new Set<string>();
@@ -175,11 +281,12 @@ export default class TreeSitterRepoMapExtension implements Extension {
         mentionedIdents,
         chatFiles,
         maxLines: config.maxLines,
+        signal: event.modelCallSettings?.abortSignal,
       });
 
       if (!repoMap) {
         context.log('No repository map generated', 'warn');
-        return undefined;
+        return withoutMap;
       }
 
       // Build the content message
@@ -212,8 +319,11 @@ export default class TreeSitterRepoMapExtension implements Extension {
         },
       };
     } catch (error) {
+      if (event.modelCallSettings?.abortSignal?.aborted) {
+        return { blocked: true };
+      }
       context.log(`Error generating repository map: ${error}`, 'error');
-      return undefined;
+      return withoutMap;
     }
   }
 }

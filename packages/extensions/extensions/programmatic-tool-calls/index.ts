@@ -13,7 +13,7 @@ const MAX_CATALOG_TYPE_TOKENS = 8000;
 
 const metadata = {
   name: 'Programmatic Tool Calls',
-  version: '1.5.0',
+  version: '1.5.1',
   description: 'Execute JavaScript code in a sandbox with access to all tools as async functions. Provides the PTC mode where tools are only accessible through code execution.',
   author: 'wladimiiir',
   iconUrl: 'https://raw.githubusercontent.com/magiksoft/aider-desk/refs/heads/main/packages/extensions/extensions/programmatic-tool-calls/icon.png',
@@ -107,6 +107,34 @@ const buildToolRecords = (tools: Record<string, ToolsetToolEntry>, excludeToolNa
   }
 
   return records;
+};
+
+const buildToolNameLookup = (records: ToolRecord[]): Map<string, ToolRecord> => {
+  const lookup = new Map(records.map((record) => [record.path.slice('tools.'.length), record]));
+  const aliases = new Map<string, ToolRecord | undefined>();
+
+  for (const record of records) {
+    const names = [
+      record.rawName,
+      record.rawName.replace(/---/g, '__').replace(/-/g, '_'),
+      record.rawName.replace(/-/g, '_'),
+    ];
+    for (const name of names) {
+      if (!aliases.has(name)) {
+        aliases.set(name, record);
+      } else if (aliases.get(name) !== record) {
+        aliases.set(name, undefined);
+      }
+    }
+  }
+
+  for (const [name, record] of aliases) {
+    if (record && !lookup.has(name) && name !== PTC_TOOL_NAME) {
+      lookup.set(name, record);
+    }
+  }
+
+  return lookup;
 };
 
 const renderSchemaType = (schema: Record<string, unknown> | undefined, depth: number): string => {
@@ -379,9 +407,11 @@ class ProgrammaticToolCallsExtension implements Extension {
             }
           };
 
-          const toolsObject: Record<string, unknown> = {};
-          for (const record of records) {
-            toolsObject[sanitizeToolName(record.rawName)] = makeToolFunction(record);
+          const toolNameLookup = buildToolNameLookup(records);
+          const toolFunctions = new Map(records.map((record) => [record, makeToolFunction(record)]));
+          const toolsObject: Record<string, unknown> = Object.create(null);
+          for (const [name, record] of toolNameLookup) {
+            toolsObject[name] = toolFunctions.get(record);
           }
 
           const searchTools = (request?: { query?: string; limit?: number; offset?: number; namespace?: string }): { results: string[]; total: number } => {
@@ -390,8 +420,8 @@ class ProgrammaticToolCallsExtension implements Extension {
           };
 
           const describeTool = (path: string): string | { error: string } => {
-            const normalized = path.replace(/^tools\['/, '').replace(/'\]$/, '').replace(/^tools\./, '');
-            const record = records.find((candidate) => candidate.path === `tools.${normalized}`);
+            const normalized = path.replace(/^tools\[['"]/, '').replace(/['"]\]$/, '').replace(/^tools\./, '');
+            const record = toolNameLookup.get(normalized);
             if (!record) {
               return { error: `UnknownTool: '${path}' is not a known tool path. Use searchTools() to find available tools.` };
             }
@@ -404,10 +434,9 @@ class ProgrammaticToolCallsExtension implements Extension {
             searchTools,
             describeTool,
           };
-          for (const record of records) {
-            const rawKey = record.path.replace(/^tools\./, '');
-            if (isIdentifier(rawKey)) {
-              scope[rawKey] = toolsObject[rawKey];
+          for (const name of toolNameLookup.keys()) {
+            if (isIdentifier(name) && !Object.prototype.hasOwnProperty.call(scope, name)) {
+              scope[name] = toolsObject[name];
             }
           }
 

@@ -45,6 +45,13 @@ Examples:
 - `power---bash` → `tools.power_bash()`
 - `power---semantic_search` → `tools.power_semantic_search()`
 
+Raw names (via bracket notation) and double/triple-underscore namespace separators are also accepted:
+`tools['tasks---create_task']`, `tools.tasks__create_task`, and `tools.tasks___create_task`
+all resolve to `tools.tasks_create_task`. Identifier-safe names are also available as standalone
+functions, such as `tasks___create_task()`. `describeTool` accepts the same aliases.
+Canonical catalog names always take precedence; aliases shared by multiple tools are not exposed.
+Discovery results continue to show only canonical names.
+
 ### Tool Discovery Inside the Sandbox
 
 The tool signature catalog embedded in the tool description is budgeted — with many tools

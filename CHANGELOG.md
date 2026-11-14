@@ -27,6 +27,7 @@
 - added Atlas Cloud as first class provider
 - improved extension loading startup performance by caching transpiled files on disk
 - updated OpenCode Go endpoints and model routing
+- improved programmatic tool calls to accept alternative tool name separators and fixed collision-suffixed tool names
 
 ## [0.91.0]
 

@@ -13,6 +13,7 @@ import {
   AgentProfile,
   McpOAuthStatus,
   McpServerConfig,
+  McpServerScope,
   McpTool,
   McpToolInputSchema,
   PromptContext,
@@ -121,6 +122,9 @@ export class McpManager {
 
       const initTime = Date.now() - initStartTime;
       logger.debug(`MCP servers initialized in ${initTime}ms`);
+      logger.info(
+        `[mcp-perf] INIT provider=${providerName} initMs=${initTime} enabledServers=${profile.enabledServers.length} pooledProcs=${this.mcpConnectors.size}`,
+      );
     } catch (error) {
       logger.error('Error initializing MCP clients:', error);
       task.addLogMessage('error', `Error initializing MCP clients: ${error}`, false, promptContext);
@@ -128,6 +132,8 @@ export class McpManager {
 
     const toolSet: ToolSet = {};
     const lastToolCallTimeRef = { value: 0 };
+    const perfBuildStart = Date.now();
+    let perfToolCount = 0;
 
     for (const mcpConnector of connectors) {
       if (!profile.enabledServers.includes(mcpConnector.serverName)) {
@@ -171,9 +177,13 @@ export class McpManager {
           promptContext,
         );
         toolSet[normalizedToolId] = { ...toolSet[normalizedToolId], ...{ recoveryModeKey: toolId, replayOwner } };
+        perfToolCount++;
       }
     }
 
+    logger.info(
+      `[mcp-perf] TOOLSET provider=${providerName} servers=${connectors.length} tools=${perfToolCount} buildMs=${Date.now() - perfBuildStart} pooledProcs=${this.mcpConnectors.size}`,
+    );
     return toolSet;
   }
 
@@ -492,6 +502,10 @@ export class McpManager {
   ): Promise<McpConnector> {
     const oldConnectorPromise = this.getPooledConnector(scope, serverName);
 
+    // CWD follows the resolved scope (worktree-safe): a task-scoped server runs in the task's
+    // working directory, a project/global server runs rooted at the project.
+    const connectorCwd = this.resolveConnectorCwd(config, projectDir, taskDir);
+
     config = this.interpolateServerConfig(config, projectDir, taskDir);
 
     let oldConnector: McpConnector | null = null;
@@ -520,10 +534,11 @@ export class McpManager {
 
     if (oldConnector) {
       logger.debug(`Using existing MCP connector for server: ${serverName}`);
+      logger.info(`[mcp-perf] REUSE server=${serverName} scope=${scope} pooledProcs=${this.mcpConnectors.size}`);
       return oldConnector;
     }
 
-    return this.createMcpConnector(serverName, config, projectDir, taskDir).catch((error) => {
+    return this.createMcpConnector(serverName, config, projectDir, taskDir, connectorCwd).catch((error) => {
       logger.error(`MCP Client creation failed for server during init: ${serverName}`, error);
       throw error;
     });
@@ -532,6 +547,40 @@ export class McpManager {
   async close(): Promise<void> {
     await this.closeAllPooledConnectors();
     logger.debug('MCP clients closed and record cleared/updated.');
+  }
+
+  /**
+   * Closes and removes every pooled connector whose scope references `dir` (a project
+   * baseDir or a task worktree path), so a deleted task/worktree or a closed project
+   * no longer leaves orphaned stdio processes (and their browser children) alive.
+   * Pool keys are `${scope}:${serverName}`; a dir matches when it is the scope prefix
+   * (`${dir}:...`) or an embedded `${projectDir}:${taskDir}` segment (`...:${dir}:...`).
+   * The 'global' scope is never affected.
+   */
+  async evictConnectorsForDir(dir: string): Promise<number> {
+    if (!dir) {
+      return 0;
+    }
+    const matchingKeys = Array.from(this.mcpConnectors.keys()).filter((poolKey) => poolKey.startsWith(`${dir}:`) || poolKey.includes(`:${dir}:`));
+
+    for (const poolKey of matchingKeys) {
+      const connectorPromise = this.mcpConnectors.get(poolKey);
+      this.mcpConnectors.delete(poolKey);
+      this.connectorServerUrls.delete(poolKey);
+      if (connectorPromise) {
+        try {
+          const connector = await connectorPromise;
+          await connector.client.close();
+        } catch (error) {
+          logger.error(`Error closing evicted MCP connector for ${poolKey}:`, error);
+        }
+      }
+    }
+
+    if (matchingKeys.length > 0) {
+      logger.info(`[mcp-perf] EVICT dir=${dir} closed=${matchingKeys.length} pooledProcs=${this.mcpConnectors.size}`);
+    }
+    return matchingKeys.length;
   }
 
   private interpolateServerConfig(serverConfig: McpServerConfig, projectDir: string | null, taskDir: string | null): McpServerConfig {
@@ -599,23 +648,60 @@ export class McpManager {
     return false;
   }
 
+  /**
+   * Resolves the effective sharing scope for a server. An explicit `config.scope` always wins.
+   * Otherwise it is derived: a `${taskDir}` placeholder pins the connector to the task directory,
+   * a `${projectDir}` placeholder to the project, and remote (url) servers default to global.
+   * Every other stdio server defaults to project scope (shared across the project's tasks,
+   * including worktree tasks). To isolate a working-directory-dependent server per worktree, set
+   * `scope: task` or use a `${taskDir}` placeholder.
+   */
+  private resolveScopeKind(serverConfig: McpServerConfig): McpServerScope {
+    if (serverConfig.scope) {
+      return serverConfig.scope;
+    }
+    if (this.configHasInterpolation(serverConfig, '${taskDir}')) {
+      return McpServerScope.Task;
+    }
+    if (this.configHasInterpolation(serverConfig, '${projectDir}')) {
+      return McpServerScope.Project;
+    }
+    if (!serverConfig.command && serverConfig.url) {
+      return McpServerScope.Global;
+    }
+    return McpServerScope.Project;
+  }
+
+  /**
+   * Working directory for a server's child process, aligned with its resolved scope so a shared
+   * (project/global) server runs rooted at the project while a task-scoped server runs in the
+   * task's working directory — keeping worktree tasks isolated (ADR-0017).
+   */
+  private resolveConnectorCwd(serverConfig: McpServerConfig, projectDir: string | null, taskDir: string | null): string | undefined {
+    const kind = this.resolveScopeKind(serverConfig);
+    return kind === McpServerScope.Task ? taskDir || projectDir || undefined : projectDir || taskDir || undefined;
+  }
+
   private calculateServerScope(serverConfig: McpServerConfig, projectDir: string | null, taskDir: string | null, serverName: string): string {
     const hasProjectDirInterpolation = this.configHasInterpolation(serverConfig, '${projectDir}');
     const hasTaskDirInterpolation = this.configHasInterpolation(serverConfig, '${taskDir}');
+    const kind = this.resolveScopeKind(serverConfig);
 
     let scope: string;
-    if (!hasProjectDirInterpolation && !hasTaskDirInterpolation) {
-      scope = !serverConfig.command && serverConfig.url ? 'global' : taskDir || projectDir || 'global';
-    } else if (hasProjectDirInterpolation && !hasTaskDirInterpolation) {
-      // Has ${projectDir} only: scope = ${projectDir || 'global'}
+    if (kind === McpServerScope.Global) {
+      scope = 'global';
+    } else if (kind === McpServerScope.Project) {
       scope = projectDir || 'global';
-    } else {
-      // Has both ${projectDir} and ${taskDir}: scope = ${projectDir}:${taskDir}
+    } else if (hasProjectDirInterpolation && hasTaskDirInterpolation) {
+      // Both ${projectDir} and ${taskDir}: compound scope keeps per-task uniqueness.
       scope = projectDir ? `${projectDir}:${taskDir || ''}` : 'global';
+    } else {
+      scope = taskDir || projectDir || 'global';
     }
 
     logger.info(`Calculated scope for MCP server: ${serverName}`, {
       scope,
+      kind,
       hasProjectDirInterpolation,
       hasTaskDirInterpolation,
       projectDir,
@@ -633,10 +719,17 @@ export class McpManager {
     });
   }
 
-  private async createMcpConnector(serverName: string, config: McpServerConfig, projectDir: string | null, taskDir: string | null): Promise<McpConnector> {
+  private async createMcpConnector(
+    serverName: string,
+    config: McpServerConfig,
+    projectDir: string | null,
+    taskDir: string | null,
+    cwd?: string,
+  ): Promise<McpConnector> {
     logger.info(`Initializing MCP client for server: ${serverName}`);
     logger.debug(`Server configuration: ${JSON.stringify(config)}`);
 
+    const perfStart = Date.now();
     let client: MCPClient;
 
     if (config.command) {
@@ -685,7 +778,7 @@ export class McpManager {
         command,
         args,
         env,
-        cwd: taskDir || projectDir || undefined,
+        cwd: cwd ?? taskDir ?? projectDir ?? undefined,
       });
 
       logger.debug(`Connecting to MCP server using STDIO: ${serverName}`);
@@ -734,12 +827,18 @@ export class McpManager {
       throw new Error(`MCP server ${serverName} has invalid configuration: missing command or url`);
     }
 
+    const perfConnectMs = Date.now() - perfStart;
     logger.debug(`Fetching tools for MCP server: ${serverName}`);
+    const perfListStart = Date.now();
     const toolsResponse = await client.listTools({
       options: { timeout: MCP_CLIENT_TIMEOUT },
     });
     const toolsList = toolsResponse.tools;
+    const perfListMs = Date.now() - perfListStart;
     logger.debug(`Found ${toolsList.length} tools for MCP server: ${serverName}`);
+    logger.info(
+      `[mcp-perf] COLD_SPAWN server=${serverName} transport=${config.command ? 'stdio' : 'http'} connectMs=${perfConnectMs} listToolsMs=${perfListMs} totalMs=${Date.now() - perfStart} tools=${toolsList.length}`,
+    );
 
     const connector: McpConnector = {
       client,

@@ -1,23 +1,92 @@
 import { describe, it, expect } from 'vitest';
+import { McpServerScope } from '@common/types';
 
 import { McpManager } from '../mcp-manager';
 
 import type { McpServerConfig } from '@common/types';
 
 describe('McpManager - scope calculation', () => {
-  it('should calculate scope without interpolation', () => {
+  it('should share a non-interpolated stdio server across local tasks (project scope)', () => {
     const manager = new McpManager();
     const config: McpServerConfig = {
       command: 'npx',
       args: ['@modelcontextprotocol/server-filesystem', '/path'],
     };
 
-    // Access private method via any for testing
+    // Local task: taskDir === projectDir -> project scope (shared across the project's tasks).
+    const scope = (manager as any).calculateServerScope(config, '/project', '/project', 'test-server');
+    expect(scope).toBe('/project');
+  });
+
+  it('should share a non-interpolated stdio server across worktree tasks by default (project scope)', () => {
+    const manager = new McpManager();
+    const config: McpServerConfig = {
+      command: 'npx',
+      args: ['@modelcontextprotocol/server-filesystem', '/path'],
+    };
+
+    // Worktree task without explicit scope or ${taskDir} -> project scope (shared).
+    const scopeA = (manager as any).calculateServerScope(config, '/project', '/project/worktree-a', 'test-server');
+    const scopeB = (manager as any).calculateServerScope(config, '/project', '/project/worktree-b', 'test-server');
+    expect(scopeA).toBe('/project');
+    expect(scopeB).toBe('/project');
+  });
+
+  it('should isolate worktree connectors when ${taskDir} is used', () => {
+    const manager = new McpManager();
+    const config: McpServerConfig = {
+      command: 'npx',
+      args: ['@modelcontextprotocol/server-filesystem', '${taskDir}'],
+    };
+
+    const scopeA = (manager as any).calculateServerScope(config, '/project', '/project/worktree-a', 'test-server');
+    const scopeB = (manager as any).calculateServerScope(config, '/project', '/project/worktree-b', 'test-server');
+    expect(scopeA).toBe('/project/worktree-a');
+    expect(scopeB).toBe('/project/worktree-b');
+    expect(scopeA).not.toBe(scopeB);
+  });
+
+  it('should honor an explicit project scope to share a server across worktree tasks', () => {
+    const manager = new McpManager();
+    const config: McpServerConfig = {
+      command: 'npx',
+      args: ['@modelcontextprotocol/server-playwright'],
+      scope: McpServerScope.Project,
+    };
+
+    const scopeA = (manager as any).calculateServerScope(config, '/project', '/project/worktree-a', 'test-server');
+    const scopeB = (manager as any).calculateServerScope(config, '/project', '/project/worktree-b', 'test-server');
+    expect(scopeA).toBe('/project');
+    expect(scopeB).toBe('/project');
+  });
+
+  it('should honor an explicit global scope across projects', () => {
+    const manager = new McpManager();
+    const config: McpServerConfig = {
+      command: 'npx',
+      args: ['-y', 'context7-mcp'],
+      scope: McpServerScope.Global,
+    };
+
+    const scopeA = (manager as any).calculateServerScope(config, '/projectA', '/projectA', 'test-server');
+    const scopeB = (manager as any).calculateServerScope(config, '/projectB', '/projectB', 'test-server');
+    expect(scopeA).toBe('global');
+    expect(scopeB).toBe('global');
+  });
+
+  it('should honor an explicit task scope to isolate a server', () => {
+    const manager = new McpManager();
+    const config: McpServerConfig = {
+      command: 'npx',
+      args: ['@modelcontextprotocol/server-filesystem', '.'],
+      scope: McpServerScope.Task,
+    };
+
     const scope = (manager as any).calculateServerScope(config, '/project', '/project/worktree', 'test-server');
     expect(scope).toBe('/project/worktree');
   });
 
-  it('should calculate scope with taskDir when no projectDir', () => {
+  it('should fall back to global for a non-interpolated stdio server without a projectDir', () => {
     const manager = new McpManager();
     const config: McpServerConfig = {
       command: 'npx',
@@ -25,7 +94,7 @@ describe('McpManager - scope calculation', () => {
     };
 
     const scope = (manager as any).calculateServerScope(config, null, '/project/worktree', 'test-server');
-    expect(scope).toBe('/project/worktree');
+    expect(scope).toBe('global');
   });
 
   it('should calculate scope with projectDir when no taskDir', () => {

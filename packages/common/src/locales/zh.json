@@ -310,7 +310,12 @@
     "pasteServerAs": "粘贴您的服务器配置为:\n\n{{example}}\n\n或\n\n{{exampleNoParent}}\n\n或\n\n{{exampleBare}}",
     "invalidConfig": "无效配置",
     "emptyConfig": "配置不能为空",
-    "configHint": "您可以一次添加多个服务器，方法是粘贴包含多个服务器配置的 JSON 对象。您还可以在 env 和 args 中使用 ${projectDir} 来引用当前项目目录。",
+    "configHint": "您可以一次添加多个服务器，方法是粘贴包含多个服务器配置的 JSON 对象。您还可以在 env 和 args 中使用 ${projectDir} 来引用当前项目目录。\n\n可选的 \"scope\" 属性用于控制连接器共享（\"project\"、\"task\" 或 \"global\"）。",
+    "additionalProperties": "附加属性",
+    "scopeDescription": "控制服务器进程的共享方式：",
+    "scopeProject": "project（command 服务器的默认值）—— 在该项目的任务和工作树之间共享一个进程",
+    "scopeTask": "task —— 为每个任务/工作树运行独立进程（适用于依赖工作目录的服务器）",
+    "scopeGlobal": "global（url 服务器的默认值）—— 在所有项目之间共享一个进程",
     "viewExamples": "查看示例"
   },
   "model": {

@@ -988,12 +988,29 @@ export interface McpTool {
   inputSchema: McpToolInputSchema;
 }
 
+export enum McpServerScope {
+  /** One connector per task working directory. Use for working-directory-dependent servers to keep worktree tasks isolated. */
+  Task = 'task',
+  /** One connector shared by all tasks of the same project, including worktree tasks (default for stdio servers). */
+  Project = 'project',
+  /** One connector shared across all projects (default for remote url servers). */
+  Global = 'global',
+}
+
 export interface McpServerConfig {
   command?: string;
   args?: string[];
   env?: Readonly<Record<string, string>>;
   url?: string;
   headers?: Readonly<Record<string, string>>;
+  /**
+   * Connector sharing scope. Defaults to `Project` for stdio servers (one shared process per project,
+   * reused across the project's tasks and worktrees) and `Global` for remote (url) servers. Set to
+   * `Task` for a working-directory-dependent server (e.g. a filesystem server with a relative path) so
+   * each worktree task gets its own process in its own working directory; a `${taskDir}` placeholder
+   * implies `Task`. An explicit value always wins.
+   */
+  scope?: McpServerScope;
 }
 
 export enum McpOAuthStatus {

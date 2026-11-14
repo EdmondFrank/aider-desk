@@ -22,6 +22,7 @@
 - added extension APIs for private input dialogs and per-command bash execution setup
 - fixed agent conflict resolution reporting success and staging unresolved files after agent errors
 - added getTaskStates to the Extension API to support custom task states
+- added configurable MCP server scope (task/project/global) that shares connectors across tasks by default and frees them on task or project close to reduce process and memory usage
 
 ## [0.91.0]
 

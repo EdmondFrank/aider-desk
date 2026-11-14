@@ -310,7 +310,12 @@
     "pasteServerAs": "Fügen Sie Ihren Server ein als:\n\n{{example}}\n\noder\n\n{{exampleNoParent}}\n\noder\n\n{{exampleBare}}",
     "invalidConfig": "Ungültige Konfiguration",
     "emptyConfig": "Konfiguration darf nicht leer sein",
-    "configHint": "Sie können mehrere Server gleichzeitig hinzufügen, indem Sie ein JSON-Objekt mit mehreren Serverkonfigurationen einfügen.\n\nSie können ${projectDir} in env und args verwenden, um auf das aktuelle Projektverzeichnis zu verweisen.",
+    "configHint": "Sie können mehrere Server gleichzeitig hinzufügen, indem Sie ein JSON-Objekt mit mehreren Serverkonfigurationen einfügen.\n\nSie können ${projectDir} in env und args verwenden, um auf das aktuelle Projektverzeichnis zu verweisen.\n\nEine optionale \"scope\"-Eigenschaft steuert die Connector-Freigabe (\"project\", \"task\" oder \"global\").",
+    "additionalProperties": "Zusätzliche Eigenschaften",
+    "scopeDescription": "steuert, wie der Serverprozess geteilt wird:",
+    "scopeProject": "project (Standard für Kommando-Server) — ein Prozess, geteilt über alle Tasks und Worktrees des Projekts",
+    "scopeTask": "task — isolierter Prozess pro Task/Worktree, für Server, die vom Arbeitsverzeichnis abhängen",
+    "scopeGlobal": "global (Standard für URL-Server) — ein Prozess, geteilt über alle Projekte",
     "viewExamples": "Beispiele anzeigen"
   },
   "model": {

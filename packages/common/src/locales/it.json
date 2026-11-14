@@ -310,7 +310,12 @@
     "pasteServerAs": "Incolla il tuo server come:\n\n{{example}}\n\noppure\n\n{{exampleNoParent}}\n\noppure\n\n{{exampleBare}}",
     "invalidConfig": "Configurazione non valida",
     "emptyConfig": "La configurazione non può essere vuota",
-    "configHint": "Puoi aggiungere più server contemporaneamente incollando un oggetto JSON con più configurazioni di server.\n\nPuoi usare ${projectDir} in env e args per fare riferimento alla directory del progetto corrente.",
+    "configHint": "Puoi aggiungere più server contemporaneamente incollando un oggetto JSON con più configurazioni di server.\n\nPuoi usare ${projectDir} in env e args per fare riferimento alla directory del progetto corrente.\n\nUna proprietà \"scope\" opzionale controlla la condivisione del connettore (\"project\", \"task\" o \"global\").",
+    "additionalProperties": "Proprietà aggiuntive",
+    "scopeDescription": "controlla come viene condiviso il processo del server:",
+    "scopeProject": "project (predefinito per i server con comando) — un processo condiviso tra le attività e i worktree del progetto",
+    "scopeTask": "task — un processo isolato per attività/worktree, per i server dipendenti dalla directory di lavoro",
+    "scopeGlobal": "global (predefinito per i server con url) — un processo condiviso tra tutti i progetti",
     "viewExamples": "Vedi esempi"
   },
   "model": {

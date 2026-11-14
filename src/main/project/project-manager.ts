@@ -96,6 +96,7 @@ export class ProjectManager {
     }
     logger.info('Closing project', { baseDir });
     await project.close();
+    await this.mcpManager.evictConnectorsForDir(baseDir);
   }
 
   public async restartProject(baseDir: string): Promise<void> {

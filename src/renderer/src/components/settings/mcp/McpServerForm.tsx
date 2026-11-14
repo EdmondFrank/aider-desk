@@ -1,4 +1,4 @@
-import { McpServerConfig } from '@common/types';
+import { McpServerConfig, McpServerScope } from '@common/types';
 import { useState, useMemo, ChangeEvent } from 'react';
 import { z } from 'zod/v3';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,8 @@ const MCP_SERVER_EXAMPLE_JSON = `{
   "mcpServers": {
     "puppeteer": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+      "scope": "project"
     },
     "remote": {
       "url": "http://localhost:8080"
@@ -23,7 +24,8 @@ const MCP_SERVER_EXAMPLE_JSON = `{
 const MCP_SERVER_EXAMPLE_NO_PARENT = `{
   "puppeteer": {
     "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+    "scope": "project"
   },
   "remote": {
     "url": "http://localhost:8080"
@@ -32,7 +34,8 @@ const MCP_SERVER_EXAMPLE_NO_PARENT = `{
 
 const MCP_SERVER_EXAMPLE_BARE = `"puppeteer": {
   "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+  "args": ["-y", "@modelcontextprotocol/server-puppeteer"],
+  "scope": "project"
 },
 "remote": {
   "url": "http://localhost:8080"
@@ -45,10 +48,12 @@ const McpServersRecordSchema = z.record(
       args: z.array(z.string()).readonly().optional(),
       env: z.record(z.string()).readonly().optional(),
       url: z.undefined().optional(),
+      scope: z.nativeEnum(McpServerScope).optional(),
     }),
     z.object({
       url: z.string().url(),
       headers: z.record(z.string()).readonly().optional(),
+      scope: z.nativeEnum(McpServerScope).optional(),
     }),
   ]),
 );
@@ -163,6 +168,19 @@ export const McpServerForm = ({ onSave, onCancel, servers }: Props) => {
         wrapperClassName="mb-2 flex-grow max-h-[600px]"
         className={`w-full h-full p-2 resize-none ${configJSON && !isValidJson ? 'border-error-emphasis focus:border-error-emphasis' : ''}`}
       />
+      <div className="text-2xs text-text-secondary mb-2">
+        <p>{t('mcpServer.additionalProperties')}:</p>
+        <div className="mt-1">
+          {/* eslint-disable-next-line i18next/no-literal-string -- JSON property name */}
+          <span className="font-semibold text-text-primary">scope</span>
+          <span> — {t('mcpServer.scopeDescription')}</span>
+          <ul className="list-disc pl-4 mt-0.5 space-y-0.5">
+            <li>{t('mcpServer.scopeProject')}</li>
+            <li>{t('mcpServer.scopeTask')}</li>
+            <li>{t('mcpServer.scopeGlobal')}</li>
+          </ul>
+        </div>
+      </div>
       <div className="flex justify-between items-center gap-2">
         <a href="https://modelcontextprotocol.io/examples" target="_blank" rel="noopener noreferrer" className="text-xs text-info-light hover:underline">
           {t('mcpServer.viewExamples')}

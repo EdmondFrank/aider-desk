@@ -57,6 +57,8 @@ The configuration requires a `command` and an array of `args`. You can also prov
 
 For streamable http servers, you can also specify `url` and `headers`.
 
+You can optionally set a `scope` to control how the server process is shared across tasks and projects — see [Server Scope](#server-scope).
+
 **Example: Adding a streamable http server**
 ```json
 {
@@ -129,7 +131,43 @@ You can use placeholders in your server's `args` or `env` configuration:
 }
 ```
 
-**Important:** The MCP server's working directory (`cwd`) is automatically set to `${taskDir}`, so tools that operate on files will work in the task's working directory by default. Use `${projectDir}` when you need to access the project root regardless of whether worktree mode is active.
+**Important:** The MCP server's working directory (`cwd`) follows its [scope](#server-scope). With the default **project** scope, the `cwd` is the project root; with **task** scope (or when the configuration uses `${taskDir}`), it is the task's working directory (the worktree in worktree mode). Set `scope: "task"` for servers that operate on files relative to their `cwd` so they stay inside the task's worktree, or use the `${projectDir}`/`${taskDir}` placeholders in `args`/`env` to pass an explicit path.
+
+## Server Scope
+
+By default, AiderDesk reuses a single MCP server process wherever it is safe to do so, which reduces startup time and resource usage. You can control this with an optional `scope` property on a server's configuration:
+
+- **`project`** *(default for stdio servers)* — one shared process per project, reused across all of the project's tasks, including worktree tasks.
+- **`task`** — a separate, isolated process per task, running in the task's working directory (the worktree in worktree mode). Use this for working-directory-dependent servers (for example, a filesystem server launched with a relative path such as `.`) so they never operate on the main checkout instead of the worktree.
+- **`global`** *(default for remote `url` servers)* — a single process shared across all projects.
+
+If the configuration interpolates `${taskDir}`, the server is treated as **task**-scoped automatically; if it interpolates `${projectDir}` only, it is **project**-scoped. An explicit `scope` always takes precedence.
+
+**Example: isolate a filesystem server per worktree**
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+      "scope": "task"
+    }
+  }
+}
+```
+
+**Example: share a browser-automation server across all projects**
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp"],
+      "scope": "global"
+    }
+  }
+}
+```
 
 ## Enabling Servers and Tools in Agent Profiles
 

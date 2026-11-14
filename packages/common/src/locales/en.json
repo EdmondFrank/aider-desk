@@ -310,7 +310,12 @@
     "pasteServerAs": "Paste your server as:\n\n{{example}}\n\nor\n\n{{exampleNoParent}}\n\nor\n\n{{exampleBare}}",
     "invalidConfig": "Invalid configuration",
     "emptyConfig": "Configuration cannot be empty",
-    "configHint": "You can add multiple servers at once by pasting a JSON object with multiple server configurations.\n\nYou can use ${projectDir} in env and args to reference the current project directory.",
+    "configHint": "You can add multiple servers at once by pasting a JSON object with multiple server configurations.\n\nYou can use ${projectDir} in env and args to reference the current project directory.\n\nAn optional \"scope\" property controls connector sharing (\"project\", \"task\", or \"global\").",
+    "additionalProperties": "Additional properties",
+    "scopeDescription": "controls how the server process is shared:",
+    "scopeProject": "project (default for command servers) — one process shared by the project's tasks and worktrees",
+    "scopeTask": "task — an isolated process per task/worktree, for working-directory-dependent servers",
+    "scopeGlobal": "global (default for url servers) — one process shared across all projects",
     "viewExamples": "View Examples"
   },
   "model": {

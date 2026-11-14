@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { McpServerScope } from '@common/types';
 
 import { BaseApi } from './base-api';
 
@@ -11,6 +12,7 @@ const McpServerConfigSchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
   url: z.string().optional(),
   headers: z.record(z.string(), z.string()).optional(),
+  scope: z.nativeEnum(McpServerScope).optional(),
 });
 
 const LoadMcpServerToolsSchema = z.object({

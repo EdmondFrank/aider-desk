@@ -506,6 +506,8 @@ export class Project {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+
+    await this.mcpManager.evictConnectorsForDir(taskData.worktree.path);
   }
 
   private async deleteTaskInternal(taskId: string): Promise<void> {

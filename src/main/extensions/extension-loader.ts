@@ -4,6 +4,7 @@ import { createJiti, type JitiOptions } from 'jiti';
 import { Extension, ExtensionMetadata } from '@common/extensions';
 
 import logger from '@/logger';
+import { AIDER_DESK_EXTENSION_JITI_CACHE_DIR } from '@/constants';
 
 // Define the interface for the loaded module
 interface ExtensionModule {
@@ -15,7 +16,7 @@ interface ExtensionModule {
 
 // Base jiti options shared across all instances
 const baseJitiOptions: JitiOptions = {
-  fsCache: false,
+  fsCache: AIDER_DESK_EXTENSION_JITI_CACHE_DIR,
   moduleCache: false,
   alias: {
     zod: require.resolve('zod'),

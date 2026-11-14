@@ -43,6 +43,7 @@ export const WORKTREE_BRANCH_PREFIX = 'aider-desk/task/';
 export const AIDER_DESK_PROJECTS_DIR = path.join(AIDER_DESK_HOME_DIR, 'projects');
 export const AIDER_DESK_MEMORY_FILE = path.join(AIDER_DESK_DATA_DIR, 'memory.db');
 export const EXTENSIONS_REPOS_CACHE_DIR = path.join(AIDER_DESK_CACHE_DIR, 'extensions');
+export const AIDER_DESK_EXTENSION_JITI_CACHE_DIR = path.join(AIDER_DESK_CACHE_DIR, 'jiti');
 
 export const POSTHOG_PUBLIC_API_KEY = process.env.POSTHOG_PUBLIC_API_KEY ?? '';
 export const POSTHOG_HOST = 'https://eu.i.posthog.com';

@@ -25,6 +25,7 @@
 - added configurable MCP server scope (task/project/global) that shares connectors across tasks by default and frees them on task or project close to reduce process and memory usage
 - added a cost-by-model pie chart alongside token usage in the Usage Dashboard
 - added Atlas Cloud as first class provider
+- improved extension loading startup performance by caching transpiled files on disk
 
 ## [0.91.0]
 

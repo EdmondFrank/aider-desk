@@ -28,7 +28,8 @@ it('streams a live GLM-5.3 coding response with tool execution', async () => {
   try {
     const result = streamText({
       model: createOpencodeGoLlm(profile, model, settings, process.cwd(), undefined, undefined, undefined, undefined, 'aiderdesk-glm53-live-smoke'),
-      system: 'You are a coding assistant reviewing a small TypeScript project. Use read_file before explaining a fix. Keep your final answer to one sentence. Do not modify files.',
+      system:
+        'You are a coding assistant reviewing a small TypeScript project. Use read_file before explaining a fix. Keep your final answer to one sentence. Do not modify files.',
       prompt: 'Review src/sum.ts using read_file and explain why sum(2, 3) is wrong and how to fix it.',
       tools: {
         read_file: tool({

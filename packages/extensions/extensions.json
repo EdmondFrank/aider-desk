@@ -118,7 +118,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 131
+      "installCount": 132
     },
     {
       "id": "protected-paths",
@@ -176,7 +176,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 83
+      "installCount": 84
     },
     {
       "id": "learn",
@@ -396,7 +396,7 @@
       "capabilities": [
         "providers"
       ],
-      "installCount": 40
+      "installCount": 41
     },
     {
       "id": "fff",
@@ -683,7 +683,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 159
+      "installCount": 161
     },
     {
       "id": "dbx",

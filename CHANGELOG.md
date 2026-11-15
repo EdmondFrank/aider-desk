@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [0.92.0]
 
 - improved database write performance by enabling SQLite WAL mode to reduce UI freezes under concurrent agents
 - fixed amend commits including unselected staged changes instead of respecting the selected files

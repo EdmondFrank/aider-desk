@@ -1,408 +1,256 @@
-import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
-import path from 'path';
-import { existsSync, readFileSync } from 'fs';
+import path from 'node:path';
+import fs from 'node:fs/promises';
 
-import { ExtensionContext } from '@aiderdesk/extensions';
+import spawn from 'cross-spawn';
+import { createHash } from 'node:crypto';
+import { homedir } from 'node:os';
 
-interface SafeSpawnOptions {
-  cwd: string;
-  env?: NodeJS.ProcessEnv;
-}
+import { DEFAULT_CONFIG } from './config';
+import { ensureServer, extensionDirectory, runInstaller } from './installation';
 
-const safeSpawn = (
-  command: string,
-  args: string[],
-  serverName: string,
-  context: ExtensionContext,
-  options: SafeSpawnOptions,
-): Promise<ChildProcessWithoutNullStreams> => {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
-      cwd: options.cwd,
-      env: options.env ?? process.env,
-    });
+import { ancestors, exists, findBinary, findTsserverPath } from './executables';
 
-    let resolved = false;
+export { ancestors, findBinary, findTsserverPath } from './executables';
 
-    proc.on('error', (error) => {
-      context.log(`Failed to start ${serverName} LSP server: ${error.message}`, 'error');
-      if (!resolved) {
-        reject(error);
-      }
-    });
+import type { ExtensionContext } from '@aiderdesk/extensions';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { LspConfig } from './config';
 
-    setImmediate(() => {
-      if (proc.pid !== undefined) {
-        resolved = true;
-        resolve(proc);
-      }
-    });
-  });
-};
+export type LspLogContext = Pick<ExtensionContext, 'log'>;
 
 export interface LspServerHandle {
   process: ChildProcessWithoutNullStreams;
   initializationOptions?: Record<string, unknown>;
+  processGroup?: boolean;
 }
 
 export interface LspServerInfo {
   id: string;
   languageId: string;
   extensions: string[];
-  spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined>;
+  matches?(rootDir: string): Promise<boolean>;
+  prepare?(rootDir: string, context: LspLogContext, config: LspConfig): Promise<void>;
+  spawn(rootDir: string, context: LspLogContext, config?: LspConfig): Promise<LspServerHandle | undefined>;
 }
 
-const TYPESCRIPT_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'];
-const PYTHON_EXTENSIONS = ['.py', '.pyi', '.pyw'];
-const VUE_EXTENSIONS = ['.vue'];
-const RUST_EXTENSIONS = ['.rs'];
-const GO_EXTENSIONS = ['.go'];
-const JAVA_EXTENSIONS = ['.java', '.gradle', '.groovy'];
-const LUA_EXTENSIONS = ['.lua'];
-const SVELTE_EXTENSIONS = ['.svelte'];
-const ASTRO_EXTENSIONS = ['.astro'];
-const CSHARP_EXTENSIONS = ['.cs', '.csx'];
-const DENO_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
-
-const findBinary = (binaryName: string, projectDir: string): string | null => {
-  const projectNodeModulesBin = path.join(projectDir, 'node_modules', '.bin', binaryName);
-  if (existsSync(projectNodeModulesBin)) {
-    return projectNodeModulesBin;
-  }
-  return null;
-};
-
-const findTsserverPath = (projectDir: string): string | null => {
-  const possiblePaths = [path.join(projectDir, 'node_modules', 'typescript', 'lib', 'tsserver.js')];
-
-  for (const p of possiblePaths) {
-    if (existsSync(p)) {
-      return p;
-    }
-  }
-  return null;
-};
-
-const hasDependency = (projectDir: string, dependencyName: string): boolean => {
-  const packageJsonPath = path.join(projectDir, 'package.json');
-  if (!existsSync(packageJsonPath)) {
-    return false;
-  }
+const hasDependency = async (rootDir: string, name: string): Promise<boolean> => {
   try {
-    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    return !!(packageJson.dependencies?.[dependencyName] || packageJson.devDependencies?.[dependencyName]);
+    const manifest = JSON.parse(await fs.readFile(path.join(rootDir, 'package.json'), 'utf8'));
+    return Boolean(manifest.dependencies?.[name] || manifest.devDependencies?.[name] || manifest.peerDependencies?.[name]);
   } catch {
     return false;
   }
 };
 
-const hasFile = (projectDir: string, fileName: string): boolean => {
-  return existsSync(path.join(projectDir, fileName));
+const hasMarker = async (rootDir: string, names: string[]): Promise<boolean> => {
+  return (await Promise.all(names.map((name) => exists(path.join(rootDir, name))))).some(Boolean);
 };
 
-export const TypescriptServer: LspServerInfo = {
-  id: 'typescript',
-  languageId: 'typescript',
-  extensions: TYPESCRIPT_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    if (hasFile(rootDir, 'deno.json') || hasFile(rootDir, 'deno.jsonc')) {
-      context.log('Deno project detected, skipping TypeScript LSP (use Deno LSP)', 'debug');
-      return undefined;
+export const isCSharpProject = async (rootDir: string): Promise<boolean> => {
+  try {
+    const entries = await fs.readdir(rootDir, { withFileTypes: true });
+    return entries.some((entry) => entry.isFile() && (entry.name === 'omnisharp.json' || /\.(csproj|sln|slnx)$/i.test(entry.name)));
+  } catch {
+    return false;
+  }
+};
+
+const isDenoProject = (rootDir: string) => hasMarker(rootDir, ['deno.json', 'deno.jsonc']);
+
+const start = async (
+  command: string,
+  args: string[],
+  rootDir: string,
+  context: LspLogContext,
+  env?: NodeJS.ProcessEnv,
+): Promise<ChildProcessWithoutNullStreams> => {
+  const child = spawn(command, args, {
+    cwd: rootDir,
+    env: { ...process.env, ...env },
+    stdio: 'pipe',
+    windowsHide: true,
+    detached: process.platform !== 'win32',
+  }) as ChildProcessWithoutNullStreams;
+  child.stderr.resume();
+  child.on('error', (error) => context.log(`LSP process error: ${error.message}`, 'debug'));
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('LSP spawn timed out'));
+    }, 10000);
+    child.once('spawn', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+  });
+  return child;
+};
+
+interface ServerDefinition {
+  id: string;
+  languageId: string;
+  extensions: string[];
+  binaries: string[];
+  args: string[];
+  matches?: (rootDir: string) => Promise<boolean>;
+  options?: (rootDir: string) => Promise<Record<string, unknown> | undefined>;
+}
+
+const resolveCommand = async (definition: ServerDefinition, rootDir: string, context: LspLogContext, config: LspConfig) => {
+  const override = config.servers[definition.id];
+  if (override) return { command: override.command, args: override.args, env: undefined };
+  for (const name of definition.binaries) {
+    const command = await findBinary(name, rootDir);
+    if (command) {
+      if (definition.id === 'rust' && config.autoInstall) {
+        try {
+          await runInstaller(command, ['--version'], rootDir, AbortSignal.timeout(10000));
+        } catch {
+          break;
+        }
+      }
+      return { command, args: name === 'csharp-ls' ? [] : definition.args, env: undefined };
     }
+  }
+  const managed = await ensureServer(definition.id, context, config);
+  const args = [...managed.args];
+  if (definition.id === 'java') {
+    const workspace = createHash('sha256').update(rootDir).digest('hex').slice(0, 16);
+    args.push(
+      '-data',
+      path.join(config.serverCacheDir || path.join(homedir(), '.aider-desk', 'cache', 'lsp'), 'java-workspaces', `${workspace}-${process.pid}`),
+    );
+  } else if (definition.id !== 'csharp') args.push(...definition.args);
+  return { ...managed, args };
+};
 
-    const tsserverPath = findTsserverPath(rootDir);
-    if (!tsserverPath) {
-      context.log('TypeScript not found in project, skipping TypeScript LSP', 'debug');
-      return undefined;
-    }
-
-    const binary = findBinary('typescript-language-server', rootDir);
-    let command = 'npx';
-    let args = ['typescript-language-server', '--stdio'];
-
-    if (binary) {
-      command = binary;
-      args = ['--stdio'];
-    }
-
-    context.log(`Starting TypeScript LSP server: ${command} ${args.join(' ')}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'TypeScript', context, { cwd: rootDir });
-
+const defineServer = (definition: ServerDefinition): LspServerInfo => ({
+  id: definition.id,
+  languageId: definition.languageId,
+  extensions: definition.extensions,
+  matches: definition.matches,
+  async prepare(rootDir, context, config) {
+    await resolveCommand(definition, rootDir, context, config);
+  },
+  async spawn(rootDir, context, config = DEFAULT_CONFIG) {
+    const override = config.servers[definition.id];
+    if (!override && definition.matches && !(await definition.matches(rootDir))) return undefined;
+    const resolved = await resolveCommand(definition, rootDir, context, config);
+    const initializationOptions = override?.initializationOptions ?? (await definition.options?.(rootDir));
     return {
-      process: proc,
-      initializationOptions: {
-        tsserver: {
-          path: tsserverPath,
-        },
-      },
+      process: await start(resolved.command, resolved.args, rootDir, context, resolved.env),
+      initializationOptions,
+      processGroup: process.platform !== 'win32',
     };
   },
+});
+
+const tsOptions = async (rootDir: string): Promise<Record<string, unknown> | undefined> => {
+  const server = (await findTsserverPath(rootDir)) ?? (await findTsserverPath(extensionDirectory));
+  return server ? { typescript: { tsdk: path.dirname(server) } } : undefined;
 };
 
-export const PythonServer: LspServerInfo = {
-  id: 'python',
-  languageId: 'python',
-  extensions: PYTHON_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    const command = findBinary('pyright-langserver', rootDir) || findBinary('pyright', rootDir);
-    const args = ['--stdio'];
-
-    context.log(`Starting Python LSP server: ${command} ${args.join(' ')}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Python', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-    };
-  },
-};
-
-export const VueServer: LspServerInfo = {
-  id: 'vue',
-  languageId: 'vue',
-  extensions: VUE_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    if (!hasDependency(rootDir, 'vue')) {
-      context.log('Vue not found in project dependencies, skipping Vue LSP', 'debug');
-      return undefined;
-    }
-
-    const binary = findBinary('vue-language-server', rootDir) || findBinary('volar', rootDir);
-    let command = 'npx';
-    let args = ['@vue/language-server', '--stdio'];
-
-    if (binary) {
-      command = binary;
-      args = ['--stdio'];
-    }
-
-    context.log(`Starting Vue LSP server: ${command} ${args.join(' ')}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Vue', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-      initializationOptions: {
-        typescript: {
-          tsdk: path.join(rootDir, 'node_modules', 'typescript', 'lib'),
-        },
-      },
-    };
-  },
-};
-
-export const RustServer: LspServerInfo = {
-  id: 'rust',
-  languageId: 'rust',
-  extensions: RUST_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    if (!hasFile(rootDir, 'Cargo.toml')) {
-      context.log('Cargo.toml not found, skipping Rust LSP', 'debug');
-      return undefined;
-    }
-
-    const command = 'rust-analyzer';
-    const args: string[] = [];
-
-    context.log(`Starting Rust LSP server: ${command}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Rust', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-    };
-  },
-};
-
-export const GoServer: LspServerInfo = {
-  id: 'go',
-  languageId: 'go',
-  extensions: GO_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    if (!hasFile(rootDir, 'go.mod')) {
-      context.log(`go.mod not found in ${rootDir}, skipping Go LSP`, 'info');
-      return undefined;
-    }
-
-    const command = 'gopls';
-    const args = ['serve'];
-
-    context.log(`Starting Go LSP server: ${command} ${args.join(' ')}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Go', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-    };
-  },
-};
-
-export const JavaServer: LspServerInfo = {
-  id: 'java',
-  languageId: 'java',
-  extensions: JAVA_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    const hasJavaProject =
-      hasFile(rootDir, 'pom.xml') ||
-      hasFile(rootDir, 'build.gradle') ||
-      hasFile(rootDir, 'build.gradle.kts') ||
-      hasFile(rootDir, 'settings.gradle') ||
-      hasFile(rootDir, 'settings.gradle.kts');
-
-    if (!hasJavaProject) {
-      context.log('No Java project file found (pom.xml, build.gradle), skipping Java LSP', 'debug');
-      return undefined;
-    }
-
-    const command = 'jdtls';
-    const args: string[] = [];
-
-    context.log(`Starting Java LSP server: ${command}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Java', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-    };
-  },
-};
-
-export const LuaServer: LspServerInfo = {
-  id: 'lua',
-  languageId: 'lua',
-  extensions: LUA_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    const command = 'lua-language-server';
-    const args: string[] = [];
-
-    context.log(`Starting Lua LSP server: ${command}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Lua', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-    };
-  },
-};
-
-export const SvelteServer: LspServerInfo = {
-  id: 'svelte',
-  languageId: 'svelte',
-  extensions: SVELTE_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    if (!hasDependency(rootDir, 'svelte')) {
-      context.log('Svelte not found in project dependencies, skipping Svelte LSP', 'debug');
-      return undefined;
-    }
-
-    const binary = findBinary('svelteserver', rootDir);
-    let command = 'npx';
-    let args = ['svelte-language-server', '--stdio'];
-
-    if (binary) {
-      command = binary;
-      args = ['--stdio'];
-    }
-
-    context.log(`Starting Svelte LSP server: ${command} ${args.join(' ')}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Svelte', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-    };
-  },
-};
-
-export const AstroServer: LspServerInfo = {
-  id: 'astro',
-  languageId: 'astro',
-  extensions: ASTRO_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    if (!hasDependency(rootDir, 'astro')) {
-      context.log('Astro not found in project dependencies, skipping Astro LSP', 'debug');
-      return undefined;
-    }
-
-    const binary = findBinary('astro-ls', rootDir);
-    let command = 'npx';
-    let args = ['@astrojs/language-server', '--stdio'];
-
-    if (binary) {
-      command = binary;
-      args = ['--stdio'];
-    }
-
-    context.log(`Starting Astro LSP server: ${command} ${args.join(' ')}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Astro', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-      initializationOptions: {
-        typescript: {
-          tsdk: path.join(rootDir, 'node_modules', 'typescript', 'lib'),
-        },
-      },
-    };
-  },
-};
-
-export const CSharpServer: LspServerInfo = {
-  id: 'csharp',
-  languageId: 'csharp',
-  extensions: CSHARP_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    const hasCSharpProject = hasFile(rootDir, '*.csproj') || hasFile(rootDir, '*.sln') || existsSync(path.join(rootDir, 'omnisharp.json'));
-
-    if (!hasCSharpProject) {
-      context.log('No C# project file found (.csproj, .sln), skipping C# LSP', 'debug');
-      return undefined;
-    }
-
-    const command = 'omnisharp';
-    const args = ['-lsp'];
-
-    context.log(`Starting C# LSP server: ${command} ${args.join(' ')}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'C#', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-    };
-  },
-};
-
-export const DenoServer: LspServerInfo = {
+const tsExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'];
+export const DenoServer = defineServer({
   id: 'deno',
   languageId: 'typescript',
-  extensions: DENO_EXTENSIONS,
-  async spawn(rootDir: string, context: ExtensionContext): Promise<LspServerHandle | undefined> {
-    if (!hasFile(rootDir, 'deno.json') && !hasFile(rootDir, 'deno.jsonc')) {
-      context.log('deno.json not found, skipping Deno LSP', 'debug');
-      return undefined;
-    }
-
-    const command = 'deno';
-    const args = ['lsp'];
-
-    context.log(`Starting Deno LSP server: ${command} ${args.join(' ')}`, 'info');
-
-    const proc = await safeSpawn(command, args, 'Deno', context, { cwd: rootDir });
-
-    return {
-      process: proc,
-      initializationOptions: {
-        enable: true,
-        lint: true,
-        unstable: true,
-      },
-    };
+  extensions: tsExtensions,
+  binaries: ['deno'],
+  args: ['lsp'],
+  matches: isDenoProject,
+  options: async () => ({ enable: true, lint: true }),
+});
+export const TypescriptServer = defineServer({
+  id: 'typescript',
+  languageId: 'typescript',
+  extensions: tsExtensions,
+  binaries: ['typescript-language-server'],
+  args: ['--stdio'],
+  matches: async (root) => !(await isDenoProject(root)),
+  options: async (root) => {
+    const server = (await findTsserverPath(root)) ?? (await findTsserverPath(extensionDirectory));
+    return server ? { tsserver: { path: server } } : undefined;
   },
-};
+});
+export const PythonServer = defineServer({
+  id: 'python',
+  languageId: 'python',
+  extensions: ['.py', '.pyi', '.pyw'],
+  binaries: ['pyright-langserver'],
+  args: ['--stdio'],
+});
+export const VueServer = defineServer({
+  id: 'vue',
+  languageId: 'vue',
+  extensions: ['.vue'],
+  binaries: ['vue-language-server', 'volar'],
+  args: ['--stdio'],
+  matches: (root) => hasDependency(root, 'vue'),
+  options: async (root) => ({ ...(await tsOptions(root)), vue: { hybridMode: false } }),
+});
+export const RustServer = defineServer({
+  id: 'rust',
+  languageId: 'rust',
+  extensions: ['.rs'],
+  binaries: ['rust-analyzer'],
+  args: [],
+  matches: (root) => hasMarker(root, ['Cargo.toml']),
+});
+export const GoServer = defineServer({
+  id: 'go',
+  languageId: 'go',
+  extensions: ['.go'],
+  binaries: ['gopls'],
+  args: ['serve'],
+  matches: (root) => hasMarker(root, ['go.mod']),
+});
+export const JavaServer = defineServer({
+  id: 'java',
+  languageId: 'java',
+  extensions: ['.java', '.gradle', '.groovy'],
+  binaries: ['jdtls'],
+  args: [],
+  matches: (root) => hasMarker(root, ['pom.xml', 'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts']),
+});
+export const LuaServer = defineServer({
+  id: 'lua',
+  languageId: 'lua',
+  extensions: ['.lua'],
+  binaries: ['lua-language-server'],
+  args: [],
+});
+export const SvelteServer = defineServer({
+  id: 'svelte',
+  languageId: 'svelte',
+  extensions: ['.svelte'],
+  binaries: ['svelteserver'],
+  args: ['--stdio'],
+  matches: (root) => hasDependency(root, 'svelte'),
+});
+export const AstroServer = defineServer({
+  id: 'astro',
+  languageId: 'astro',
+  extensions: ['.astro'],
+  binaries: ['astro-ls'],
+  args: ['--stdio'],
+  matches: (root) => hasDependency(root, 'astro'),
+  options: tsOptions,
+});
+export const CSharpServer = defineServer({
+  id: 'csharp',
+  languageId: 'csharp',
+  extensions: ['.cs', '.csx'],
+  binaries: ['omnisharp', 'OmniSharp', 'csharp-ls'],
+  args: ['-lsp'],
+  matches: isCSharpProject,
+});
 
 export const SERVERS: LspServerInfo[] = [
+  DenoServer,
   TypescriptServer,
   PythonServer,
   VueServer,
@@ -413,13 +261,27 @@ export const SERVERS: LspServerInfo[] = [
   SvelteServer,
   AstroServer,
   CSharpServer,
-  DenoServer,
 ];
+export const getServersForExtension = (extension: string): LspServerInfo[] =>
+  SERVERS.filter((server) => server.extensions.includes(extension.toLowerCase()));
+export const getServerForExtension = (extension: string): LspServerInfo | undefined => getServersForExtension(extension)[0];
+export const getServerForLanguageId = (languageId: string): LspServerInfo | undefined => SERVERS.find((server) => server.languageId === languageId);
 
-export const getServerForExtension = (extension: string): LspServerInfo | undefined => {
-  return SERVERS.find((server) => server.extensions.includes(extension));
-};
-
-export const getServerForLanguageId = (languageId: string): LspServerInfo | undefined => {
-  return SERVERS.find((server) => server.languageId === languageId);
+export const findWorkspaceRoot = async (file: string, workspace: string, server: LspServerInfo): Promise<string> => {
+  if (!server.matches || (await server.matches(workspace))) {
+    return workspace;
+  }
+  for (const directory of ancestors(path.dirname(file))) {
+    const relative = path.relative(workspace, directory);
+    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) {
+      break;
+    }
+    if (await server.matches(directory)) {
+      return directory;
+    }
+    if (directory === workspace) {
+      break;
+    }
+  }
+  return workspace;
 };

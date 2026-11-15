@@ -1,36 +1,16 @@
-/**
- * LSP (Language Server Protocol) Integration Extension
- *
- * This extension provides LSP integration for AiderDesk, enabling:
- * - Automatic error detection after file edits
- * - LSP-powered tools for the AI assistant
- *
- * Features:
- * - Automatic diagnostics after power---file_edit and power---file_write
- * - Tool: lsp-find-references
- *
- * Supported Languages (out of the box):
- * - TypeScript/JavaScript (.ts, .tsx, .js, .jsx, .mjs, .cjs)
- * - Python (.py, .pyi, .pyw)
- *
- * Prerequisites:
- * - TypeScript: typescript-language-server must be available (npx will install it)
- * - Python: pyright-langserver must be available (npx will install it)
- *
- * The extension automatically:
- * 1. Starts the appropriate LSP server when a file is first accessed
- * 2. Notifies the server of file changes
- * 3. Waits for diagnostics and appends errors to tool output
- */
-
-import path from 'path';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { z } from 'zod';
 
 import { LspManager } from './lsp-manager';
+import { DiagnosticTimeoutError } from './lsp-client';
+import { cancelInstallations } from './installation';
+import { DEFAULT_CONFIG, loadConfig, saveConfig } from './config';
 
-import type { Extension, ExtensionContext, ToolDefinition, ToolFinishedEvent, ProjectStartedEvent, ProjectStoppedEvent } from '@aiderdesk/extensions';
+import type { Extension, ExtensionContext, ToolDefinition, ToolFinishedEvent, ProjectStoppedEvent, TaskClosedEvent } from '@aiderdesk/extensions';
 import type { LspDiagnostic } from './lsp-client';
+import type { LspConfig } from './config';
 
 interface FilePositionInput {
   filePath: string;
@@ -38,14 +18,9 @@ interface FilePositionInput {
   character: number;
 }
 
-const FILE_EDIT_TOOL = 'power---file_edit';
-const FILE_WRITE_TOOL = 'power---file_write';
-
-const DIAGNOSTIC_WAIT_TIMEOUT_MS = 3000;
-
 const metadata = {
   name: 'LSP Integration',
-  version: '1.0.0',
+  version: '1.1.0',
   description: 'Language Server Protocol integration for code intelligence and error detection',
   author: 'wladimiiir',
   iconUrl: 'https://raw.githubusercontent.com/magiksoft/aider-desk/refs/heads/main/packages/extensions/extensions/lsp/icon.png',
@@ -54,98 +29,121 @@ const metadata = {
 
 export default class LspExtension implements Extension {
   static metadata = metadata;
-  private managers: Map<string, LspManager> = new Map();
+  private config: LspConfig = DEFAULT_CONFIG;
+  private manager?: LspManager;
+  private log?: ExtensionContext['log'];
+  private owners = new Map<string, { workspace: string; project: string }>();
 
   async onLoad(context: ExtensionContext): Promise<void> {
-    context.log('LSP Extension loaded', 'info');
+    this.log = context.log.bind(context);
+    try {
+      this.config = await loadConfig();
+    } catch (error) {
+      context.log(`Invalid LSP configuration; using defaults: ${error}`, 'warn');
+    }
   }
 
   async onUnload(): Promise<void> {
-    for (const manager of this.managers.values()) {
-      await manager.shutdown();
+    cancelInstallations();
+    await this.manager?.shutdown();
+    this.manager = undefined;
+    this.owners.clear();
+  }
+
+  async getConfigData(): Promise<LspConfig> {
+    return this.config;
+  }
+
+  async saveConfigData(value: unknown): Promise<LspConfig> {
+    this.config = await saveConfig(value);
+    await this.onUnload();
+    return this.config;
+  }
+
+  private getWorkspace(context: ExtensionContext): string {
+    const workspace = path.resolve(context.getTaskContext()?.getTaskDir() ?? context.getProjectDir());
+    const owner = context.getTaskContext()?.data.id ?? `project:${context.getProjectDir()}`;
+    this.owners.set(owner, { workspace, project: context.getProjectDir() });
+    return workspace;
+  }
+
+  private getManager(context: ExtensionContext): LspManager {
+    const log = this.log ?? context.log.bind(context);
+    this.manager ??= new LspManager({ log: (message, level) => log(message, level) }, this.config);
+    return this.manager;
+  }
+
+  async onTaskClosed(event: TaskClosedEvent): Promise<void> {
+    const owner = this.owners.get(event.task.id);
+    this.owners.delete(event.task.id);
+    if (owner && ![...this.owners.values()].some((value) => value.workspace === owner.workspace)) {
+      await this.manager?.shutdownProject(owner.workspace);
     }
-    this.managers.clear();
   }
 
-  private getManager(projectDir: string, context: ExtensionContext): LspManager {
-    let manager = this.managers.get(projectDir);
-    if (!manager) {
-      manager = new LspManager(context);
-      this.managers.set(projectDir, manager);
+  async onProjectStopped(event: ProjectStoppedEvent): Promise<void> {
+    const workspaces = new Set<string>();
+    for (const [key, owner] of this.owners) {
+      if (owner.project === event.baseDir) {
+        this.owners.delete(key);
+        workspaces.add(owner.workspace);
+      }
     }
-    return manager;
+    await Promise.all(
+      [...workspaces]
+        .filter((workspace) => ![...this.owners.values()].some((owner) => owner.workspace === workspace))
+        .map((workspace) => this.manager?.shutdownProject(workspace)),
+    );
   }
 
-  async onProjectStarted(event: ProjectStartedEvent, context: ExtensionContext): Promise<void> {
-    context.log(`LSP Extension: Project started at ${event.baseDir}`, 'debug');
-    this.getManager(event.baseDir, context);
-  }
-
-  async onProjectStopped(event: ProjectStoppedEvent, context: ExtensionContext): Promise<void> {
-    context.log(`LSP Extension: Project stopped at ${event.baseDir}`, 'debug');
-    const manager = this.managers.get(event.baseDir);
-    if (manager) {
-      await manager.shutdown();
-      this.managers.delete(event.baseDir);
-    }
-  }
-
-  getTools(_context: ExtensionContext, _mode: string): ToolDefinition[] {
+  getTools(): ToolDefinition[] {
     return [
       {
         name: 'lsp-find-references',
         description:
-          'Find all references to a symbol at a given position in a file. Returns a list of locations where the symbol is used across the project. Use this to understand how a function, variable, or class is used.',
+          'Find references to a symbol at a zero-based line and character position. Paths are resolved against the task working directory.',
         inputSchema: z.object({
-          filePath: z.string().describe('The absolute path to the file'),
-          line: z.number().describe('The line number (0-based)'),
-          character: z.number().describe('The character position (0-based)'),
+          filePath: z.string(),
+          line: z.number().int().min(0),
+          character: z.number().int().min(0),
         }),
-        execute: async (input, _signal, context) => {
+        execute: async (input, signal, context) => {
           const params = input as unknown as FilePositionInput;
-          const projectDir = context.getProjectDir();
-          const manager = this.getManager(projectDir, context);
-          const client = await manager.getClient(params.filePath, projectDir);
-
-          if (!client) {
+          const workspace = this.getWorkspace(context);
+          const references = await this.getManager(context).withClient(
+            params.filePath,
+            workspace,
+            (client) => client.findReferences(path.resolve(workspace, params.filePath), params.line, params.character, signal),
+            signal,
+          );
+          if (references === undefined) {
             return {
               content: [
                 {
                   type: 'text',
-                  text: 'No LSP server available for this file type. Supported extensions: .ts, .tsx, .js, .jsx, .py',
+                  text: 'No LSP server available. Check installed servers, workspace configuration, and capacity limits.',
                 },
               ],
               isError: true,
             };
           }
-
-          const references = await client.findReferences(params.filePath, params.line, params.character);
-
-          if (!references || references.length === 0) {
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: 'No references found.',
-                },
-              ],
-            };
-          }
-
-          const formatted = references
-            .map((ref) => {
-              const filePath = ref.uri.replace('file://', '');
-              const line = ref.range.start.line + 1;
-              const char = ref.range.start.character + 1;
-              return `${filePath}:${line}:${char}`;
+          const formatted = (references ?? [])
+            .slice(0, 1000)
+            .map((reference) => {
+              let file = reference.uri;
+              try {
+                file = fileURLToPath(file);
+              } catch {
+                /* Non-file locations retain their URI. */
+              }
+              return `${file}:${reference.range.start.line + 1}:${reference.range.start.character + 1}`;
             })
             .join('\n');
-
           return {
             content: [
               {
                 type: 'text',
-                text: `Found ${references.length} reference(s):\n${formatted}`,
+                text: formatted ? `Found ${references?.length} reference(s):\n${formatted}` : 'No references found.',
               },
             ],
           };
@@ -155,84 +153,50 @@ export default class LspExtension implements Extension {
   }
 
   async onToolFinished(event: ToolFinishedEvent, context: ExtensionContext): Promise<void | Partial<ToolFinishedEvent>> {
-    context.log(`onToolFinished called for tool: ${event.toolName}`, 'info');
-
-    if (event.toolName !== FILE_EDIT_TOOL && event.toolName !== FILE_WRITE_TOOL) {
-      context.log(`Tool ${event.toolName} is not a file edit/write tool, skipping`, 'info');
-      return;
-    }
-
-    const filePath = event.input?.filePath as string | undefined;
-    if (!filePath) {
-      context.log('No filePath in tool input, skipping', 'info');
-      return;
-    }
-
-    context.log(`Processing file: ${filePath}`, 'info');
-
-    const ext = path.extname(filePath);
-    const projectDir = context.getProjectDir();
-    const manager = this.getManager(projectDir, context);
-
-    context.log(`File extension: ${ext}, project dir: ${projectDir}`, 'info');
-
-    if (!manager.isExtensionSupported(ext)) {
-      context.log(`Extension ${ext} is not supported by LSP, skipping`, 'info');
-      return;
-    }
-
-    context.log(`Extension ${ext} is supported, getting LSP client...`, 'info');
-
-    const client = await manager.getClient(filePath, projectDir);
-    if (!client) {
-      context.log(`Failed to get LSP client for ${filePath}`, 'info');
-      return;
-    }
-
-    context.log(`Got LSP client (server: ${client.serverId}), notifying file changed...`, 'info');
-
+    if (event.toolName !== 'power---file_edit' && event.toolName !== 'power---file_write') return;
+    const file = event.input?.filePath;
+    if (typeof file !== 'string' || !file) return;
+    const manager = this.getManager(context);
+    if (!manager.isExtensionSupported(path.extname(file))) return;
+    const workspace = this.getWorkspace(context);
+    const start = performance.now();
     try {
-      await client.notifyFileChanged(filePath);
-      context.log(`File change notified, waiting for diagnostics (timeout: ${DIAGNOSTIC_WAIT_TIMEOUT_MS}ms)...`, 'info');
-
-      const diagnostics = await client.waitForDiagnostics(filePath, DIAGNOSTIC_WAIT_TIMEOUT_MS);
-      context.log(`Received ${diagnostics.length} diagnostic(s) for ${filePath}`, 'info');
-
-      const errors = diagnostics.filter((d) => d.severity === 1);
-      context.log(`Filtered to ${errors.length} error(s) (severity=1)`, 'info');
-
-      if (errors.length === 0) {
-        context.log('No errors found, returning without modifying output', 'info');
-        return;
-      }
-
-      context.log(`Formatting ${errors.length} error(s) for tool output`, 'info');
-
-      const formatted = this.formatDiagnosticsForToolOutput(filePath, errors);
-      const currentOutput = typeof event.output === 'string' ? event.output : '';
-
-      context.log(`Appending diagnostics to tool output (original length: ${currentOutput.length})`, 'info');
-
+      const diagnostics = await manager.withClient(
+        file,
+        workspace,
+        (client) => client.updateAndGetDiagnostics(path.resolve(workspace, file), this.config.diagnosticTimeoutMs, event.abortSignal),
+        event.abortSignal,
+      );
+      if (!diagnostics) return;
+      const errors = diagnostics.filter((diagnostic) => diagnostic.severity === 1);
+      if (!errors.length) return;
       return {
-        output: `${currentOutput}\n\n${formatted}`,
+        output: this.appendOutput(event.output, this.formatDiagnostics(file, errors)),
       };
     } catch (error) {
-      context.log(`LSP error for ${filePath}: ${error}`, 'error');
+      if (event.abortSignal?.aborted) return;
+      if (error instanceof DiagnosticTimeoutError) {
+        return {
+          output: this.appendOutput(event.output, 'LSP diagnostics timed out; this edit has not been verified.'),
+        };
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      context.log(`LSP diagnostics unavailable for ${file}: ${message}`, 'warn');
+      return { output: this.appendOutput(event.output, `LSP diagnostics unavailable; this edit has not been verified. ${message.slice(0, 2000)}`) };
+    } finally {
+      context.log(`LSP edit diagnostics: ${Math.round(performance.now() - start)}ms`, 'debug');
     }
   }
 
-  private formatDiagnosticsForToolOutput(filePath: string, diagnostics: LspDiagnostic[]): string {
-    const fileName = path.basename(filePath);
-    const lines: string[] = [`⚠️ ${fileName} has ${diagnostics.length} error(s):`, '<file_diagnostics>'];
+  private appendOutput(output: unknown, diagnostics: string): unknown {
+    return typeof output === 'string' ? `${output}\n\n${diagnostics}` : { result: output, lspDiagnostics: diagnostics };
+  }
 
-    for (const diag of diagnostics) {
-      const line = diag.range.start.line + 1;
-      const col = diag.range.start.character + 1;
-      const source = diag.source ? ` [${diag.source}]` : '';
-      lines.push(`error${source} [${line}:${col}] ${diag.message}`);
-    }
-
-    lines.push('</file_diagnostics>');
-    return lines.join('\n');
+  private formatDiagnostics(file: string, diagnostics: LspDiagnostic[]): string {
+    const lines = diagnostics.map(
+      (diagnostic) =>
+        `error${diagnostic.source ? ` [${diagnostic.source}]` : ''} [${diagnostic.range.start.line + 1}:${diagnostic.range.start.character + 1}] ${diagnostic.message}`,
+    );
+    return `⚠️ ${path.basename(file)} has ${diagnostics.length} error(s):\n<file_diagnostics>\n${lines.join('\n').slice(0, 20000)}\n</file_diagnostics>`;
   }
 }

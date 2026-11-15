@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": { "@aiderdesk/extensions": ["../../extensions.d.ts"] }
+  },
+  "include": ["*.ts", "__tests__/*.ts"],
+  "exclude": ["node_modules"]
+}

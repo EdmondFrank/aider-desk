@@ -18,6 +18,8 @@ import logger, { eventTransport } from '@/logger';
 import { initManagers } from '@/managers';
 import { createLoadRetryHandler, getDefaultProjectSettings, initPath } from '@/utils';
 import { WindowManager } from '@/window-manager';
+import { shutdown } from '@/shutdown';
+import { createRendererRecoveryHandler } from '@/utils/renderer-recovery';
 
 // Global instances shared across all windows
 let windowManager: WindowManager;
@@ -161,7 +163,10 @@ const initStore = async (): Promise<Store> => {
   return store;
 };
 
-const initWindow = async (windowMgr: WindowManager, storeInstance: Store, projectToActivate?: string): Promise<BrowserWindow> => {
+const initWindow = async (windowMgr: WindowManager, storeInstance: Store, projectToActivate?: string): Promise<BrowserWindow | undefined> => {
+  if (shutdown.isShuttingDown) {
+    return;
+  }
   const lastWindowState = storeInstance.getWindowState();
 
   const newWindow = new BrowserWindow({
@@ -184,6 +189,9 @@ const initWindow = async (windowMgr: WindowManager, storeInstance: Store, projec
   windowMgr.addWindow(newWindow);
 
   newWindow.on('ready-to-show', () => {
+    if (shutdown.isShuttingDown || newWindow.isDestroyed()) {
+      return;
+    }
     newWindow.show();
     if (lastWindowState.isMaximized && windowMgr.isMainWindow(newWindow)) {
       newWindow.maximize();
@@ -199,48 +207,15 @@ const initWindow = async (windowMgr: WindowManager, storeInstance: Store, projec
   // so a network change doesn't leave a blank white window
   const loadRetry = createLoadRetryHandler({
     load: () => newWindow.webContents.reload(),
-    isDestroyed: () => newWindow.isDestroyed(),
+    isDestroyed: () => shutdown.isShuttingDown || newWindow.isDestroyed(),
   });
 
-  // Renderer crash recovery: reload from the main process side, since a crashed/hung
-  // renderer cannot process user-triggered reloads (e.g. Ctrl+R)
-  const MAX_CONSECUTIVE_CRASHES = 5;
-  const CRASH_LOOP_RESET_MS = 30_000;
-  let consecutiveRendererCrashes = 0;
-  let lastCrashTimestamp = 0;
-
-  newWindow.webContents.on('render-process-gone', (_event, details) => {
-    if (details.reason === 'clean-exit' || newWindow.isDestroyed()) {
-      return;
-    }
-
-    const now = Date.now();
-    consecutiveRendererCrashes = now - lastCrashTimestamp < CRASH_LOOP_RESET_MS ? consecutiveRendererCrashes + 1 : 1;
-    lastCrashTimestamp = now;
-
-    if (consecutiveRendererCrashes > MAX_CONSECUTIVE_CRASHES) {
-      logger.error(
-        `Renderer process crashed ${consecutiveRendererCrashes} times in quick succession (reason: ${details.reason}, exit code: ${details.exitCode}); giving up auto-reload`,
-      );
-      return;
-    }
-
-    logger.warn(
-      `Renderer process gone (reason: ${details.reason}, exit code: ${details.exitCode}), reloading window (consecutive crash ${consecutiveRendererCrashes}/${MAX_CONSECUTIVE_CRASHES})`,
-    );
-    setTimeout(() => {
-      if (!newWindow.isDestroyed()) {
-        newWindow.webContents.reload();
-      }
-    }, 1000);
+  const recovery = createRendererRecoveryHandler({
+    reload: () => newWindow.webContents.reload(),
+    isUnavailable: () => shutdown.isShuttingDown || newWindow.isDestroyed(),
   });
-
-  newWindow.webContents.on('unresponsive', () => {
-    logger.warn('Renderer process became unresponsive, reloading window');
-    if (!newWindow.isDestroyed()) {
-      newWindow.webContents.reload();
-    }
-  });
+  newWindow.webContents.on('render-process-gone', (_event, details) => recovery.onProcessGone(details));
+  newWindow.webContents.on('unresponsive', recovery.onUnresponsive);
 
   newWindow.webContents.on('did-fail-load', (_event, errorCode, _errorDescription, validatedURL, isMainFrame) => {
     void loadRetry.onDidFailLoad(errorCode, isMainFrame, validatedURL);
@@ -313,6 +288,10 @@ const initWindow = async (windowMgr: WindowManager, storeInstance: Store, projec
     }
   }
 
+  if (shutdown.isShuttingDown || newWindow.isDestroyed()) {
+    return newWindow;
+  }
+
   // Apply saved zoom level
   const settings = storeInstance.getSettings();
   newWindow.webContents.setZoomFactor(settings.zoomLevel ?? 1.0);
@@ -328,6 +307,9 @@ const initWindow = async (windowMgr: WindowManager, storeInstance: Store, projec
 
 // Function to create a new window
 const createNewWindow = async (projectToActivate?: string) => {
+  if (shutdown.isShuttingDown) {
+    return;
+  }
   if (!store || !windowManager) {
     logger.error('Cannot create window: store or windowManager not initialized');
     return;
@@ -436,12 +418,6 @@ app.whenReady().then(async () => {
       app.exit(0);
     });
 
-    // Handle CTRL+C (SIGINT)
-    process.on('SIGINT', async () => {
-      await globalCleanup();
-      process.exit(0);
-    });
-
     if (process.platform === 'darwin') {
       // Allow renderer getUserMedia() microphone access.
       // Without this, Electron may never surface the macOS TCC permission prompt and the mic stays unavailable.
@@ -474,7 +450,7 @@ app.whenReady().then(async () => {
       progressBar?.close();
 
       app.on('activate', function () {
-        if (BrowserWindow.getAllWindows().length === 0) {
+        if (!shutdown.isShuttingDown && BrowserWindow.getAllWindows().length === 0) {
           void createNewWindow();
         }
       });
@@ -492,5 +468,7 @@ app.on('window-all-closed', () => {
 });
 
 process.on('exit', () => {
-  app.quit();
+  if (!shutdown.isShuttingDown) {
+    app.quit();
+  }
 });

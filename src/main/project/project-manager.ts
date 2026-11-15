@@ -2,6 +2,7 @@ import { normalizeBaseDir } from '@common/utils';
 import { AgentProfile, ProjectSettings, SettingsData, ModeDefinition } from '@common/types';
 
 import { TelemetryManager } from '@/telemetry';
+import { shutdown } from '@/shutdown';
 import { AgentProfileManager, McpConfigManager, McpManager } from '@/agent';
 import { DataManager } from '@/data-manager';
 import logger from '@/logger';
@@ -110,7 +111,7 @@ export class ProjectManager {
   public async close(): Promise<void> {
     logger.info('Closing all projects');
     const projects = [...this.projects];
-    const results = await Promise.allSettled(projects.map((project) => Promise.resolve().then(() => project.close())));
+    const results = await Promise.allSettled(projects.map((project) => shutdown.track('project.close', () => project.close(), { baseDir: project.baseDir })));
     const errors: unknown[] = [];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {

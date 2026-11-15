@@ -16,6 +16,7 @@ import {
 import { fileExists } from '@common/utils';
 import { v4 as uuidv4 } from 'uuid';
 
+import { shutdown } from '@/shutdown';
 import { AgentProfileManager, McpConfigManager, McpManager } from '@/agent';
 import { Connector } from '@/connector';
 import { DataManager } from '@/data-manager';
@@ -796,19 +797,22 @@ export class Project {
   }
 
   async close() {
-    await this.startPromise;
+    const track = <T>(stage: string, run: () => T | Promise<T>) => shutdown.track(`project.${stage}`, run, { baseDir: this.baseDir });
+    await track('startup', () => this.startPromise);
     this.startPromise = null;
 
-    await this.extensionManager.dispatchEvent('onProjectStopped', { baseDir: this.baseDir }, this);
+    await track('onProjectStopped', () => this.extensionManager.dispatchEvent('onProjectStopped', { baseDir: this.baseDir }, this));
 
     this.customCommandManager.dispose();
-    await this.fileWatcherManager.dispose();
+    await track('fileWatcher', () => this.fileWatcherManager.dispose());
     this.agentProfileManager.removeProject(this.baseDir);
     this.mcpConfigManager.removeProject(this.baseDir);
-    await this.promptsManager.unwatchProject(this.baseDir);
-    await this.extensionManager.stopProjectWatcher(this.baseDir);
+    await track('promptsWatcher', () => this.promptsManager.unwatchProject(this.baseDir));
+    await track('extensionsWatcher', () => this.extensionManager.stopProjectWatcher(this.baseDir));
     const tasks = Array.from(this.tasks.values());
-    const results = await Promise.allSettled(tasks.map((task) => Promise.resolve().then(() => task.close())));
+    const results = await Promise.allSettled(
+      tasks.map((task) => shutdown.track('task.close', () => task.close(), { baseDir: this.baseDir, taskId: task.taskId })),
+    );
     const errors: unknown[] = [];
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
@@ -823,7 +827,7 @@ export class Project {
       }
     });
     try {
-      await this.gitManager.close(this.baseDir);
+      await track('git', () => this.gitManager.close(this.baseDir));
     } catch (error) {
       errors.push(error);
       logger.error('Failed to close project Git manager', {

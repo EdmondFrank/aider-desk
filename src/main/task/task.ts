@@ -92,6 +92,7 @@ import type { WatchHandle } from '@/file-watcher-manager';
 import type { SmartCompactionPassSelection } from '@/agent/smart-compaction';
 import type { ContextGenerationOptions, ContextGenerationResult, SmartCompactionOptions } from '@common/extensions';
 
+import { shutdown } from '@/shutdown';
 import { translate } from '@/utils/i18n';
 import { ExtensionEventMap, ExtensionManager } from '@/extensions/extension-manager';
 import { getAllFiles, isValidProjectFile } from '@/utils/file-system';
@@ -855,6 +856,7 @@ export class Task {
   }
 
   public async close(clearContext = false, cleanupEmptyTask = true) {
+    const track = <T>(stage: string, run: () => T | Promise<T>) => shutdown.track(`task.${stage}`, run, { baseDir: this.project.baseDir, taskId: this.taskId });
     this.stopFileWatching();
     if (!this.initialized) {
       return;
@@ -864,18 +866,18 @@ export class Task {
       baseDir: this.project.baseDir,
       taskId: this.taskId,
     });
-    await this.extensionManager.dispatchEvent('onTaskClosed', { task: this.task }, this.project, this);
+    await track('onTaskClosed', () => this.extensionManager.dispatchEvent('onTaskClosed', { task: this.task }, this.project, this));
     if (clearContext) {
       this.eventManager.sendClearTask(this.project.baseDir, this.taskId, true, true);
     }
-    await this.interruptResponse(undefined, true);
+    await track('interruptResponse', () => this.interruptResponse(undefined, true));
     this.resolveAgentRunPromises();
     this.cleanupChunkBuffers();
 
     this.stopFileWatching();
-    await this.aiderManager.kill();
+    await track('aiderKill', () => this.aiderManager.kill());
     if (cleanupEmptyTask) {
-      await this.cleanUpEmptyTask();
+      await track('emptyTaskCleanup', () => this.cleanUpEmptyTask());
     }
     this.initialized = false;
   }

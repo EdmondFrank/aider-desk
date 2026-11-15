@@ -78,7 +78,10 @@ describe('ProjectManager shutdown', () => {
 
     await vi.waitFor(() => expect(projects[2].close).toHaveBeenCalledOnce());
     expect(finished).not.toHaveBeenCalled();
-    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Error during cleanup:',
+      expect.objectContaining({ operation: 'project.close', baseDir: '/first', error: firstError.message }),
+    );
     deferred.resolve();
     const error = await pending;
     expect(error).toBeInstanceOf(AggregateError);
@@ -118,7 +121,10 @@ describe('Project shutdown', () => {
     expect(finished).not.toHaveBeenCalled();
     expect(dependencies.gitManager.close).not.toHaveBeenCalled();
     expect(fs.unlink).not.toHaveBeenCalled();
-    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Error during cleanup:',
+      expect.objectContaining({ operation: 'task.close', taskId: 'first', error: firstError.message }),
+    );
 
     deferred.resolve();
     const error = await pending;

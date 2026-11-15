@@ -31,7 +31,7 @@ const modules: Record<string, string[]> = {
 };
 
 const managers: Record<string, ReturnType<typeof createManager>> = {};
-const logger = { info: vi.fn(), error: vi.fn() };
+const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 const init = async () => {
   const { initManagers } = await import('../managers');
@@ -78,7 +78,37 @@ describe('manager cleanup', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it.each(['ProjectManager', 'TelemetryManager', 'DataManager'])('forces exit after ten seconds when %s hangs', async (manager) => {
+    vi.useFakeTimers();
+    const stalled = createDeferred();
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    const action = manager === 'TelemetryManager' ? 'destroy' : 'close';
+    managers[manager][action].mockReturnValue(stalled.promise);
+    const { cleanup } = await init();
+    const pending = cleanup();
+    await vi.advanceTimersByTimeAsync(9999);
+    expect(exit).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(exit).toHaveBeenCalledExactlyOnceWith(0);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Application shutdown timed out; forcing exit',
+      expect.objectContaining({
+        pending: expect.arrayContaining([expect.objectContaining({ manager: manager[0].toLowerCase() + manager.slice(1) })]),
+      }),
+    );
+    if (manager !== 'DataManager') {
+      expect(managers.DataManager.close).not.toHaveBeenCalled();
+    }
+    stalled.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    if (manager !== 'DataManager') {
+      expect(managers.DataManager.close).not.toHaveBeenCalled();
+    }
   });
 
   it('keeps the database open until project and extension cleanup both finish', async () => {
@@ -119,6 +149,7 @@ describe('manager cleanup', () => {
     await pending;
     expect(managers.DataManager.close).toHaveBeenCalledOnce();
     expect(logger.error).toHaveBeenCalledWith('Error during cleanup:', {
+      operation: 'mcpManager',
       manager: 'mcpManager',
       error: error.message,
       stack: error.stack,
@@ -183,6 +214,7 @@ describe('manager cleanup', () => {
 
     expect(managers.DataManager.close).toHaveBeenCalledOnce();
     expect(logger.error).toHaveBeenCalledWith('Error during cleanup:', {
+      operation: 'telemetryManager',
       manager: 'telemetryManager',
       error: error.message,
       stack: error.stack,
@@ -202,6 +234,7 @@ describe('manager cleanup', () => {
     expect(managers.ExtensionManager.dispose).toHaveBeenCalledOnce();
     expect(managers.DataManager.close).toHaveBeenCalledOnce();
     expect(logger.error).toHaveBeenCalledWith('Error during cleanup:', {
+      operation: 'terminalManager',
       manager: 'terminalManager',
       error: error.message,
       stack: error.stack,

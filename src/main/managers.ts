@@ -2,6 +2,8 @@ import { createServer } from 'http';
 
 import type { WindowManager } from '@/window-manager';
 
+import { shutdown } from '@/shutdown';
+import { getElectronApp } from '@/app';
 import { AgentProfileManager, McpConfigManager, McpManager } from '@/agent';
 import { CloudflareTunnelManager, ServerController } from '@/server';
 import { ConnectorManager } from '@/connector';
@@ -190,30 +192,16 @@ export const initManagers = async (store: Store, windowManager?: WindowManager):
         { manager: 'extensionManager', run: () => extensionManager.dispose() },
         { manager: 'gitAskpassManager', run: () => gitAskpassManager.close() },
       ];
-      const results = await Promise.allSettled(cleanupActions.map((action) => Promise.resolve().then(action.run)));
+      await Promise.allSettled(cleanupActions.map((action) => shutdown.track(action.manager, action.run, { manager: action.manager })));
 
-      results.forEach((result, index) => {
-        if (result.status === 'rejected') {
-          const error: unknown = result.reason;
-          logger.error('Error during cleanup:', {
-            manager: cleanupActions[index].manager,
-            error: error instanceof Error ? error.message : String(error),
-            stack: error instanceof Error ? error.stack : undefined,
-          });
-        }
-      });
-
-      try {
-        await telemetryManager.destroy();
-      } catch (error) {
-        logger.error('Error during cleanup:', {
-          manager: 'telemetryManager',
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        });
+      if (shutdown.timedOut) {
+        return;
       }
-
-      dataManager.close();
+      await shutdown.track('telemetryManager', () => telemetryManager.destroy(), { manager: 'telemetryManager' }).catch(() => undefined);
+      if (shutdown.timedOut) {
+        return;
+      }
+      await shutdown.track('dataManager', () => dataManager.close(), { manager: 'dataManager' });
       stopEventLoopMonitor();
     } catch (error) {
       logger.error('Error during cleanup:', {
@@ -224,7 +212,14 @@ export const initManagers = async (store: Store, windowManager?: WindowManager):
   };
 
   const cleanup = (): Promise<void> => {
-    cleanupPromise ??= Promise.resolve().then(performCleanup);
+    cleanupPromise ??= shutdown.run(performCleanup, () => {
+      const app = getElectronApp();
+      if (app) {
+        app.exit(0);
+      } else {
+        process.exit(0);
+      }
+    });
     return cleanupPromise;
   };
 

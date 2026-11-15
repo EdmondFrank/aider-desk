@@ -1279,6 +1279,10 @@
       "turn": "Turn {{number}}",
       "userPrompt": "Your prompt",
       "assistantReply": "Last reply",
+      "info": "Information",
+      "warning": "Warning",
+      "error": "Error",
+      "goToLog": "Go to {{label}} log message",
       "emptyPreview": "No text preview",
       "goToMessage": "Go to {{label}} in turn {{number}}"
     },

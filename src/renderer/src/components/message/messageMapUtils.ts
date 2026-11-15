@@ -1,8 +1,9 @@
-import { isAssistantGroupMessage, isGroupMessage, isResponseMessage, isUserMessage, Message } from '@common/types';
+import { isAssistantGroupMessage, isGroupMessage, isLogMessage, isResponseMessage, isUserMessage, LogMessage, Message } from '@common/types';
 
 export enum MessageMapRole {
   User = 'user',
   Assistant = 'assistant',
+  Log = 'log',
 }
 
 export type MessageMapEntry = {
@@ -10,6 +11,7 @@ export type MessageMapEntry = {
   index: number;
   role: MessageMapRole;
   preview: string;
+  logLevel?: LogMessage['level'];
 };
 
 export type MessageMapTurn = {
@@ -34,6 +36,14 @@ export const createMessageMapEntries = (messages: Message[]): MessageMapEntry[] 
       if (message.responseMessage) {
         addMessage(message.responseMessage, index, path);
       }
+    } else if (isLogMessage(message)) {
+      entries.push({
+        id: `${path}-${message.id}`,
+        index,
+        role: MessageMapRole.Log,
+        preview: message.content.trim().slice(0, PREVIEW_LENGTH),
+        logLevel: message.level,
+      });
     } else if (isUserMessage(message) || isResponseMessage(message)) {
       entries.push({
         id: `${path}-${message.id}`,
@@ -56,6 +66,9 @@ export const createMessageMapTurns = (messages: Message[]): MessageMapTurn[] => 
   const turns: MessageMapTurn[] = [];
 
   for (const entry of entries) {
+    if (entry.role === MessageMapRole.Log) {
+      continue;
+    }
     const currentTurn = turns.at(-1);
     const isUser = entry.role === MessageMapRole.User;
 
@@ -80,15 +93,14 @@ export const createMessageMapTurns = (messages: Message[]): MessageMapTurn[] => 
 
 export type MessageMapMarkerItem = {
   id: string;
-  turnNumber: number;
+  turnNumber: number | null;
   role: MessageMapRole;
   index: number;
   preview: string;
+  logLevel?: LogMessage['level'];
 };
 
-// Flattens turns into individually navigable markers: a green user-prompt marker and a blue
-// last-assistant-reply marker per turn, kept in ascending rendered order for scroll tracking.
-export const createMessageMapMarkers = (turns: MessageMapTurn[]): MessageMapMarkerItem[] => {
+export const createMessageMapMarkers = (turns: MessageMapTurn[], messages: Message[] = []): MessageMapMarkerItem[] => {
   const markers: MessageMapMarkerItem[] = [];
 
   for (const turn of turns) {
@@ -106,7 +118,13 @@ export const createMessageMapMarkers = (turns: MessageMapTurn[]): MessageMapMark
     }
   }
 
-  return markers;
+  for (const entry of createMessageMapEntries(messages)) {
+    if (entry.role === MessageMapRole.Log) {
+      markers.push({ ...entry, turnNumber: null });
+    }
+  }
+
+  return markers.sort((a, b) => a.index - b.index);
 };
 
 // Selection follows user messages only: the active marker is the user message currently in the

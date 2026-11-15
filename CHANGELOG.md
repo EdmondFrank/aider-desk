@@ -30,6 +30,7 @@
 - improved programmatic tool calls to accept alternative tool name separators and fixed collision-suffixed tool names
 - fixed failed and inactive tasks resuming after restarts, cleaned up stale recovery journals, and ensured redo interrupted the current run
 - added cancellation support to the onToolFinished extension hook
+- added severity-colored log message markers with previews and navigation to the message map
 
 ## [0.91.0]
 

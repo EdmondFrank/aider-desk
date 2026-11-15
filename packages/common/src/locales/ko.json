@@ -1278,6 +1278,10 @@
       "turn": "{{number}}번째 대화",
       "userPrompt": "내 프롬프트",
       "assistantReply": "마지막 답변",
+      "info": "정보",
+      "warning": "경고",
+      "error": "오류",
+      "goToLog": "{{label}} 로그 메시지로 이동",
       "emptyPreview": "텍스트 미리보기 없음",
       "goToMessage": "{{number}}번째 대화의 {{label}}(으)로 이동"
     },

@@ -1212,6 +1212,10 @@
       "turn": "第 {{number}} 轮",
       "userPrompt": "你的提问",
       "assistantReply": "最新回复",
+      "info": "信息",
+      "warning": "警告",
+      "error": "错误",
+      "goToLog": "跳转到{{label}}日志消息",
       "emptyPreview": "无文本预览",
       "goToMessage": "跳转到第 {{number}} 轮的{{label}}"
     },

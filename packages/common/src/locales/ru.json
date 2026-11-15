@@ -1278,6 +1278,10 @@
       "turn": "Ход {{number}}",
       "userPrompt": "Ваш запрос",
       "assistantReply": "Последний ответ",
+      "info": "Информация",
+      "warning": "Предупреждение",
+      "error": "Ошибка",
+      "goToLog": "Перейти к сообщению журнала «{{label}}»",
       "emptyPreview": "Нет текста для предпросмотра",
       "goToMessage": "Перейти к «{{label}}» в ходе {{number}}"
     },

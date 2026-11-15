@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { AssistantGroupMessage, GroupMessage, Message } from '@common/types';
+import { AssistantGroupMessage, GroupMessage, LogMessage, Message } from '@common/types';
 
 import { MessageMap } from '../MessageMap';
 import { createMessageMapMarkers, createMessageMapTurns, MessageMapRole } from '../messageMapUtils';
@@ -10,6 +10,12 @@ import { render } from '@/__tests__/render';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: { label?: string; number?: number }) => {
+      if (key === 'errors.test') {
+        return 'Translated error message';
+      }
+      if (key === 'messages.map.goToLog') {
+        return `${key} ${values?.label}`;
+      }
       if (values?.label !== undefined) {
         return `${key} ${values.label} ${values.number}`;
       }
@@ -27,6 +33,12 @@ const messages: Message[] = [
   { id: 'assistant-1', type: 'response', content: 'First answer' },
   { id: 'user-2', type: 'user', content: 'Second question' },
   { id: 'assistant-2', type: 'response', content: 'Latest answer' },
+];
+
+const logs: LogMessage[] = [
+  { id: 'info', type: 'log', level: 'info', content: 'Information message' },
+  { id: 'warning', type: 'log', level: 'warning', content: 'Warning message' },
+  { id: 'error', type: 'log', level: 'error', content: 'errors.test' },
 ];
 
 const markerName = (role: MessageMapRole, number: number) =>
@@ -48,6 +60,34 @@ const renderMap = (overrides: Partial<Parameters<typeof MessageMap>[0]> = {}) =>
   );
 
 describe('MessageMap', () => {
+  it.each([
+    { log: logs[0], color: 'bg-text-muted', preview: 'Information message' },
+    { log: logs[1], color: 'bg-warning', preview: 'Warning message' },
+    { log: logs[2], color: 'bg-error-light', preview: 'Translated error message' },
+  ])('shows a navigable $log.level log marker with a translated preview', async ({ log, color, preview }) => {
+    const onNavigate = vi.fn();
+    renderMap({ messages: [messages[0], log, messages[2]], visibleIndex: 1, onNavigate });
+    const marker = screen.getByRole('button', { name: `messages.map.goToLog messages.map.${log.level}` });
+
+    expect(marker.firstChild).toHaveClass('h-1', 'w-4', 'rounded-full', 'hover:w-5', color);
+    expect(marker.querySelector('svg')).not.toBeInTheDocument();
+    expect(marker).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('button', { name: markerName(MessageMapRole.User, 1) })).toHaveAttribute('aria-current', 'true');
+    fireEvent.focus(marker);
+    await waitFor(() => expect(screen.getByText(preview)).toBeInTheDocument());
+    expect(onNavigate).not.toHaveBeenCalled();
+    fireEvent.click(marker);
+    expect(onNavigate).toHaveBeenCalledExactlyOnceWith(1, false);
+    fireEvent.blur(marker);
+  });
+
+  it('shows the map for log-only conversations without selecting a user marker', () => {
+    renderMap({ messages: logs });
+    expect(screen.getByRole('navigation')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /messages.map.goToLog/ })).toHaveLength(3);
+    expect(screen.queryByRole('button', { current: true })).not.toBeInTheDocument();
+  });
+
   it('previews the assistant reply on hover without navigating and navigates to it on click', async () => {
     const onNavigate = vi.fn();
     renderMap({ onNavigate });
@@ -236,6 +276,37 @@ describe('createMessageMapTurns', () => {
 });
 
 describe('createMessageMapMarkers', () => {
+  it('interleaves logs with conversation markers without changing turn numbering or the last reply', () => {
+    const withLogs = [logs[0], messages[0], logs[1], messages[2], logs[2], messages[3], messages[4]];
+    const turns = createMessageMapTurns(withLogs);
+    expect(turns.map((turn) => turn.number)).toEqual([1, 2]);
+    const markers = createMessageMapMarkers(turns, withLogs);
+    expect(markers.map((marker) => [marker.index, marker.role, marker.turnNumber])).toEqual([
+      [0, MessageMapRole.Log, null],
+      [1, MessageMapRole.User, 1],
+      [2, MessageMapRole.Log, null],
+      [3, MessageMapRole.Assistant, 1],
+      [4, MessageMapRole.Log, null],
+      [5, MessageMapRole.User, 2],
+      [6, MessageMapRole.Assistant, 2],
+    ]);
+    expect(markers.filter((marker) => marker.role === MessageMapRole.Log).map((marker) => marker.logLevel)).toEqual(['info', 'warning', 'error']);
+  });
+
+  it('maps nested logs to the containing rendered item with unique marker IDs', () => {
+    const group: GroupMessage = {
+      id: 'group',
+      type: 'group',
+      content: '',
+      group: { id: 'group', name: 'Thread' },
+      children: [logs[0], { id: 'nested', type: 'group', content: '', group: { id: 'nested', name: 'Nested' }, children: [logs[1], logs[0]] } as GroupMessage],
+    };
+    const markers = createMessageMapMarkers(createMessageMapTurns([group]), [group]);
+    expect(markers).toHaveLength(3);
+    expect(markers.every((marker) => marker.index === 0 && marker.role === MessageMapRole.Log)).toBe(true);
+    expect(new Set(markers.map((marker) => marker.id)).size).toBe(3);
+  });
+
   it('creates a green user marker and a blue last-assistant marker per turn in scroll order', () => {
     expect(createMessageMapMarkers(createMessageMapTurns(messages))).toEqual([
       { id: '0-user-1-user', turnNumber: 1, role: MessageMapRole.User, index: 0, preview: 'First question' },

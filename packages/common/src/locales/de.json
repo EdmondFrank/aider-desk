@@ -1267,6 +1267,10 @@
       "turn": "Runde {{number}}",
       "userPrompt": "Ihr Prompt",
       "assistantReply": "Letzte Antwort",
+      "info": "Information",
+      "warning": "Warnung",
+      "error": "Fehler",
+      "goToLog": "Zur Protokollnachricht „{{label}}“ springen",
       "emptyPreview": "Keine Textvorschau",
       "goToMessage": "Zu {{label}} in Runde {{number}} springen"
     },

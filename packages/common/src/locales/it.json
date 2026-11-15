@@ -1271,6 +1271,10 @@
       "turn": "Turno {{number}}",
       "userPrompt": "La tua richiesta",
       "assistantReply": "Ultima risposta",
+      "info": "Informazione",
+      "warning": "Avviso",
+      "error": "Errore",
+      "goToLog": "Vai al messaggio di log: {{label}}",
       "emptyPreview": "Nessuna anteprima del testo",
       "goToMessage": "Vai a {{label}} a turno {{number}}"
     },

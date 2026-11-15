@@ -23,7 +23,7 @@ export const MessageMap = memo(
   ({ messages, visibleIndex, onNavigate, onPreviousUserMessage, onNextUserMessage, hasPreviousUserMessage, hasNextUserMessage, onScrollToBottom }: Props) => {
     const { t } = useTranslation();
     const turns = useMemo(() => createMessageMapTurns(messages), [messages]);
-    const markers = useMemo(() => createMessageMapMarkers(turns), [turns]);
+    const markers = useMemo(() => createMessageMapMarkers(turns, messages), [turns, messages]);
     const activeMarkerId = useMemo(() => getActiveMarkerId(markers, visibleIndex), [markers, visibleIndex]);
 
     if (markers.length === 0) {
@@ -57,6 +57,7 @@ export const MessageMap = memo(
               role={marker.role}
               index={marker.index}
               preview={marker.preview}
+              logLevel={marker.logLevel}
               active={activeMarkerId === marker.id}
               onNavigate={onNavigate}
             />

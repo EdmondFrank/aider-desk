@@ -48,7 +48,7 @@
         "tools",
         "ui"
       ],
-      "installCount": 49
+      "installCount": 50
     },
     {
       "id": "wakatime",
@@ -118,7 +118,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 133
+      "installCount": 134
     },
     {
       "id": "protected-paths",
@@ -189,7 +189,7 @@
         "commands",
         "tools"
       ],
-      "installCount": 114
+      "installCount": 115
     },
     {
       "id": "legacy-system-prompt",
@@ -320,7 +320,7 @@
         "tools",
         "code-intelligence"
       ],
-      "installCount": 99
+      "installCount": 100
     },
     {
       "id": "plannotator",
@@ -396,7 +396,7 @@
       "capabilities": [
         "providers"
       ],
-      "installCount": 41
+      "installCount": 42
     },
     {
       "id": "fff",
@@ -413,7 +413,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 50
+      "installCount": 51
     },
     {
       "id": "searxng-search",
@@ -455,7 +455,7 @@
       "capabilities": [
         "metrics"
       ],
-      "installCount": 125
+      "installCount": 126
     },
     {
       "id": "verifier",
@@ -582,7 +582,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 59
+      "installCount": 60
     },
     {
       "id": "doom",
@@ -683,7 +683,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 161
+      "installCount": 163
     },
     {
       "id": "dbx",

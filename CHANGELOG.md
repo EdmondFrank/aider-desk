@@ -1,7 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [0.91.0-lite.1]
 
+- added the Bun Lite profile: a headless `runner-lite` entry point that skips the Python/Aider bootstrap and memory embeddings, plus a `bun:sqlite` shim behind the `node:sqlite` API so the server bundle runs on Bun
+- added Bun-only `install:lite`, `build:lite` and `start:lite` scripts and a standalone renderer build, so the web UI can be served without any Electron tooling
+- made `cloudflared`, `@homebridge/node-pty-prebuilt-multiarch` and the `probe` binary optional, with a clear error instead of an opaque `ENOENT` when one is missing
+- mapped aider-backed task modes to `agent` when read under the lite profile, so a data dir shared with the full build keeps the user's own mode choice
+- fixed MCP server configs sending literal `${projectDir}`/`${taskDir}` placeholders in commands, URLs and headers instead of the resolved paths
 - added a collapsible file list to the updated-files diff dialog, opening it as a drawer on mobile and rendering diffs unified on small screens so the code keeps the full width
 
 ## [0.91.0]

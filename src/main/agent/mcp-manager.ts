@@ -64,6 +64,54 @@ interface McpConnector {
 
 type McpClientTransport = Parameters<typeof createMCPClient>[0]['transport'];
 
+/**
+ * Every field in which `${projectDir}` / `${taskDir}` are substitutable. Both the
+ * substitution and the scope detection read from this list, so a field can never
+ * influence the connector scope without also being resolved.
+ */
+const interpolatableValues = (config: McpServerConfig): string[] => [
+  ...(config.command ? [config.command] : []),
+  ...(config.url ? [config.url] : []),
+  ...(config.args ?? []),
+  ...Object.values(config.env ?? {}),
+  ...Object.values(config.headers ?? {}),
+];
+
+const configHasInterpolation = (config: McpServerConfig, pattern: string): boolean => interpolatableValues(config).some((value) => value.includes(pattern));
+
+export const interpolateServerConfig = (serverConfig: McpServerConfig, projectDir: string | null, taskDir: string | null): McpServerConfig => {
+  const interpolate = (value: string): string => value.replace(/\${projectDir}/g, projectDir || '.').replace(/\${taskDir}/g, taskDir || projectDir || '.');
+
+  const interpolateRecord = (record: Readonly<Record<string, string>>): Record<string, string> =>
+    Object.fromEntries(Object.entries(record).map(([key, value]) => [key, interpolate(value)]));
+
+  const config = structuredClone(serverConfig);
+
+  if (config.command) {
+    config.command = interpolate(config.command);
+  }
+
+  if (config.url) {
+    // Verbatim substitution, so an absolute path keeps its leading slash: `http://host/${projectDir}/mcp`
+    // becomes `http://host//Users/me/repo/mcp`. Filesystem paths are not URL-encoded.
+    config.url = interpolate(config.url);
+  }
+
+  if (config.args) {
+    config.args = config.args.map(interpolate);
+  }
+
+  if (config.env) {
+    config.env = interpolateRecord(config.env);
+  }
+
+  if (config.headers) {
+    config.headers = interpolateRecord(config.headers);
+  }
+
+  return config;
+};
+
 export class McpManager {
   private mcpConnectors: Map<string, Promise<McpConnector>> = new Map();
   private connectorServerUrls: Map<string, string> = new Map();
@@ -492,7 +540,7 @@ export class McpManager {
   ): Promise<McpConnector> {
     const oldConnectorPromise = this.getPooledConnector(scope, serverName);
 
-    config = this.interpolateServerConfig(config, projectDir, taskDir);
+    config = interpolateServerConfig(config, projectDir, taskDir);
 
     let oldConnector: McpConnector | null = null;
     if (oldConnectorPromise) {
@@ -534,74 +582,9 @@ export class McpManager {
     logger.debug('MCP clients closed and record cleared/updated.');
   }
 
-  private interpolateServerConfig(serverConfig: McpServerConfig, projectDir: string | null, taskDir: string | null): McpServerConfig {
-    const config = JSON.parse(JSON.stringify(serverConfig)) as McpServerConfig;
-
-    const interpolateValue = (value: string): string => {
-      let result = value.replace(/\${projectDir}/g, projectDir || '.');
-      result = result.replace(/\${taskDir}/g, taskDir || projectDir || '.');
-      return result;
-    };
-
-    if (config.env) {
-      const newEnv: Record<string, string> = {};
-
-      Object.keys(config.env).forEach((key) => {
-        if (typeof config.env![key] === 'string') {
-          newEnv[key] = interpolateValue(config.env![key]);
-        } else {
-          newEnv[key] = config.env![key];
-        }
-      });
-
-      config.env = newEnv;
-    }
-
-    if (config.args) {
-      config.args = config.args.map(interpolateValue);
-    }
-
-    return config;
-  }
-
-  private hasInterpolation(value: string, pattern: string): boolean {
-    return value.includes(pattern);
-  }
-
-  private configHasInterpolation(serverConfig: McpServerConfig, pattern: string): boolean {
-    if (serverConfig.command && this.hasInterpolation(serverConfig.command, pattern)) {
-      return true;
-    }
-    if (serverConfig.url && this.hasInterpolation(serverConfig.url, pattern)) {
-      return true;
-    }
-    if (serverConfig.args) {
-      for (const arg of serverConfig.args) {
-        if (typeof arg === 'string' && this.hasInterpolation(arg, pattern)) {
-          return true;
-        }
-      }
-    }
-    if (serverConfig.env) {
-      for (const envValue of Object.values(serverConfig.env)) {
-        if (typeof envValue === 'string' && this.hasInterpolation(envValue, pattern)) {
-          return true;
-        }
-      }
-    }
-    if (serverConfig.headers) {
-      for (const headerValue of Object.values(serverConfig.headers)) {
-        if (typeof headerValue === 'string' && this.hasInterpolation(headerValue, pattern)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
   private calculateServerScope(serverConfig: McpServerConfig, projectDir: string | null, taskDir: string | null, serverName: string): string {
-    const hasProjectDirInterpolation = this.configHasInterpolation(serverConfig, '${projectDir}');
-    const hasTaskDirInterpolation = this.configHasInterpolation(serverConfig, '${taskDir}');
+    const hasProjectDirInterpolation = configHasInterpolation(serverConfig, '${projectDir}');
+    const hasTaskDirInterpolation = configHasInterpolation(serverConfig, '${taskDir}');
 
     let scope: string;
     if (!hasProjectDirInterpolation && !hasTaskDirInterpolation) {

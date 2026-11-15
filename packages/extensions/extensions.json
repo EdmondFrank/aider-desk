@@ -118,7 +118,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 132
+      "installCount": 133
     },
     {
       "id": "protected-paths",
@@ -130,7 +130,7 @@
       "capabilities": [
         "security"
       ],
-      "installCount": 60
+      "installCount": 61
     },
     {
       "id": "permission-gate",
@@ -468,7 +468,7 @@
         "workflows",
         "ui"
       ],
-      "installCount": 69
+      "installCount": 70
     },
     {
       "id": "bmad",

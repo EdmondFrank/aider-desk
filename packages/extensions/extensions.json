@@ -102,12 +102,13 @@
     {
       "id": "questions",
       "name": "Questions",
-      "description": "Extract questions from messages and display as interactive questionnaire",
+      "description": "Ask multiple-choice questions and extract free-form questionnaires from messages",
       "folder": "questions",
       "type": "folder",
       "hasDependencies": false,
       "capabilities": [
         "commands",
+        "tools",
         "ui"
       ],
       "installCount": 55

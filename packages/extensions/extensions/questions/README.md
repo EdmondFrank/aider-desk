@@ -1,6 +1,6 @@
 # Questions Extension
 
-Extract questions from messages and display them as an interactive questionnaire.
+Ask multiple-choice questions directly from the agent, or extract free-form questionnaires from messages.
 
 ## Overview
 
@@ -35,6 +35,32 @@ cp -r questions/ ~/.aider-desk/extensions/
 ```
 
 ## Usage
+
+### Agent Tool: `ask_question`
+
+Agents can ask a question with predefined options:
+
+```json
+{
+  "question": "Which implementation should we use?",
+  "options": ["Extend the existing component", "Create a separate component"]
+}
+```
+
+The question and clickable options appear **above the prompt field**. Selecting one option returns
+`{ "question": "...", "answer": "..." }` directly to the waiting tool call; no new prompt is started.
+Options must contain at least two unique, non-empty strings. Only one questionnaire can be active per task.
+
+In chat history, `ask_question` uses a collapsible message showing the question and its status.
+Expand it to see the available options, the highlighted selected answer, or a cancellation/error reason.
+Answering remains in the panel above the prompt field; history options are read-only.
+
+Dismissing the question returns `{ "cancelled": true, "reason": "..." }`. Pending requests are also
+cancelled when the agent is stopped, the task is closed/deleted, tools are disabled, or the extension unloads.
+A cancellation is not an answer or approval. This tool is not intended for secrets or tool approvals.
+
+The `/questions` command remains a separate workflow: it extracts questions from the last message
+and lets the user type free-form answers.
 
 ### Extract Questions
 
@@ -138,27 +164,22 @@ The questionnaire component:
 
 ## Configuration
 
-### Custom Model for Question Extraction
+Open the extension's settings (gear icon) to configure:
 
-By default, the extension uses the current task's agent model to extract questions. You can configure a specific model for question extraction (useful for using a faster/cheaper model):
+- **Enable tools** (default: on): makes `ask_question` available to agents. Disabling it does not
+  disable `/questions`. Changes apply when the agent's toolset is next built; existing tool references
+  also reject execution while disabled.
+- **Model**: select a custom model for `/questions` extraction, or leave it inherited from the current
+  task's agent profile. `ask_question` does not use a model to extract questions.
 
-1. Open `questions/index.ts`
-2. Find the `CUSTOM_MODEL_ID` constant at the top of the file
-3. Set it to your desired model in the format `provider/model`:
-   ```typescript
-   const CUSTOM_MODEL_ID = 'openai/gpt-4o-mini'; // example
-   ```
-
-**Available providers**: `openai`, `anthropic`, `gemini`, `groq`, `deepseek`, `ollama`, `lmstudio`, etc.
-
-When `CUSTOM_MODEL_ID` is set, the extension will use that model instead of the task's agent model.
+Settings are saved in `config.json` in the extension directory.
 
 ## Limitations
 
 - Only extracts questions from the **last message** in the conversation
 - Questions must end with "?" to be recognized
 - Only text content is analyzed (images, files, etc. are ignored)
-- Requires either a configured `CUSTOM_MODEL_ID` or an active agent profile
+- The `/questions` command requires either a configured extraction model or an active agent profile
 
 ## Troubleshooting
 

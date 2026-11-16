@@ -1,19 +1,26 @@
 ({ config, updateConfig, ui }) => {
   const { useCallback } = React;
-  const { ModelSelector } = ui;
+  const { ModelSelector, Checkbox } = ui;
+
+  const handleToolsEnabledChange = (checked) => {
+    updateConfig({ ...config, toolsEnabled: checked });
+  };
 
   const customModelId = config?.customModelId || '';
 
-  const handleModelChange = useCallback((model) => {
-    const modelId = model ? `${model.providerId}/${model.id}` : '';
-    updateConfig({
-      ...config,
-      customModelId: modelId,
-    });
-  }, [config, updateConfig]);
+  const handleModelChange = useCallback(
+    (model) => {
+      const modelId = model ? `${model.providerId}/${model.id}` : '';
+      updateConfig({
+        ...config,
+        customModelId: modelId,
+      });
+    },
+    [config, updateConfig],
+  );
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-3">
       <label className="block text-sm font-medium text-text-primary mb-1">Model</label>
       <div className="w-full p-2 bg-bg-secondary-light border-2 border-border-default rounded focus-within:outline-none focus-within:border-border-light">
         <ModelSelector
@@ -26,10 +33,15 @@
         />
       </div>
       <p className="text-xs text-text-secondary">
-        {customModelId
-          ? 'Using a custom model for question extraction.'
-          : 'Uses the model from the current task\'s agent profile.'}
+        {customModelId ? 'Using a custom model for question extraction.' : "Uses the model from the current task's agent profile."}
       </p>
+      <div className="flex flex-col gap-1">
+        <Checkbox label="Enable tools" checked={config?.toolsEnabled ?? true} onChange={handleToolsEnabledChange} />
+        <p className="text-xs text-text-secondary">
+          The ask_question tool lets agents ask a question with selectable options above the prompt field and receive your selected answer. The /questions
+          command remains available when tools are disabled.
+        </p>
+      </div>
     </div>
   );
 };

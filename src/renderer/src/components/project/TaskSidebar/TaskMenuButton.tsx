@@ -1,6 +1,6 @@
 import { DefaultTaskState, TaskData } from '@common/types';
 import { useTranslation } from 'react-i18next';
-import { MouseEvent, useRef, useState, useEffect, memo } from 'react';
+import { MouseEvent, useRef, useState, useLayoutEffect, memo } from 'react';
 import { HiOutlinePencil, HiOutlineTrash } from 'react-icons/hi';
 import { FaEllipsisVertical } from 'react-icons/fa6';
 import { IoLogoMarkdown } from 'react-icons/io';
@@ -59,20 +59,33 @@ export const TaskMenuButton = memo(
     const stateSubmenuItemRef = useRef<HTMLLIElement>(null);
     const stateSubmenuRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-      if (isMenuOpen && buttonRef.current) {
+    useLayoutEffect(() => {
+      if (!isMenuOpen) {
+        return;
+      }
+
+      const updatePosition = () => {
+        if (!buttonRef.current) {
+          return;
+        }
         const rect = buttonRef.current.getBoundingClientRect();
         setMenuPosition({
           top: rect.bottom + 4,
           left: rect.right - 170,
         });
-      } else {
-        setMenuPosition(null);
-      }
+      };
+
+      updatePosition();
+      window.addEventListener('scroll', updatePosition, true);
+      window.addEventListener('resize', updatePosition);
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true);
+        window.removeEventListener('resize', updatePosition);
+      };
     }, [isMenuOpen]);
 
-    useEffect(() => {
-      if (isStateSubmenuOpen && stateSubmenuItemRef.current) {
+    useLayoutEffect(() => {
+      if (isMenuOpen && isStateSubmenuOpen && stateSubmenuItemRef.current) {
         const rect = stateSubmenuItemRef.current.getBoundingClientRect();
         setSubmenuPosition({
           top: rect.top,
@@ -81,7 +94,7 @@ export const TaskMenuButton = memo(
       } else {
         setSubmenuPosition(null);
       }
-    }, [isStateSubmenuOpen]);
+    }, [isMenuOpen, isStateSubmenuOpen, menuPosition]);
 
     useClickOutside(
       [menuRef, buttonRef, stateSubmenuRef],

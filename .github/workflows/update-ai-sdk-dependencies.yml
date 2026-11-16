@@ -48,6 +48,7 @@ jobs:
             "@ai-sdk/openai"
             "@ai-sdk/openai-compatible"
             "@ai-sdk/provider"
+            "@ai-sdk/provider-utils"
             "@openrouter/ai-sdk-provider"
             "ollama-ai-provider-v2"
           )
@@ -60,10 +61,10 @@ jobs:
           for package in "${packages[@]}"; do
             echo "Checking $package..."
 
-            # Get current version from package.json
-            current_version=$(cat package.json | jq -r ".dependencies[\"$package\"] // empty")
+            # Get current version from dependencies or string overrides in package.json
+            current_version=$(jq -r --arg pkg "$package" '[.dependencies[$pkg], .overrides[$pkg]] | map(select(type == "string")) | .[0] // empty' package.json)
             if [ -z "$current_version" ]; then
-              echo "Package $package not found in dependencies, skipping..."
+              echo "Package $package not found in dependencies or string overrides, skipping..."
               continue
             fi
 
@@ -106,7 +107,9 @@ jobs:
               # like @huggingface/transformers); keys are never created.
               tmp=$(mktemp)
               jq --arg pkg "$package" --arg ver "$latest_clean" '
-                .dependencies[$pkg] = $ver
+                if (.dependencies[$pkg]? |type) == "string"
+                then .dependencies[$pkg] = $ver
+                else . end
                 | if (.overrides[$pkg]? |type) == "string"
                   then .overrides[$pkg] = $ver
                   else . end

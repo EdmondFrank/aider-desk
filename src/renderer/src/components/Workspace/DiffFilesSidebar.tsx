@@ -4,6 +4,7 @@ import { MdOutlineCommit } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import { useDebounce, useLocalStorage } from '@reactuses/core';
 import { ResizableBox } from 'react-resizable';
+import { clsx } from 'clsx';
 
 import { SidebarGroupTree } from './SidebarGroupTree';
 import { createFileTree, normalizePath } from './types';
@@ -26,9 +27,18 @@ type Props = {
   selectedFilePaths: Set<string>;
   onToggleFileSelection: (filePath: string, selected: boolean) => void;
   onToggleFolderSelection: (filePaths: string[], selected: boolean) => void;
+  fullWidth?: boolean;
 };
 
-export const DiffFilesSidebar = ({ groups, currentFile, onFileSelect, selectedFilePaths, onToggleFileSelection, onToggleFolderSelection }: Props) => {
+export const DiffFilesSidebar = ({
+  groups,
+  currentFile,
+  onFileSelect,
+  selectedFilePaths,
+  onToggleFileSelection,
+  onToggleFolderSelection,
+  fullWidth = false,
+}: Props) => {
   const { t } = useTranslation();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -69,6 +79,64 @@ export const DiffFilesSidebar = ({ groups, currentFile, onFileSelect, selectedFi
 
   const isFlatMode = groups.length === 1 && !groups[0].commitHash;
 
+  const content = (
+    <div className={clsx('flex flex-col h-full bg-bg-primary-light-strong overflow-hidden', !fullWidth && 'border-r border-border-default')}>
+      <div className="px-2 h-11 flex items-center border-b border-border-default bg-bg-primary-light shrink-0">
+        <Input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t('contextFiles.searchPlaceholder')}
+          size="sm"
+          autoFocus={false}
+          wrapperClassName="flex-1 min-w-0"
+        />
+      </div>
+
+      <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-bg-tertiary scrollbar-track-bg-primary-light scrollbar-rounded pl-1 py-1">
+        {hasContent ? (
+          groupTrees.map((gt) => {
+            const groupId = gt.group.id ?? UNCOMMITTED_GROUP_ID;
+            const isUncommitted = !gt.group.commitHash;
+            return (
+              <div key={groupId}>
+                {isFlatMode ? null : (
+                  <div className="flex items-center gap-1.5 px-2 py-1 border-t border-border-default shrink-0">
+                    <MdOutlineCommit className="h-3 w-3 text-text-muted shrink-0" />
+                    {isUncommitted ? (
+                      <span className="text-2xs font-medium text-text-secondary uppercase">{t('contextFiles.uncommitted')}</span>
+                    ) : (
+                      <>
+                        <Tooltip content={gt.group.commitMessage || ''}>
+                          <span className="text-2xs font-medium text-text-secondary font-mono">{gt.group.commitHash?.slice(0, 7)}</span>
+                        </Tooltip>
+                        {gt.group.commitMessage && <span className="text-2xs text-text-muted truncate">{gt.group.commitMessage}</span>}
+                      </>
+                    )}
+                  </div>
+                )}
+                <SidebarGroupTree
+                  groupTree={gt}
+                  showCheckboxes={isUncommitted}
+                  currentFilePath={currentFile ? normalizePath(currentFile.path) : undefined}
+                  selectedFilePaths={selectedFilePaths}
+                  onFileSelect={onFileSelect}
+                  onToggleFileSelection={onToggleFileSelection}
+                  onToggleFolderSelection={onToggleFolderSelection}
+                />
+              </div>
+            );
+          })
+        ) : (
+          <div className="flex items-center justify-center text-text-muted text-2xs h-full">{t('common.noFiles')}</div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (fullWidth) {
+    return content;
+  }
+
   return (
     <ResizableBox
       width={sidebarWidth || DEFAULT_WIDTH}
@@ -80,57 +148,7 @@ export const DiffFilesSidebar = ({ groups, currentFile, onFileSelect, selectedFi
       className="flex flex-col h-full"
       onResize={handleResize}
     >
-      <div className="flex flex-col h-full border-r border-border-default bg-bg-primary-light-strong overflow-hidden">
-        <div className="px-2 h-11 flex items-center border-b border-border-default bg-bg-primary-light shrink-0">
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('contextFiles.searchPlaceholder')}
-            size="sm"
-            autoFocus={false}
-            wrapperClassName="flex-1 min-w-0"
-          />
-        </div>
-
-        <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-bg-tertiary scrollbar-track-bg-primary-light scrollbar-rounded pl-1 py-1">
-          {hasContent ? (
-            groupTrees.map((gt) => {
-              const groupId = gt.group.id ?? UNCOMMITTED_GROUP_ID;
-              const isUncommitted = !gt.group.commitHash;
-              return (
-                <div key={groupId}>
-                  {isFlatMode ? null : (
-                    <div className="flex items-center gap-1.5 px-2 py-1 border-t border-border-default shrink-0">
-                      <MdOutlineCommit className="h-3 w-3 text-text-muted shrink-0" />
-                      {isUncommitted ? (
-                        <span className="text-2xs font-medium text-text-secondary uppercase">{t('contextFiles.uncommitted')}</span>
-                      ) : (
-                        <>
-                          <Tooltip content={gt.group.commitMessage || ''}>
-                            <span className="text-2xs font-medium text-text-secondary font-mono">{gt.group.commitHash?.slice(0, 7)}</span>
-                          </Tooltip>
-                          {gt.group.commitMessage && <span className="text-2xs text-text-muted truncate">{gt.group.commitMessage}</span>}
-                        </>
-                      )}
-                    </div>
-                  )}
-                  <SidebarGroupTree
-                    groupTree={gt}
-                    showCheckboxes={isUncommitted}
-                    currentFilePath={currentFile ? normalizePath(currentFile.path) : undefined}
-                    selectedFilePaths={selectedFilePaths}
-                    onFileSelect={onFileSelect}
-                    onToggleFileSelection={onToggleFileSelection}
-                    onToggleFolderSelection={onToggleFolderSelection}
-                  />
-                </div>
-              );
-            })
-          ) : (
-            <div className="flex items-center justify-center text-text-muted text-2xs h-full">{t('common.noFiles')}</div>
-          )}
-        </div>
-      </div>
+      {content}
     </ResizableBox>
   );
 };

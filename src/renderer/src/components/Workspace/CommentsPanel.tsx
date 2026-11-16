@@ -1,6 +1,7 @@
 import { ChangeEvent, memo, useCallback, useState } from 'react';
 import { HiPencil, HiTrash } from 'react-icons/hi';
 import { RiMenuUnfold4Line } from 'react-icons/ri';
+import { MdClose } from 'react-icons/md';
 import { useTranslation } from 'react-i18next';
 import { useLocalStorage } from '@reactuses/core';
 import { clsx } from 'clsx';
@@ -25,6 +26,8 @@ type Props = {
   isSubmitting: boolean;
   createNewTask: boolean;
   onCreateNewTaskChange: (value: boolean) => void;
+  fullWidth?: boolean;
+  onClose?: () => void;
 };
 
 const CommentItem = memo(
@@ -107,9 +110,21 @@ const CommentItem = memo(
 );
 
 export const CommentsPanel = memo(
-  ({ pendingComments, onRemoveComment, onUpdateComment, onSubmitAll, isSubmitting, createNewTask, onCreateNewTaskChange }: Props) => {
+  ({
+    pendingComments,
+    onRemoveComment,
+    onUpdateComment,
+    onSubmitAll,
+    isSubmitting,
+    createNewTask,
+    onCreateNewTaskChange,
+    fullWidth = false,
+    onClose,
+  }: Props) => {
     const { t } = useTranslation();
-    const [isCollapsed, setIsCollapsed] = useLocalStorage('diff-modal-comments-collapsed', false);
+    const [storedCollapsed, setIsCollapsed] = useLocalStorage('diff-modal-comments-collapsed', false);
+    // In full-width (mobile drawer) mode the panel is always expanded; the drawer owns show/hide.
+    const isCollapsed = fullWidth ? false : storedCollapsed;
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
 
     const handleStartEdit = useCallback((id: string) => {
@@ -129,7 +144,13 @@ export const CommentsPanel = memo(
     );
 
     return (
-      <div className={clsx('flex flex-col shrink-0 bg-bg-secondary border-l border-border-default', isCollapsed ? 'w-9' : 'w-80')}>
+      <div
+        className={clsx(
+          'flex flex-col shrink-0 bg-bg-secondary',
+          !fullWidth && 'border-l border-border-default',
+          fullWidth ? 'w-full h-full' : isCollapsed ? 'w-9' : 'w-80',
+        )}
+      >
         <div>
           <div className="flex flex-col h-full">
             {/* Panel header */}
@@ -142,12 +163,22 @@ export const CommentsPanel = memo(
                   </span>
                 </div>
               )}
-              <IconButton
-                icon={<RiMenuUnfold4Line className={clsx('w-4 h-4 transition-transform', isCollapsed ? '' : 'rotate-180')} />}
-                onClick={() => setIsCollapsed((prev) => !prev)}
-                tooltip={isCollapsed ? t('contextFiles.expandComments') : t('contextFiles.collapseComments')}
-                className="p-1 rounded transition-colors hover:bg-bg-tertiary text-text-secondary"
-              />
+              {!fullWidth && (
+                <IconButton
+                  icon={<RiMenuUnfold4Line className={clsx('w-4 h-4 transition-transform', isCollapsed ? '' : 'rotate-180')} />}
+                  onClick={() => setIsCollapsed((prev) => !prev)}
+                  tooltip={isCollapsed ? t('contextFiles.expandComments') : t('contextFiles.collapseComments')}
+                  className="p-1 rounded transition-colors hover:bg-bg-tertiary text-text-secondary"
+                />
+              )}
+              {fullWidth && onClose && (
+                <IconButton
+                  icon={<MdClose className="w-5 h-5" />}
+                  onClick={onClose}
+                  tooltip={t('common.close')}
+                  className="p-1 rounded transition-colors hover:bg-bg-tertiary text-text-secondary"
+                />
+              )}
             </div>
 
             {!isCollapsed && (

@@ -1485,6 +1485,8 @@
     "largeDiffMessage": "Questo file ha {{count}} righe modificate - il caricamento delle differenze complete potrebbe essere lento.",
     "largeDiffLoad": "Carica differenze",
     "commentsPanel": "Richieste di modifica",
+    "filesPanel": "File",
+    "viewFiles": "Visualizza file",
     "noComments": "Nessuna richiesta di modifica ancora. Clicca su una riga nel visualizzatore delle differenze per aggiungerne una.",
     "editComment": "Modifica",
     "removeComment": "Rimuovi",

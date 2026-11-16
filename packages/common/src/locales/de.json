@@ -1481,6 +1481,8 @@
     "largeDiffMessage": "Diese Datei hat {{count}} geänderte Zeilen - das Laden des vollständigen Diffs kann langsam sein.",
     "largeDiffLoad": "Diff laden",
     "commentsPanel": "Änderungsanfragen",
+    "filesPanel": "Dateien",
+    "viewFiles": "Dateien anzeigen",
     "noComments": "Noch keine Änderungsanfragen. Klicken Sie im Diff-Viewer auf eine Zeile, um eine hinzuzufügen.",
     "editComment": "Bearbeiten",
     "removeComment": "Entfernen",

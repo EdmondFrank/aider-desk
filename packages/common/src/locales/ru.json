@@ -1490,6 +1490,8 @@
     "group": "Группа {{hash}}",
     "updatedFilesWindowTitle": "Обновлённые файлы — {{name}}",
     "commentsPanel": "Запросы на изменение",
+    "filesPanel": "Файлы",
+    "viewFiles": "Просмотреть файлы",
     "noComments": "Пока нет запросов на изменение. Нажмите на строку в просмотрщике diff, чтобы добавить.",
     "editComment": "Редактировать",
     "removeComment": "Удалить",

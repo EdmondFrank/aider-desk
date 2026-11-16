@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { HiChevronLeft, HiChevronRight, HiSparkles, HiViewList } from 'react-icons/hi';
+import { HiChevronLeft, HiChevronRight, HiOutlineChatAlt2, HiSparkles, HiViewList } from 'react-icons/hi';
 import { MdClose, MdOutlineCommit, MdUndo, MdUnfoldLess, MdUnfoldMore } from 'react-icons/md';
+import { RiMenuUnfold4Line } from 'react-icons/ri';
 import { CgSpinner } from 'react-icons/cg';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useLocalStorage } from '@reactuses/core';
@@ -24,6 +26,8 @@ import { DiffFileItem } from '@/components/Workspace/DiffFileItem';
 import { DiffFilesSidebar } from '@/components/Workspace/DiffFilesSidebar';
 import { CommentsPanel } from '@/components/Workspace/CommentsPanel';
 import { useApi } from '@/contexts/ApiContext';
+import { useResponsive } from '@/hooks/useResponsive';
+import { useBooleanState } from '@/hooks/useBooleanState';
 import { useCommitChanges } from '@/hooks/useCommitChanges';
 import { useUpdatedFileDiff } from '@/hooks/useUpdatedFileDiff';
 import { useUpdatedFileContents } from '@/hooks/useUpdatedFileContents';
@@ -56,6 +60,9 @@ type Props = {
 export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, taskId, openInWindowUrl, openInWindowTitle }: Props) => {
   const { t } = useTranslation();
   const api = useApi();
+  const { isMobile } = useResponsive();
+  const [isFilesDrawerOpen, openFilesDrawer, closeFilesDrawer] = useBooleanState();
+  const [isCommentsDrawerOpen, openCommentsDrawer, closeCommentsDrawer] = useBooleanState();
 
   const [currentFile, setCurrentFile] = useState<UpdatedFile | null>(initialFile);
   const [diffViewMode, setDiffViewMode] = useLocalStorage<DiffViewMode>('updated-files-diff-view-mode', DiffViewMode.SideBySide);
@@ -450,6 +457,14 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
     [isAllFilesView, resetLineState, scrollToFile],
   );
 
+  const handleMobileFileSelect = useCallback(
+    (file: UpdatedFile) => {
+      handleFileSelect(file);
+      closeFilesDrawer();
+    },
+    [handleFileSelect, closeFilesDrawer],
+  );
+
   const handlePreviousInAllFiles = useCallback(() => {
     if (currentPosition > 0) {
       scrollToFile(flatFiles[currentPosition - 1]);
@@ -469,6 +484,9 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
     ],
     [t],
   );
+
+  // On mobile, side-by-side diffs are unusable at phone width, so force the unified view.
+  const effectiveDiffViewMode = isMobile ? DiffViewMode.Unified : diffViewMode || DiffViewMode.SideBySide;
 
   // Tracks which file is expanded so switching files collapses automatically.
   const [expandedFileKey, setExpandedFileKey] = useState<string | null>(null);
@@ -618,8 +636,8 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
       openInWindowTitle={openInWindowTitle}
     >
       {/* Main content area: file sidebar on left (full height), header + diff viewer center, comments panel right */}
-      <div className="flex-1 flex overflow-hidden">
-        {flatFiles.length > 1 && (
+      <div className="flex-1 flex overflow-hidden relative">
+        {!isMobile && flatFiles.length > 1 && (
           <DiffFilesSidebar
             groups={groups}
             currentFile={currentFile}
@@ -629,12 +647,65 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
             onToggleFolderSelection={handleToggleFolderSelection}
           />
         )}
+
+        {isMobile && flatFiles.length > 1 && (
+          <AnimatePresence>
+            {isFilesDrawerOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 z-20 bg-black/50"
+                  onClick={closeFilesDrawer}
+                />
+                <motion.div
+                  initial={{ x: '-100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '-100%' }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="absolute inset-y-0 left-0 z-30 w-[85%] max-w-[320px] flex flex-col bg-bg-primary-light-strong shadow-xl"
+                >
+                  <div className="flex items-center justify-between px-3 h-11 border-b border-border-default bg-bg-primary-light shrink-0">
+                    <span className="text-xs font-medium uppercase text-text-primary">{t('contextFiles.filesPanel')}</span>
+                    <IconButton
+                      icon={<MdClose className="h-5 w-5" />}
+                      onClick={closeFilesDrawer}
+                      tooltip={t('common.close')}
+                      className="p-1 rounded-md transition-colors hover:bg-bg-tertiary text-text-secondary"
+                    />
+                  </div>
+                  <div className="flex-1 min-h-0">
+                    <DiffFilesSidebar
+                      groups={groups}
+                      currentFile={currentFile}
+                      onFileSelect={handleMobileFileSelect}
+                      selectedFilePaths={selectedFilePaths}
+                      onToggleFileSelection={handleToggleFileSelection}
+                      onToggleFolderSelection={handleToggleFolderSelection}
+                      fullWidth
+                    />
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        )}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           <div className="flex items-center border-b border-border-default justify-center bg-bg-secondary h-11 px-4">
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-3 min-w-0">
-                {/* Group badge in single-file mode */}
-                {!isAllFilesView && currentGroup && (
+                {isMobile && flatFiles.length > 1 && (
+                  <IconButton
+                    icon={<RiMenuUnfold4Line className="h-5 w-5" />}
+                    onClick={openFilesDrawer}
+                    tooltip={t('contextFiles.viewFiles')}
+                    className="p-1.5 rounded-md transition-colors hover:bg-bg-tertiary text-text-secondary shrink-0"
+                  />
+                )}
+                {/* Group badge in single-file mode (hidden on mobile to save header space) */}
+                {!isMobile && !isAllFilesView && currentGroup && (
                   <span
                     className={clsx(
                       'text-2xs font-medium px-1.5 py-0.5 rounded shrink-0',
@@ -718,6 +789,23 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
                     />
                   </div>
                 )}
+                {isMobile && (
+                  <IconButton
+                    icon={
+                      <span className="relative flex items-center">
+                        <HiOutlineChatAlt2 className="h-5 w-5" />
+                        {pendingComments.length > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-accent-primary text-[9px] leading-[14px] text-center text-white">
+                            {pendingComments.length}
+                          </span>
+                        )}
+                      </span>
+                    }
+                    onClick={openCommentsDrawer}
+                    tooltip={t('contextFiles.commentsPanel')}
+                    className="p-1.5 rounded-md transition-colors hover:bg-bg-tertiary text-text-secondary shrink-0"
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -752,7 +840,7 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
                               index={flatIdx}
                               baseDir={baseDir}
                               taskId={taskId}
-                              diffViewMode={diffViewMode || DiffViewMode.SideBySide}
+                              diffViewMode={effectiveDiffViewMode}
                               selectedLineNumber={activeLineInfo?.filePath === file.path ? activeLineInfo.lineInfo.lineNumber : null}
                               onLineClick={handleLineClick}
                               comments={getCommentsForFile(file.path)}
@@ -787,7 +875,7 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
                       contents={currentFileContents}
                       expandContext={showFullContext && !!currentFileContents}
                       fileName={currentFile.path}
-                      viewMode={diffViewMode || DiffViewMode.SideBySide}
+                      viewMode={effectiveDiffViewMode}
                       showFilename={false}
                       selectedLineNumber={activeLineInfo?.filePath === currentFile.path ? activeLineInfo.lineInfo.lineNumber : null}
                       onLineClick={(lineInfo) => handleLineClick(lineInfo, currentFile.path)}
@@ -802,16 +890,55 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
           </div>
         </div>
 
-        {/* Right side: Comments panel */}
-        <CommentsPanel
-          pendingComments={pendingComments}
-          onRemoveComment={handleRemoveComment}
-          onUpdateComment={handleUpdateComment}
-          onSubmitAll={handleSubmitAll}
-          isSubmitting={isSubmitting}
-          createNewTask={createNewTask}
-          onCreateNewTaskChange={setCreateNewTask}
-        />
+        {/* Right side: Comments panel (inline on desktop) */}
+        {!isMobile && (
+          <CommentsPanel
+            pendingComments={pendingComments}
+            onRemoveComment={handleRemoveComment}
+            onUpdateComment={handleUpdateComment}
+            onSubmitAll={handleSubmitAll}
+            isSubmitting={isSubmitting}
+            createNewTask={createNewTask}
+            onCreateNewTaskChange={setCreateNewTask}
+          />
+        )}
+
+        {/* Comments drawer on mobile */}
+        {isMobile && (
+          <AnimatePresence>
+            {isCommentsDrawerOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute inset-0 z-20 bg-black/50"
+                  onClick={closeCommentsDrawer}
+                />
+                <motion.div
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="absolute inset-y-0 right-0 z-30 w-[85%] max-w-[320px] flex flex-col shadow-xl"
+                >
+                  <CommentsPanel
+                    pendingComments={pendingComments}
+                    onRemoveComment={handleRemoveComment}
+                    onUpdateComment={handleUpdateComment}
+                    onSubmitAll={handleSubmitAll}
+                    isSubmitting={isSubmitting}
+                    createNewTask={createNewTask}
+                    onCreateNewTaskChange={setCreateNewTask}
+                    fullWidth
+                    onClose={closeCommentsDrawer}
+                  />
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        )}
       </div>
 
       {/* Footer */}
@@ -864,8 +991,8 @@ export const UpdatedFilesDiffModal = ({ groups, initialFile, onClose, baseDir, t
               </div>
             </div>
 
-            <div className="flex items-center justify-between w-full gap-4">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between w-full gap-4 flex-wrap gap-y-2">
+              <div className="flex items-center gap-4 flex-wrap gap-y-2">
                 <Checkbox checked={amend} onChange={setAmend} label={t('contextFiles.amend')} tooltip={t('contextFiles.amendTooltip')} size="xs" />
                 <Checkbox
                   checked={skipGitHooks}

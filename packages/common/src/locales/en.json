@@ -1493,6 +1493,8 @@
     "largeDiffMessage": "This file has {{count}} changed lines - loading the full diff may be slow.",
     "largeDiffLoad": "Load diff",
     "commentsPanel": "Change Requests",
+    "filesPanel": "Files",
+    "viewFiles": "View files",
     "noComments": "No change requests yet. Click on a line in the diff viewer to add one.",
     "editComment": "Edit",
     "removeComment": "Remove",

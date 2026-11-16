@@ -1490,6 +1490,8 @@
     "group": "그룹 {{hash}}",
     "updatedFilesWindowTitle": "업데이트된 파일 - {{name}}",
     "commentsPanel": "변경 요청",
+    "filesPanel": "파일",
+    "viewFiles": "파일 보기",
     "noComments": "아직 변경 요청이 없습니다. Diff 뷰어에서 줄을 클릭하여 추가하세요.",
     "editComment": "편집",
     "removeComment": "제거",

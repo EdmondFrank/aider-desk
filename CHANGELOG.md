@@ -5,6 +5,7 @@
 - added skill activation to the extension TaskContext API for external agent integrations
 - fixed task sidebar menus and submenus not following their task items when scrolling
 - fixed Git branch submenus appearing outside the viewport on small screens
+- improved the updated files diff modal to be usable on portrait mobile with slide-in file and change request drawers
 
 ## [0.92.0]
 

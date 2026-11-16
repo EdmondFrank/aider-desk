@@ -221,6 +221,10 @@ interface AgentStartedEvent {
 
 Use `modelCallSettings` to override AI SDK model-call parameters. The dispatched value includes computed defaults such as `maxRetries` and `abortSignal`; return only the settings to override.
 
+`skillsToActivate` contains requested skill names, including manual `/skill:<name> [prompt]` commands. Their prefix is already stripped from `prompt`; skill-only commands receive an execution prompt. These requests have not yet been activated or added to `contextMessages`. The normal core loop persists the user message and activates skills after this hook; return a modified list (or `[]` to clear it) to change those requests.
+
+An extension owning the loop and returning `blocked: true` skips that core processing. Persist the user context message first, then call `TaskContext.activateSkill(name)` for each requested name and forward the skill content to the external agent. The returned activation messages are already persisted; `null` means already active in the current user-message window. See [external-agent-providers.md](external-agent-providers.md#skills-in-extension-owned-agent-loops).
+
 ### AgentFinishedEvent
 
 Dispatched when the agent has finished processing.

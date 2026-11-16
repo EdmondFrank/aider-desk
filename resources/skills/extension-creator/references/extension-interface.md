@@ -480,6 +480,13 @@ interface TaskContext {
   /** Append a message to the context messages. Auto-saves to disk. */
   addContextMessage(message: ContextMessage, updateContextInfo?: boolean): Promise<void>;
 
+  /** Validate and activate a user-invocable skill, persisting its assistant/tool pair and updating the UI.
+   * Returns null if already active in the current user-message window; rejects on validation/loading errors.
+   * Call after persisting the user message when handling AgentStartedEvent.skillsToActivate in an external loop.
+   * Returned messages are already persisted; forward their content to the external agent, not back into storage.
+   */
+  activateSkill(skillName: string): Promise<[ContextAssistantMessage, ContextToolMessage] | null>;
+
   /** Remove a specific message from the context by its ID. */
   removeMessage(messageId: string): Promise<void>;
 

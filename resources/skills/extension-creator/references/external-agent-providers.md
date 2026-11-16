@@ -65,6 +65,19 @@ For standard AI SDK providers, AiderDesk owns chat-message grouping and completi
 
 For extension-owned orchestration/rendering (such as Cursor SDK), use stable message IDs and mark messages complete before opening the next group. Streamed and finalized content must agree. SDK completion callbacks can run ahead of an async stream consumer: do not finalize a message while queued deltas can still append to it.
 
+## Skills in extension-owned agent loops
+
+For integrations that execute their own loop inside `onAgentStarted` and return `blocked: true` (such as Cursor SDK), handle `event.skillsToActivate` explicitly. Manual `/skill:<name> [prompt]` commands arrive with the prefix stripped from `event.prompt` and the requested name in that list; skill-only commands receive an execution prompt. The normal core loop activates skills only after this hook, so blocking it skips both user-context persistence and skill activation. Searching historical activation messages alone misses newly requested skills.
+
+1. Persist the plain user context message with `taskContext.addContextMessage()`. Preserve images as appropriate.
+2. Await `taskContext.activateSkill(name)` for each requested name before dispatching to the SDK. This reuses core manual-invocation validation and skill-content loading, persists the assistant/tool pair, and updates the UI/context info. Validation or content-loading errors reject the promise; report failures rather than silently sending a prompt without its requested skill.
+3. Use the returned tool-result content to build the external agent request, for example by prepending skill blocks to its prompt. The pair is already persisted; do not add it to context again or pollute the stored user text with injected instructions.
+4. A `null` result means the skill is already active in the current user-message window. Reuse existing activation content when needed and deduplicate by skill name when combining existing and newly returned activations.
+
+Keep the order **user message → skill activation → external agent dispatch**. Do not restore pre-hook activation or duplicate filesystem skill loading in the extension. Integrations that leave execution to the core loop should let core handle `skillsToActivate` instead.
+
+`TaskContext.activateSkill()` requires the matching updated AiderDesk main process. On an older host, reject requested skill execution with an actionable update/restart message instead of silently ignoring the request; extension hot reload cannot add this core API.
+
 ## Persistent conversations and transient resources
 
 A native session ID is not enough if its database is deleted at the end of each run. Separate persistent conversation data from temporary runtime configuration, authentication, server processes and MCP bridges.
@@ -78,6 +91,8 @@ A native session ID is not enough if its database is deleted at the end of each 
 - Stop owned processes and bridges on completion, cancellation, task closure and unload, without deleting session data needed for the next turn. Reconnect the new MCP endpoint when resuming after a server restart.
 
 ## Verification checklist
+
+- For extension-owned loops, test skill-only commands, skills with prompts, multiple skills, already-active skills, images, ordinary prompts, activation failures and older-host compatibility. Verify user-before-activation persistence, no duplicate activation messages, and skill content reaching the external agent.
 
 - Exercise reasoning → tool calls → reasoning/text and multiple approval continuations; verify message order, completion and no replay duplicates.
 - Test native and MCP calls independently, including approval/rejection and exactly-once execution.

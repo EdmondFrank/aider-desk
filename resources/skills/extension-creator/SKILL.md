@@ -322,6 +322,14 @@ After completing this skill, verify:
 - Then: Implement event handler methods (onAgentStarted, onToolCalled, etc.)
 - Return: Partial event object to modify behavior
 
+**Situation:** Extension owns an external agent loop in `onAgentStarted`
+
+**Pattern:**
+- Handle `event.skillsToActivate` explicitly when returning `blocked: true`: core activation runs after this hook and is skipped when blocked.
+- Persist the user context message first, then await `taskContext.activateSkill(name)` for each requested name. It validates manual invocation, loads content, persists activation messages, and returns the assistant/tool pair or `null` if already active in the current user-message window. Do not persist the pair again.
+- Forward skill tool-result content to the external agent without adding it to the persisted user text. Reuse existing activation content when the helper returns `null`; history alone does not contain newly requested activations.
+- Read [external-agent-providers.md](references/external-agent-providers.md#skills-in-extension-owned-agent-loops) for activation timing and host compatibility. Leave activation to core when using the normal core loop.
+
 **Situation:** Extension needs to create subtasks and coordinate between them
 
 **Pattern:**

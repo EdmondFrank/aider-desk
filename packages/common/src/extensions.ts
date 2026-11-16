@@ -5,9 +5,11 @@ import {
   CommandArgument,
   CommandsData,
   ConnectorMessage,
+  ContextAssistantMessage,
   ContextFile,
   ContextMemoryMode,
   ContextMessage,
+  ContextToolMessage,
   CreateTaskParams,
   CustomCommand,
   InvocationMode,
@@ -924,6 +926,14 @@ export interface TaskContext {
    * @param updateContextInfo - If true, refreshes the context info summary after adding
    */
   addContextMessage(message: ContextMessage, updateContextInfo?: boolean): Promise<void>;
+
+  /**
+   * Activate a user-invocable skill using core validation and content loading.
+   * Persists its assistant/tool messages and updates the UI. Returns null if already active.
+   * Extensions owning the agent loop should call this after persisting the user message
+   * for each name in AgentStartedEvent.skillsToActivate and pass the content to their agent.
+   */
+  activateSkill(skillName: string): Promise<[ContextAssistantMessage, ContextToolMessage] | null>;
 
   /**
    * Remove a specific message from the context by its ID.

@@ -189,6 +189,7 @@ interface TaskContext {
   // Context Messages
   getContextMessages(): Promise<ContextMessage[]>;
   addContextMessage(message: ContextMessage, updateContextInfo?: boolean): Promise<void>;
+  activateSkill(skillName: string): Promise<[ContextAssistantMessage, ContextToolMessage] | null>;
   removeMessage(messageId: string): Promise<void>;
   removeLastMessage(): Promise<void>;
   removeMessagesUpTo(messageId: string): Promise<void>;
@@ -259,6 +260,16 @@ interface TaskContext {
   resumeTask(): Promise<void>;
 }
 ```
+
+### Skill activation for extension-owned agent loops
+
+`activateSkill(skillName)` uses core validation and content loading to activate a user-invocable skill. It persists the assistant tool-call and matching tool-result messages, updates the task UI/context info, and returns that message pair. It returns `null` if the skill is already active in the current user-message window. Validation or content-loading failures reject the promise. Do not persist the returned messages again.
+
+Manual `/skill:<name> [prompt]` commands reach `onAgentStarted` with the prefix stripped from `event.prompt` and the requested name in `event.skillsToActivate`. A skill-only command receives an execution prompt. Activation has not yet occurred: the normal core loop persists the user message and then activates requested skills **after** this hook.
+
+If your extension runs its own agent inside `onAgentStarted` and returns `blocked: true`, it bypasses those core steps. Persist the user context message with `addContextMessage()` first, then await `activateSkill()` for each requested name before sending to the external agent. Forward the returned tool-result content to that agent (for example, as skill blocks prepended to its prompt), while keeping the persisted user message plain. If activation returns `null`, reuse the existing activation content when needed; do not assume every requested skill will produce new messages. Searching only `event.contextMessages` cannot find newly requested activations.
+
+Extensions that leave execution to the normal core loop should let it handle activation; they may return an updated `skillsToActivate` list, including an empty list to clear requests. This API requires an updated AiderDesk main process; extension hot reload alone cannot add it to an older host.
 
 ### Read-only context generation
 

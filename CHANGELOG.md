@@ -1,5 +1,9 @@
 # Changelog
 
+## [UNRELEASED]
+
+- added skill activation to the extension TaskContext API for external agent integrations
+
 ## [0.92.0]
 
 - improved database write performance by enabling SQLite WAL mode to reduce UI freezes under concurrent agents

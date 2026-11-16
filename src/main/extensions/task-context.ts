@@ -62,6 +62,10 @@ export class TaskContextImpl implements TaskContext {
     await this.task.addContextMessage(message, updateContextInfo);
   }
 
+  async activateSkill(skillName: string) {
+    return this.task.activateSkill(skillName);
+  }
+
   async removeMessage(messageId: string): Promise<void> {
     await this.task.removeMessage(messageId);
   }

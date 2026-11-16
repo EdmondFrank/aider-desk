@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BranchInfo } from '@common/types';
 
@@ -89,6 +89,40 @@ describe('GitBranchesPopup', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('common.loading');
     expect(screen.queryByText('git.noBranchesFound')).not.toBeInTheDocument();
+  });
+
+  describe('submenu positioning', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
+
+    it.each([
+      { viewportWidth: 800, viewportHeight: 600, rowLeft: 100, rowRight: 300, rowTop: 100, menuWidth: 240, menuHeight: 180, left: 302, top: 97 },
+      { viewportWidth: 600, viewportHeight: 400, rowLeft: 300, rowRight: 580, rowTop: 350, menuWidth: 240, menuHeight: 180, left: 54, top: 212 },
+      { viewportWidth: 320, viewportHeight: 240, rowLeft: 10, rowRight: 310, rowTop: 200, menuWidth: 240, menuHeight: 180, left: 8, top: 52 },
+      { viewportWidth: 200, viewportHeight: 120, rowLeft: 0, rowRight: 200, rowTop: 100, menuWidth: 184, menuHeight: 104, left: 8, top: 8 },
+    ])(
+      'keeps the submenu in a $viewportWidth × $viewportHeight viewport',
+      ({ viewportWidth, viewportHeight, rowLeft, rowRight, rowTop, menuWidth, menuHeight, left, top }) => {
+        vi.stubGlobal('innerWidth', viewportWidth);
+        vi.stubGlobal('innerHeight', viewportHeight);
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+          return this.classList.contains('fixed') ? new DOMRect(0, 0, menuWidth, menuHeight) : new DOMRect(rowLeft, rowTop, rowRight - rowLeft, 22);
+        });
+
+        renderPopup();
+        openSubmenuFor('feature-x');
+
+        const menu = screen.getByText('git.checkoutBranch').closest('button')?.parentElement;
+        expect(menu).toHaveStyle({ left: `${left}px`, top: `${top}px` });
+        expect(menu).toHaveClass('overflow-y-auto', 'max-w-[calc(100vw-16px)]', 'max-h-[calc(100dvh-16px)]');
+
+        vi.stubGlobal('innerHeight', viewportHeight + 200);
+        fireEvent(window, new Event('resize'));
+        expect(menu).toHaveStyle({ top: `${Math.max(8, Math.min(rowTop - 3, viewportHeight + 200 - menuHeight - 8))}px` });
+      },
+    );
   });
 
   describe('local mode', () => {

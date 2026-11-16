@@ -4,6 +4,7 @@
 
 - added skill activation to the extension TaskContext API for external agent integrations
 - fixed task sidebar menus and submenus not following their task items when scrolling
+- fixed Git branch submenus appearing outside the viewport on small screens
 
 ## [0.92.0]
 

@@ -1,4 +1,4 @@
-import { MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CgSpinner } from 'react-icons/cg';
 import { FaChevronDown, FaChevronRight, FaFolder, FaFolderOpen, FaMagnifyingGlass } from 'react-icons/fa6';
@@ -104,6 +104,8 @@ export const GitBranchesPopup = ({
   const [submenuHighlight, setSubmenuHighlight] = useState(-1);
 
   const rowRefs = useRef(new Map<string, HTMLElement | null>());
+  const submenuRef = useRef<HTMLDivElement>(null);
+  const submenuAnchorRef = useRef<HTMLElement | null>(null);
 
   const filtered = useMemo(() => {
     const normalizedFilter = filter.trim().toLowerCase();
@@ -309,7 +311,40 @@ export const GitBranchesPopup = ({
     ],
   );
 
-  const submenuItems = useMemo(() => (openSubmenu ? getSubmenuItems(openSubmenu.branch) : []), [openSubmenu, getSubmenuItems]);
+  const submenuBranch = openSubmenu?.branch;
+  const submenuItems = useMemo(() => (submenuBranch ? getSubmenuItems(submenuBranch) : []), [submenuBranch, getSubmenuItems]);
+
+  useLayoutEffect(() => {
+    if (!submenuBranch) {
+      return;
+    }
+
+    const updatePosition = () => {
+      const menu = submenuRef.current;
+      const anchor = submenuAnchorRef.current;
+      if (!menu || !anchor) {
+        return;
+      }
+
+      const margin = 8;
+      const rect = anchor.getBoundingClientRect();
+      const { width, height } = menu.getBoundingClientRect();
+      const right = rect.right + 2;
+      const preferredLeft = right + width <= window.innerWidth - margin ? right : rect.left - width - 6;
+      const left = Math.max(margin, Math.min(preferredLeft, window.innerWidth - width - margin));
+      const top = Math.max(margin, Math.min(rect.top - 3, window.innerHeight - height - margin));
+
+      setOpenSubmenu((previous) => (previous && (previous.top !== top || previous.left !== left) ? { ...previous, top, left } : previous));
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, [submenuBranch, submenuItems]);
+
+  useEffect(() => {
+    submenuRef.current?.children[submenuHighlight]?.scrollIntoView({ block: 'nearest' });
+  }, [submenuHighlight, submenuBranch]);
 
   const handleFilterChange = (value: string) => {
     setFilter(value);
@@ -323,13 +358,12 @@ export const GitBranchesPopup = ({
   const openSubmenuFor = useCallback(
     (branch: BranchInfo, e?: MouseEvent<HTMLElement>) => {
       const row = e?.currentTarget.closest('[class*="group/row"]') as HTMLElement | null;
-      const rect = (row ?? rowRefs.current.get(branch.name))?.getBoundingClientRect();
-      if (!rect) {
+      const anchor = row ?? rowRefs.current.get(branch.name);
+      if (!anchor) {
         return;
       }
-      const menuWidth = 240;
-      const left = rect.right + menuWidth > window.innerWidth ? rect.left - menuWidth - 6 : rect.right + 2;
-      const top = Math.max(8, Math.min(rect.top - 3, window.innerHeight - 120));
+      submenuAnchorRef.current = anchor;
+      const { top, right: left } = anchor.getBoundingClientRect();
       const items = getSubmenuItems(branch);
       const firstEnabled = items.findIndex((item) => !item.disabled);
       setSubmenuHighlight(firstEnabled);
@@ -532,7 +566,8 @@ export const GitBranchesPopup = ({
       </div>
       {openSubmenu && (
         <div
-          className="fixed z-50 w-60 rounded-md border border-border-default-dark bg-bg-primary-light py-1 shadow-lg"
+          ref={submenuRef}
+          className="fixed z-50 w-60 max-w-[calc(100vw-16px)] max-h-[calc(100dvh-16px)] overflow-y-auto rounded-md border border-border-default-dark bg-bg-primary-light py-1 shadow-lg"
           style={{ top: openSubmenu.top, left: openSubmenu.left }}
         >
           {submenuItems.map((item, subIndex) => (

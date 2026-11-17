@@ -106,6 +106,36 @@ interface StoredTokens {
 
 // Hardcoded models from https://developers.openai.com/codex/models
 const CODEX_MODELS: Model[] = [
+  {
+    id: 'gpt-6.2-astra',
+    providerId: '',
+    maxInputTokens: 922000,
+    maxOutputTokensLimit: 128000,
+    inputCostPerToken: 0.000008,
+    outputCostPerToken: 0.00004,
+    cacheReadInputTokenCost: 0.0000004,
+    cacheWriteInputTokenCost: 0.00001,
+  },
+  {
+    id: 'gpt-6.2-sol',
+    providerId: '',
+    maxInputTokens: 922000,
+    maxOutputTokensLimit: 128000,
+    inputCostPerToken: 0.000002,
+    outputCostPerToken: 0.00001,
+    cacheReadInputTokenCost: 0.0000001,
+    cacheWriteInputTokenCost: 0.0000025,
+  },
+  {
+    id: 'gpt-6.1-terra',
+    providerId: '',
+    maxInputTokens: 1050000,
+    maxOutputTokensLimit: 128000,
+    inputCostPerToken: 0.000001,
+    outputCostPerToken: 0.000005,
+    cacheReadInputTokenCost: 0.00000005,
+    cacheWriteInputTokenCost: 0.00000125,
+  },
   // Recommended
   {
     id: 'gpt-6-astra',
@@ -845,7 +875,7 @@ const PROVIDER_ID = 'openai-codex';
 export default class OpenAICodexAuthExtension implements Extension {
   static metadata = {
     name: 'OpenAI Codex Auth',
-    version: '1.3.0',
+    version: '1.4.0',
     description: 'OpenAI Codex provider using ChatGPT Plus/Pro OAuth authentication with a dedicated sign-in UI (browser or device code)',
     iconUrl: 'https://raw.githubusercontent.com/magiksoft/aider-desk/refs/heads/main/packages/extensions/extensions/openai-codex/icon.png',
     author: 'wladimiiir',

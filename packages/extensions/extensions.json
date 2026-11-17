@@ -111,7 +111,7 @@
         "tools",
         "ui"
       ],
-      "installCount": 56
+      "installCount": 57
     },
     {
       "id": "theme",
@@ -145,7 +145,7 @@
       "capabilities": [
         "security"
       ],
-      "installCount": 61
+      "installCount": 62
     },
     {
       "id": "permission-gate",
@@ -204,7 +204,7 @@
         "commands",
         "tools"
       ],
-      "installCount": 115
+      "installCount": 116
     },
     {
       "id": "legacy-system-prompt",
@@ -261,7 +261,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 39
+      "installCount": 40
     },
     {
       "id": "redact-secrets",
@@ -310,7 +310,7 @@
         "context",
         "commands"
       ],
-      "installCount": 91
+      "installCount": 93
     },
     {
       "id": "context-autocompletion-words",
@@ -335,7 +335,7 @@
         "tools",
         "code-intelligence"
       ],
-      "installCount": 100
+      "installCount": 101
     },
     {
       "id": "plannotator",
@@ -648,7 +648,7 @@
         "security",
         "commands"
       ],
-      "installCount": 56
+      "installCount": 57
     },
     {
       "id": "git-log",
@@ -672,7 +672,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 186
+      "installCount": 187
     },
     {
       "id": "task-scheduler",

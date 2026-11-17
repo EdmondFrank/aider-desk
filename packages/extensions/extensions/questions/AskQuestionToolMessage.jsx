@@ -47,9 +47,10 @@
     </div>
   );
 
+  const isCustomAnswer = answered && !options.includes(result.answer);
+
   const content = (
     <div className="px-3 pb-3 text-xs bg-bg-secondary flex flex-col gap-2">
-      <p className="text-text-primary whitespace-pre-wrap break-words">{question}</p>
       <ul className="flex flex-col gap-1" aria-label="Answer options">
         {options.map((option, index) => (
           <li
@@ -62,7 +63,7 @@
         ))}
       </ul>
       {waiting && <p className="text-text-muted">Waiting for your selection above the prompt field.</p>}
-      {answered && <p className="text-success whitespace-pre-wrap break-words">Answer: {result.answer}</p>}
+      {isCustomAnswer && <p className="text-success whitespace-pre-wrap break-words">Custom answer: {result.answer}</p>}
       {cancelled && (
         <p className="text-text-muted whitespace-pre-wrap break-words">{typeof result.reason === 'string' ? result.reason : 'Question cancelled.'}</p>
       )}

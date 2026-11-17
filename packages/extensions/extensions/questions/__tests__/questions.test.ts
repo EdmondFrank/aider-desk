@@ -17,15 +17,27 @@ vi.mock('fs', async (importOriginal) => {
   };
 });
 
-const component = 'questions-ask-question';
 const input = { question: 'Which approach?', options: ['Extend', 'Replace'] };
 const instances: QuestionsExtension[] = [];
 
 const setup = (project = '/project', id = 'task') => {
   const extension = new QuestionsExtension();
   instances.push(extension);
+  const askResolvers: Array<(answer: string) => void> = [];
   const task = {
     data: { id },
+    askQuestion: vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          askResolvers.push(resolve);
+        }),
+    ),
+    answerQuestion: vi.fn((answer: string, _userInput?: string) => {
+      for (const resolve of askResolvers.splice(0)) {
+        resolve(answer);
+      }
+      return Promise.resolve(true);
+    }),
     runPrompt: vi.fn(),
     addLogMessage: vi.fn(),
     addLoadingMessage: vi.fn(),
@@ -44,13 +56,12 @@ const setup = (project = '/project', id = 'task') => {
   } as unknown as ExtensionContext;
   const tool = extension.getTools()[0];
   const execute = (signal?: AbortSignal) => tool.execute(input, signal, context, {});
-  const getData = async () =>
-    (await extension.getUIExtensionData(component, context)) as {
-      id: string;
-      question: string;
-      options: string[];
+  const getQuestionnaireData = async () =>
+    (await extension.getUIExtensionData('questions-questionnaire', context)) as {
+      isActive: boolean;
+      questions: { id: string; text: string }[];
     } | null;
-  return { extension, task, context, tool, execute, getData };
+  return { extension, task, context, tool, execute, getQuestionnaireData };
 };
 
 beforeEach(() => {
@@ -63,7 +74,7 @@ afterEach(async () => {
 });
 
 describe('Questions extension tool', () => {
-  it('registers a custom message renderer only for the ask_question extension tool', () => {
+  it('registers a tool-message renderer only for the ask_question extension tool', () => {
     const { extension } = setup();
     expect(extension.getUIComponents()).toContainEqual(
       expect.objectContaining({
@@ -75,89 +86,76 @@ describe('Questions extension tool', () => {
     );
   });
 
-  it('renders in the input-above placement and returns the selected answer without starting a prompt', async () => {
-    const { extension, execute, getData, context, task } = setup();
-    expect(extension.getUIComponents()).toContainEqual(expect.objectContaining({ id: component, placement: 'task-input-above' }));
+  it('asks via the native flow and returns the selected option as the answer', async () => {
+    const { task, execute } = setup();
     const pending = execute();
-    const data = await getData();
-    expect(data).toMatchObject(input);
-    expect(context.triggerUIDataRefresh).toHaveBeenCalledWith(component, 'task');
-    await extension.executeUIExtensionAction(component, 'answer', [data!.id, 'Extend'], context);
-    expect(await pending).toEqual({
-      question: input.question,
-      answer: 'Extend',
-    });
-    expect(await getData()).toBeNull();
-    expect(task.runPrompt).not.toHaveBeenCalled();
+    expect(task.askQuestion).toHaveBeenCalledWith(
+      input.question,
+      expect.objectContaining({
+        subject: 'Agent question',
+        defaultAnswer: '1',
+        answers: [
+          { text: 'Extend', shortkey: '1' },
+          { text: 'Replace', shortkey: '2' },
+        ],
+      }),
+    );
+    task.answerQuestion('2');
+    await expect(pending).resolves.toEqual({ question: input.question, answer: 'Replace' });
   });
 
-  it('ignores invalid answers and stale clicks, including clicks from a previous question', async () => {
-    const { extension, execute, getData, context } = setup();
-    const first = execute();
-    const firstId = (await getData())!.id;
-    expect(await extension.executeUIExtensionAction(component, 'answer', [firstId, 'Invalid'], context)).toMatchObject({ success: false });
-    expect(await extension.executeUIExtensionAction(component, 'answer', ['stale', 'Extend'], context)).toMatchObject({ success: false });
-    expect((await getData())!.id).toBe(firstId);
-    await extension.executeUIExtensionAction(component, 'answer', [firstId, 'Extend'], context);
-    await first;
-    const second = execute();
-    expect(await extension.executeUIExtensionAction(component, 'cancel', [firstId], context)).toMatchObject({ success: false });
-    const secondId = (await getData())!.id;
-    expect(secondId).not.toBe(firstId);
-    await extension.executeUIExtensionAction(component, 'cancel', [secondId], context);
-    expect(await second).toMatchObject({ cancelled: true });
+  it('returns the typed custom answer captured from the question-answered event', async () => {
+    const { extension, task, execute, context } = setup();
+    const pending = execute();
+    await extension.onQuestionAnswered({ question: { text: input.question }, answer: 'n', userInput: 'Do both' } as never, context);
+    task.answerQuestion('n', 'Do both');
+    await expect(pending).resolves.toEqual({ question: input.question, answer: 'Do both' });
+  });
+
+  it('reports cancelled when the question resolves without an answer', async () => {
+    const { task, execute } = setup();
+    const pending = execute();
+    task.answerQuestion('');
+    await expect(pending).resolves.toEqual({ cancelled: true, reason: 'Question dismissed without an answer' });
   });
 
   it('rejects overlapping questions without replacing the active request', async () => {
-    const { execute, getData } = setup();
+    const { extension, execute, context } = setup();
     void execute();
-    const id = (await getData())!.id;
     await expect(execute()).rejects.toThrow('already active');
-    expect((await getData())!.id).toBe(id);
+    await expect(extension.getTools()[0].execute(input, undefined, context, {})).rejects.toThrow('already active');
   });
 
-  it('cancels on dismissal', async () => {
-    const { extension, execute, getData, context } = setup();
-    const pending = execute();
-    await extension.executeUIExtensionAction(component, 'cancel', [(await getData())!.id], context);
-    expect(await pending).toEqual({
-      cancelled: true,
-      reason: 'User dismissed the question',
-    });
-    expect(await getData()).toBeNull();
+  it('blocks the tool while the /questions questionnaire is active', async () => {
+    const { extension, execute, context } = setup();
+    await extension.getCommands()[0].execute([], context);
+    const data = await extension.getUIExtensionData('questions-questionnaire', context);
+    expect(data).toMatchObject({ isActive: true, questions: [{ text: 'What is next?' }] });
+    await expect(execute()).rejects.toThrow('already active');
   });
 
   it('cleans up on abort and rejects already aborted executions', async () => {
-    const { execute, getData } = setup();
+    const { task, execute } = setup();
     const controller = new AbortController();
     const pending = execute(controller.signal);
     controller.abort();
-    expect(await pending).toEqual({
-      cancelled: true,
-      reason: 'Agent cancelled',
-    });
-    expect(await getData()).toBeNull();
+    expect(task.answerQuestion).toHaveBeenCalledWith('n');
+    await expect(pending).resolves.toEqual({ cancelled: true, reason: 'Agent cancelled' });
     await expect(execute(controller.signal)).rejects.toThrow();
-    expect(await getData()).toBeNull();
   });
 
-  it.each(['onTaskClosed', 'onTaskDeleted'] as const)('cleans up on %s', async (method) => {
-    const { extension, execute, getData, context } = setup();
+  it.each(['onTaskClosed', 'onTaskDeleted'] as const)('releases the pending question on %s', async (method) => {
+    const { extension, execute, context } = setup();
     const pending = execute();
     await extension[method]({ task: { id: 'task' } } as TaskClosedEvent, context);
     expect(await pending).toMatchObject({ cancelled: true });
-    expect(await getData()).toBeNull();
   });
 
   it('resolves pending requests on unload', async () => {
-    const { extension, execute, getData } = setup();
+    const { extension, execute } = setup();
     const pending = execute();
     await extension.onUnload();
-    expect(await pending).toEqual({
-      cancelled: true,
-      reason: 'Extension unloaded',
-    });
-    expect(await getData()).toBeNull();
+    expect(await pending).toMatchObject({ cancelled: true });
   });
 
   it('defaults tools on, persists the toggle, and rejects old tool references while disabled', async () => {
@@ -183,23 +181,20 @@ describe('Questions extension tool', () => {
     const { extension, execute } = setup();
     const pending = execute();
     await extension.saveConfigData({ toolsEnabled: false });
-    expect(await pending).toEqual({
-      cancelled: true,
-      reason: 'Question tools disabled',
-    });
+    await expect(pending).resolves.toEqual({ cancelled: true, reason: 'Agent cancelled' });
   });
 
   it('isolates tasks and identical task IDs in different projects', async () => {
-    const { extension, execute, context, getData } = setup();
+    const { extension, execute, context } = setup();
     const other = setup('/other');
     const otherTask = setup('/project', 'second');
     const first = execute();
     const second = extension.getTools()[0].execute(input, undefined, other.context, {});
     const third = extension.getTools()[0].execute(input, undefined, otherTask.context, {});
-    await extension.executeUIExtensionAction(component, 'cancel', [(await getData())!.id], context);
+    await expect(execute()).rejects.toThrow('already active');
+    await expect(extension.getTools()[0].execute(input, undefined, other.context, {})).rejects.toThrow('already active');
+    await extension.onTaskClosed({ task: { id: 'task' } } as TaskClosedEvent, context);
     expect(await first).toMatchObject({ cancelled: true });
-    expect(await extension.getUIExtensionData(component, other.context)).toMatchObject(input);
-    expect(await extension.getUIExtensionData(component, otherTask.context)).toMatchObject(input);
     await extension.onUnload();
     expect(await second).toMatchObject({ cancelled: true });
     expect(await third).toMatchObject({ cancelled: true });
@@ -226,11 +221,11 @@ describe('Questions extension tool', () => {
   });
 
   it('prevents the command and tool from replacing each other', async () => {
-    const { extension, execute, context, task, getData } = setup();
+    const { extension, execute, context, task } = setup();
     void execute();
     await extension.getCommands()[0].execute([], context);
     expect(task.generateText).not.toHaveBeenCalled();
-    await extension.executeUIExtensionAction(component, 'cancel', [(await getData())!.id], context);
+    await task.answerQuestion('1');
     await extension.getCommands()[0].execute([], context);
     await expect(execute()).rejects.toThrow('already active');
   });

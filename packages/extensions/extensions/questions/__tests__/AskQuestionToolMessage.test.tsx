@@ -52,7 +52,8 @@ describe('AskQuestionToolMessage', () => {
   ])('renders the selected answer from result format %s', (content) => {
     renderMessage(content);
     expect(screen.getByLabelText('Answered')).toBeInTheDocument();
-    expect(screen.getByText('Answer: Extend')).toBeInTheDocument();
+    expect(screen.queryByText('Answer: Extend')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Which approach?')).toHaveLength(1);
     expect(screen.getByText('(Selected)').parentElement).toHaveTextContent('Extend');
     expect(screen.getAllByRole('listitem')[0]).toHaveClass('text-success');
     expect(screen.getAllByRole('listitem')[1]).not.toHaveClass('text-success');
@@ -89,7 +90,7 @@ describe('AskQuestionToolMessage', () => {
 
   it('renders user-supplied text without interpreting HTML', () => {
     renderMessage(JSON.stringify({ answer: '<script>alert(1)</script>' }));
-    expect(screen.getByText('Answer: <script>alert(1)</script>')).toBeInTheDocument();
+    expect(screen.getByText('Custom answer: <script>alert(1)</script>')).toBeInTheDocument();
     expect(document.querySelector('script')).toBeNull();
   });
 });

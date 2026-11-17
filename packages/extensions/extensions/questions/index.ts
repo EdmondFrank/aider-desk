@@ -14,7 +14,6 @@
  * - Records answers and auto-switches to next question
  */
 
-import { randomUUID } from 'crypto';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -29,6 +28,7 @@ import type {
   ToolDefinition,
   TaskClosedEvent,
   TaskDeletedEvent,
+  QuestionAnsweredEvent,
 } from '@aiderdesk/extensions';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -62,22 +62,23 @@ const askQuestionSchema = z.object({
     .refine((options) => new Set(options).size === options.length, {
       message: 'Options must be unique',
     })
-    .describe('The available answers. The user selects one option.'),
+    .describe('The available answers. The user selects one option or types their own answer.'),
 });
 
-type QuestionResult = { question: string; answer: string } | { cancelled: true; reason: string };
-
-type PendingQuestion = z.infer<typeof askQuestionSchema> & {
-  id: string;
-  finish: (result: QuestionResult) => void;
-};
+/** Tracks a native question asked via the ask_question tool so typed answers can be captured. */
+interface ActiveQuestion {
+  question: string;
+  userInput?: string;
+  cancelled: boolean;
+  cancel: () => void;
+}
 
 const configComponentJsx = readFileSync(join(__dirname, 'ConfigComponent.jsx'), 'utf-8');
 
 export default class QuestionsExtension implements Extension {
   static metadata = {
     name: 'Questions',
-    version: '1.2.0',
+    version: '1.3.0',
     description: 'Ask multiple-choice questions and extract free-form questionnaires from messages',
     author: 'wladimiiir',
     iconUrl: 'https://raw.githubusercontent.com/magiksoft/aider-desk/refs/heads/main/packages/extensions/extensions/questions/icon.png',
@@ -86,7 +87,7 @@ export default class QuestionsExtension implements Extension {
 
   private taskStates: Map<string, QuestionsState> = new Map();
   private configPath: string;
-  private pendingQuestions = new Map<string, PendingQuestion>();
+  private activeQuestions = new Map<string, ActiveQuestion>();
 
   constructor() {
     this.configPath = join(__dirname, 'config.json');
@@ -109,8 +110,8 @@ export default class QuestionsExtension implements Extension {
   }
 
   async onUnload(): Promise<void> {
-    for (const pending of this.pendingQuestions.values()) {
-      pending.finish({ cancelled: true, reason: 'Extension unloaded' });
+    for (const active of this.activeQuestions.values()) {
+      active.cancel();
     }
     this.taskStates.clear();
   }
@@ -128,8 +129,8 @@ export default class QuestionsExtension implements Extension {
     const merged = { ...this.loadConfig(), ...config };
     writeFileSync(this.configPath, JSON.stringify(merged, null, 2), 'utf-8');
     if (!merged.toolsEnabled) {
-      for (const pending of this.pendingQuestions.values()) {
-        pending.finish({ cancelled: true, reason: 'Question tools disabled' });
+      for (const active of this.activeQuestions.values()) {
+        active.cancel();
       }
     }
     return merged;
@@ -141,7 +142,7 @@ export default class QuestionsExtension implements Extension {
 
   private clearTask(taskId: string, context: ExtensionContext): void {
     const key = this.getTaskKey(context, taskId);
-    this.pendingQuestions.get(key)?.finish({ cancelled: true, reason: 'Task closed or deleted' });
+    this.activeQuestions.get(key)?.cancel();
     this.taskStates.delete(key);
   }
 
@@ -155,6 +156,17 @@ export default class QuestionsExtension implements Extension {
     }
   }
 
+  async onQuestionAnswered(event: QuestionAnsweredEvent, context: ExtensionContext): Promise<void> {
+    const task = context.getTaskContext();
+    if (!task) {
+      return;
+    }
+    const active = this.activeQuestions.get(this.getTaskKey(context, task.data.id));
+    if (active && active.question === event.question.text) {
+      active.userInput = event.userInput;
+    }
+  }
+
   getTools(): ToolDefinition<typeof askQuestionSchema>[] {
     if (!this.loadConfig().toolsEnabled) {
       return [];
@@ -164,7 +176,7 @@ export default class QuestionsExtension implements Extension {
       {
         name: 'ask_question',
         description:
-          'Ask the user a question with selectable options above the prompt field. Waits for one selected answer. Ask one question at a time; do not use this tool for approvals or secrets.',
+          'Ask the user a question with selectable options shown above the prompt field. The user can pick one of the options or type their own custom answer in the prompt field. Waits for the answer. Ask one question at a time; do not use this tool for approvals or secrets.',
         inputSchema: askQuestionSchema,
         execute: async (input, signal, context) => {
           if (!this.loadConfig().toolsEnabled) {
@@ -177,31 +189,57 @@ export default class QuestionsExtension implements Extension {
           signal?.throwIfAborted();
           const parsed = askQuestionSchema.parse(input);
           const key = this.getTaskKey(context, task.data.id);
-          if (this.pendingQuestions.has(key) || this.taskStates.get(key)?.isActive) {
+          if (this.activeQuestions.has(key) || this.taskStates.get(key)?.isActive) {
             throw new Error('A questionnaire is already active for this task. Wait for it to finish before asking another question.');
           }
 
-          return new Promise<QuestionResult>((resolve) => {
-            let settled = false;
-            const handleAbort = () => finish({ cancelled: true, reason: 'Agent cancelled' });
-            const finish = (result: QuestionResult) => {
-              if (settled) {
+          const answers = parsed.options.map((option, index) => ({
+            text: option,
+            shortkey: String(index + 1),
+          }));
+
+          const active: ActiveQuestion = {
+            question: parsed.question,
+            cancelled: false,
+            cancel: () => {
+              if (active.cancelled) {
                 return;
               }
-              settled = true;
-              signal?.removeEventListener('abort', handleAbort);
-              this.pendingQuestions.delete(key);
-              context.triggerUIDataRefresh('questions-ask-question', task.data.id);
-              resolve(result);
-            };
-            this.pendingQuestions.set(key, {
-              ...parsed,
-              id: randomUUID(),
-              finish,
+              active.cancelled = true;
+              void task.answerQuestion('n');
+            },
+          };
+          this.activeQuestions.set(key, active);
+
+          const handleAbort = () => active.cancel();
+          signal?.addEventListener('abort', handleAbort, { once: true });
+
+          try {
+            const answer = await task.askQuestion(parsed.question, {
+              subject: 'Agent question',
+              answers,
+              defaultAnswer: '1',
             });
-            signal?.addEventListener('abort', handleAbort, { once: true });
-            context.triggerUIDataRefresh('questions-ask-question', task.data.id);
-          });
+
+            if (active.cancelled || signal?.aborted) {
+              return { cancelled: true, reason: 'Agent cancelled' };
+            }
+
+            const optionIndex = answers.findIndex((option) => option.shortkey === answer);
+            if (optionIndex >= 0) {
+              return { question: parsed.question, answer: parsed.options[optionIndex] };
+            }
+
+            const customAnswer = active.userInput?.trim();
+            if (customAnswer) {
+              return { question: parsed.question, answer: customAnswer };
+            }
+
+            return { cancelled: true, reason: 'Question dismissed without an answer' };
+          } finally {
+            signal?.removeEventListener('abort', handleAbort);
+            this.activeQuestions.delete(key);
+          }
         },
       },
     ];
@@ -221,7 +259,7 @@ export default class QuestionsExtension implements Extension {
           }
 
           const key = this.getTaskKey(context, taskContext.data.id);
-          if (this.pendingQuestions.has(key)) {
+          if (this.activeQuestions.has(key)) {
             taskContext.addLogMessage('warning', 'Answer or dismiss the active question first');
             return;
           }
@@ -314,7 +352,7 @@ ${messageText}`;
               text: q,
             }));
 
-            if (this.pendingQuestions.has(key)) {
+            if (this.activeQuestions.has(key)) {
               taskContext.addLogMessage('warning', 'Answer or dismiss the active question first');
               return;
             }
@@ -347,13 +385,6 @@ ${messageText}`;
         },
       },
       {
-        id: 'questions-ask-question',
-        placement: 'task-input-above',
-        jsx: readFileSync(join(__dirname, 'AskQuestion.jsx'), 'utf-8'),
-        loadData: true,
-        noDataCache: true,
-      },
-      {
         id: 'questions-questionnaire',
         placement: 'task-input-above',
         jsx,
@@ -364,17 +395,6 @@ ${messageText}`;
   }
 
   async getUIExtensionData(componentId: string, context: ExtensionContext): Promise<unknown> {
-    if (componentId === 'questions-ask-question') {
-      const task = context.getTaskContext();
-      const pending = task && this.pendingQuestions.get(this.getTaskKey(context, task.data.id));
-      return pending
-        ? {
-            id: pending.id,
-            question: pending.question,
-            options: pending.options,
-          }
-        : null;
-    }
     if (componentId === 'questions-questionnaire') {
       const taskContext = context.getTaskContext();
       if (!taskContext) {
@@ -397,25 +417,6 @@ ${messageText}`;
   }
 
   async executeUIExtensionAction(componentId: string, action: string, args: unknown[], context: ExtensionContext): Promise<unknown> {
-    if (componentId === 'questions-ask-question') {
-      const task = context.getTaskContext();
-      const pending = task && this.pendingQuestions.get(this.getTaskKey(context, task.data.id));
-      if (!pending || args[0] !== pending.id) {
-        return { success: false, error: 'Question is no longer active' };
-      }
-      if (action === 'cancel') {
-        pending.finish({
-          cancelled: true,
-          reason: 'User dismissed the question',
-        });
-        return { success: true };
-      }
-      if (action === 'answer' && typeof args[1] === 'string' && pending.options.includes(args[1])) {
-        pending.finish({ question: pending.question, answer: args[1] });
-        return { success: true };
-      }
-      return { success: false, error: 'Invalid action or option' };
-    }
     if (componentId === 'questions-questionnaire') {
       const taskContext = context.getTaskContext();
       if (!taskContext) {

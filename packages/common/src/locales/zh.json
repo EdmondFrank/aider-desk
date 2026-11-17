@@ -684,6 +684,20 @@
       "search": {
         "placeholder": "搜索扩展..."
       },
+      "filters": "筛选",
+      "noReadme": "此扩展没有可用的 README。",
+      "source": {
+        "allSources": "所有来源",
+        "official": "官方",
+        "community": "社区",
+        "custom": "自定义"
+      },
+      "sources": {
+        "title": "管理来源",
+        "manage": "管理来源",
+        "addRepository": "添加仓库",
+        "locked": "已锁定"
+      },
       "capabilities": {
         "all": "全部"
       },

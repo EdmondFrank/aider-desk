@@ -2,50 +2,30 @@ import { AvailableExtension, InstalledExtension, ProjectData, SettingsData } fro
 import { Activity, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMount } from '@reactuses/core';
 import { useTranslation } from 'react-i18next';
-import { FaChevronDown, FaPlus, FaSearch, FaSync, FaTrash } from 'react-icons/fa';
-import { AIDER_DESK_EXTENSIONS_REPO_URL } from '@common/extensions';
+import { FaCog, FaFilter, FaSearch, FaSync } from 'react-icons/fa';
+import { AIDER_DESK_COMMUNITY_EXTENSIONS_REPO_URLS, AIDER_DESK_EXTENSIONS_REPO_URL, getExtensionRepositories } from '@common/extensions';
 import { clsx } from 'clsx';
 
 import { useApi } from '@/contexts/ApiContext';
 import { getPathBasename } from '@/utils/path-utils';
-import { Button } from '@/components/common/Button';
 import { IconButton } from '@/components/common/IconButton';
 import { ScopeSelector } from '@/components/common/ScopeSelector';
 import { Input } from '@/components/common/Input';
 import { showErrorNotification, showSuccessNotification } from '@/utils/notifications';
 import { LoadingOverlay } from '@/components/common/LoadingOverlay';
 import { Select } from '@/components/common/Select';
-import { ExtensionCard } from '@/components/settings/ExtensionCard';
-
-// Helper to format repository URL for display
-const formatRepositoryName = (url: string): string => {
-  try {
-    const urlObj = new URL(url);
-
-    // Check if it's a GitHub URL
-    if (urlObj.hostname === 'github.com' || urlObj.hostname === 'www.github.com') {
-      // Extract pathname and remove leading/trailing slashes
-      const path = urlObj.pathname.replace(/^\/+|\/+$/g, '');
-
-      // Remove .git suffix if present
-      const cleanPath = path.replace(/\.git$/, '');
-
-      // Extract only organization/repository (first two segments)
-      const segments = cleanPath.split('/');
-      if (segments.length >= 2) {
-        return `${segments[0]}/${segments[1]}`;
-      }
-
-      return cleanPath || url;
-    }
-
-    // For non-GitHub URLs, return the full URL
-    return url;
-  } catch {
-    // If URL parsing fails, return original
-    return url;
-  }
-};
+import { ExtensionRow } from '@/components/settings/ExtensionRow';
+import { ExtensionDetailsDialog } from '@/components/settings/ExtensionDetailsDialog';
+import { ManageSourcesDialog } from '@/components/settings/ManageSourcesDialog';
+import { ExtensionSettingsDialog } from '@/components/settings/ExtensionSettingsDialog';
+import {
+  ExtensionSource,
+  ExtensionSourceFilter,
+  SOURCE_ACCENT_VAR,
+  formatRepositoryName,
+  getExtensionSource,
+  matchesSourceFilter,
+} from '@/utils/extension-source';
 
 enum Tab {
   Available = 'available',
@@ -71,10 +51,6 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
   const [activeTab, setActiveTab] = useState<Tab>(Tab.Installed);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const handleTabChange = (tab: Tab) => {
-    setActiveTab(tab);
-    searchInputRef.current?.focus();
-  };
   const [installedExtensions, setInstalledExtensions] = useState<InstalledExtension[]>([]);
   const [availableExtensions, setAvailableExtensions] = useState<AvailableExtension[]>([]);
   const [loadingInstalled, setLoadingInstalled] = useState(false);
@@ -84,14 +60,14 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
   const [updatingExtensions, setUpdatingExtensions] = useState<Set<string>>(new Set());
   const [reloadingExtensions, setReloadingExtensions] = useState<Set<string>>(new Set());
   const [newRepositoryUrl, setNewRepositoryUrl] = useState('');
-  const [expandedRepositories, setExpandedRepositories] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCapabilities, setSelectedCapabilities] = useState<Set<string>>(new Set());
+  const [showCapabilityFilters, setShowCapabilityFilters] = useState(false);
   const [availableSort, setAvailableSort] = useState<ExtensionSort>(ExtensionSort.MostInstalled);
-
-  const handleAvailableSortChange = (value: string) => {
-    setAvailableSort(value as ExtensionSort);
-  };
+  const [sourceFilter, setSourceFilter] = useState<ExtensionSourceFilter>(ExtensionSourceFilter.All);
+  const [showManageSources, setShowManageSources] = useState(false);
+  const [detailsExtension, setDetailsExtension] = useState<InstalledExtension | AvailableExtension | null>(null);
+  const [settingsExtension, setSettingsExtension] = useState<InstalledExtension | null>(null);
 
   // Track repositories that are currently being loaded
   const [loadingRepositories, setLoadingRepositories] = useState<Set<string>>(new Set());
@@ -100,19 +76,21 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
   const contexts = useMemo(() => ['global', ...openProjects.map((p) => p.baseDir)], [openProjects]);
   const [profileContext, setProfileContext] = useState<'global' | string>(selectedProjectContext || 'global');
 
-  // Sync internal profileContext with selectedProjectContext prop
   useEffect(() => {
     if (selectedProjectContext !== undefined) {
       setProfileContext(selectedProjectContext);
     }
   }, [selectedProjectContext]);
 
-  // Context navigation logic
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    searchInputRef.current?.focus();
+  };
+
   const handleContextChange = (nextContext: string) => {
     setProfileContext(nextContext);
   };
 
-  // Get context display name
   const getContextDisplayName = () => {
     if (profileContext === 'global') {
       return 'Global';
@@ -122,6 +100,14 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
   };
 
   const projectDir = profileContext !== 'global' ? profileContext : undefined;
+
+  const handleAvailableSortChange = (value: string) => {
+    setAvailableSort(value as ExtensionSort);
+  };
+
+  const handleSourceFilterChange = (value: string) => {
+    setSourceFilter(value as ExtensionSourceFilter);
+  };
 
   const loadInstalledExtensions = useCallback(async () => {
     setLoadingInstalled(true);
@@ -139,7 +125,7 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
     async (forceRefresh = false, repositories?: string[]) => {
       setLoadingAvailable(true);
       try {
-        const repos = repositories || settings.extensions?.repositories || [AIDER_DESK_EXTENSIONS_REPO_URL];
+        const repos = repositories || getExtensionRepositories(settings);
         const extensions = await api.getAvailableExtensions(repos, forceRefresh);
         setAvailableExtensions(extensions);
       } catch {
@@ -148,32 +134,44 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
         setLoadingAvailable(false);
       }
     },
-    [settings.extensions?.repositories, api, t],
+    [settings, api, t],
   );
 
   const handleRefresh = async () => {
     await Promise.all([loadInstalledExtensions(), loadAvailableExtensions(true)]);
   };
 
-  // Re-load installed extensions when project context changes
   useEffect(() => {
     void loadInstalledExtensions();
   }, [loadInstalledExtensions]);
 
-  // Load available extensions on initial mount only
   useMount(() => {
     void loadAvailableExtensions();
   });
 
+  // Find the installed extension matching an id within the current context.
+  const findInstalledForId = useCallback(
+    (id: string): InstalledExtension | undefined =>
+      installedExtensions.find((inst) => {
+        if (inst.id !== id) {
+          return false;
+        }
+        if (profileContext === 'global') {
+          return !inst.projectDir;
+        }
+        return inst.projectDir === profileContext;
+      }),
+    [installedExtensions, profileContext],
+  );
+
   const handleToggleDisabled = (extensionFilePath: string, isCurrentlyDisabled: boolean) => {
-    const disabledExtensions = settings.extensions?.disabled || [];
-    const updatedDisabled = isCurrentlyDisabled ? disabledExtensions.filter((fp) => fp !== extensionFilePath) : [...disabledExtensions, extensionFilePath];
+    const disabled = settings.extensions?.disabled || [];
+    const updatedDisabled = isCurrentlyDisabled ? disabled.filter((fp) => fp !== extensionFilePath) : [...disabled, extensionFilePath];
 
     setSettings({
       ...settings,
       extensions: {
-        ...settings.extensions,
-        repositories: settings.extensions?.repositories || [AIDER_DESK_EXTENSIONS_REPO_URL],
+        customRepositories: settings.extensions?.customRepositories || [],
         disabled: updatedDisabled,
       },
     });
@@ -184,11 +182,7 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
     try {
       const success = await api.uninstallExtension(extensionFilePath, projectDir);
       if (success) {
-        showSuccessNotification(
-          t('settings.extensions.success.uninstall', {
-            name: extensionFilePath,
-          }),
-        );
+        showSuccessNotification(t('settings.extensions.success.uninstall', { name: extensionFilePath }));
         await loadInstalledExtensions();
         await loadAvailableExtensions();
       } else {
@@ -229,16 +223,7 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
   };
 
   const handleUpdate = async (extension: AvailableExtension) => {
-    const installedExtension = installedExtensions.find((inst) => {
-      if (inst.id !== extension.id) {
-        return false;
-      }
-      if (profileContext === 'global') {
-        return !inst.projectDir;
-      }
-      return inst.projectDir === profileContext;
-    });
-
+    const installedExtension = findInstalledForId(extension.id);
     if (!installedExtension) {
       return;
     }
@@ -293,29 +278,26 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
       return;
     }
 
-    const currentRepositories = settings.extensions?.repositories || [AIDER_DESK_EXTENSIONS_REPO_URL];
-    if (currentRepositories.includes(trimmedUrl)) {
+    const currentRepositories = settings.extensions?.customRepositories || [];
+    if (getExtensionRepositories(settings).includes(trimmedUrl)) {
       showErrorNotification(t('settings.extensions.errors.repositoryExists'));
       return;
     }
 
-    // Update settings first
     setSettings({
       ...settings,
       extensions: {
         ...settings.extensions,
-        repositories: [...currentRepositories, trimmedUrl],
+        customRepositories: [...currentRepositories, trimmedUrl],
         disabled: settings.extensions?.disabled || [],
       },
     });
 
     setNewRepositoryUrl('');
 
-    // Fetch extensions from the new repository (fetchOnly=true to bypass all caching)
     setLoadingRepositories((prev) => new Set(prev).add(trimmedUrl));
     try {
       const newExtensions = await api.getAvailableExtensions([trimmedUrl], true, true);
-      // Add new extensions to existing list
       setAvailableExtensions((prev) => [...prev, ...newExtensions]);
     } catch {
       showErrorNotification(t('settings.extensions.errors.loadAvailable'));
@@ -329,65 +311,67 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
   };
 
   const handleRemoveRepository = (repositoryUrl: string) => {
-    if (repositoryUrl === AIDER_DESK_EXTENSIONS_REPO_URL) {
+    if (repositoryUrl === AIDER_DESK_EXTENSIONS_REPO_URL || AIDER_DESK_COMMUNITY_EXTENSIONS_REPO_URLS.includes(repositoryUrl)) {
       showErrorNotification(t('settings.extensions.errors.cannotRemoveDefault'));
       return;
     }
 
-    const currentRepositories = settings.extensions?.repositories || [];
+    const currentRepositories = settings.extensions?.customRepositories || [];
     const updatedRepositories = currentRepositories.filter((url) => url !== repositoryUrl);
 
     setSettings({
       ...settings,
       extensions: {
         ...settings.extensions,
-        repositories: updatedRepositories,
+        customRepositories: updatedRepositories,
         disabled: settings.extensions?.disabled || [],
       },
     });
 
-    // Remove extensions from the removed repository from UI
     setAvailableExtensions((prev) => prev.filter((ext) => ext.repositoryUrl !== repositoryUrl));
+  };
+
+  const handleShowManageSources = () => {
+    setDetailsExtension(null);
+    setShowManageSources(true);
+  };
+
+  const handleToggleCapabilityFilters = () => {
+    setShowCapabilityFilters((prev) => !prev);
+  };
+
+  const handleToggleCapability = (capability: string) => {
+    setSelectedCapabilities((prev) => {
+      const next = new Set(prev);
+      if (next.has(capability)) {
+        next.delete(capability);
+      } else {
+        next.add(capability);
+      }
+      return next;
+    });
   };
 
   const disabledExtensions = settings.extensions?.disabled || [];
 
-  const renderAddRepository = () => {
-    return (
-      <div className="flex gap-2">
-        <Input
-          value={newRepositoryUrl}
-          onChange={(e) => setNewRepositoryUrl(e.target.value)}
-          placeholder={t('settings.extensions.repositories.placeholder')}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleAddRepository();
-            }
-          }}
-          className="bg-bg-secondary border"
-          wrapperClassName="flex-1"
-        />
-        <Button onClick={handleAddRepository} variant="text" size="sm" disabled={!newRepositoryUrl.trim()}>
-          <FaPlus className="mr-1.5 w-3 h-3" />
-          {t('settings.extensions.repositories.add')}
-        </Button>
-      </div>
-    );
-  };
+  const matchesCapabilities = useCallback(
+    (capabilities?: string[]) => {
+      if (selectedCapabilities.size === 0) {
+        return true;
+      }
+      const extCapabilities = capabilities || [];
+      return Array.from(selectedCapabilities).some((cap) => extCapabilities.includes(cap));
+    },
+    [selectedCapabilities],
+  );
 
   const filteredInstalledExtensions = installedExtensions.filter((ext) => {
-    // Filter by context: in Global context, hide project-level extensions
-    // In project context, show only extensions for that specific project
     if (profileContext === 'global') {
-      // In global context, only show global extensions (no projectDir)
       if (ext.projectDir) {
         return false;
       }
-    } else {
-      // In project context, only show extensions for this specific project
-      if (ext.projectDir !== profileContext) {
-        return false;
-      }
+    } else if (ext.projectDir !== profileContext) {
+      return false;
     }
 
     const searchLower = searchQuery.toLowerCase();
@@ -396,25 +380,102 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
       ext.metadata.description?.toLowerCase().includes(searchLower) ||
       ext.metadata.author?.toLowerCase().includes(searchLower);
 
+    return matchesSearch && matchesCapabilities(ext.metadata.capabilities);
+  });
+
+  const filteredAvailableExtensions = availableExtensions.filter((ext) => {
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch =
+      ext.name.toLowerCase().includes(searchLower) || ext.description?.toLowerCase().includes(searchLower) || ext.author?.toLowerCase().includes(searchLower);
+
     if (!matchesSearch) {
       return false;
     }
 
-    if (selectedCapabilities.size > 0) {
-      const extCapabilities = ext.metadata.capabilities || [];
-      const hasSelectedCapability = Array.from(selectedCapabilities).some((cap) => extCapabilities.includes(cap));
-      if (!hasSelectedCapability) {
-        return false;
-      }
+    if (!matchesSourceFilter(getExtensionSource(ext.repositoryUrl), sourceFilter)) {
+      return false;
     }
 
-    return true;
+    return matchesCapabilities(ext.capabilities);
   });
 
-  const renderInstalledTab = () => {
+  const sortedAvailableExtensions = [...filteredAvailableExtensions].sort((a, b) => {
+    if (availableSort === ExtensionSort.MostInstalled) {
+      const diff = (b.installCount ?? 0) - (a.installCount ?? 0);
+      if (diff !== 0) {
+        return diff;
+      }
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  const isLoading = loadingInstalled || loadingAvailable;
+
+  const allCapabilities = Array.from(
+    new Set([...installedExtensions.flatMap((ext) => ext.metadata.capabilities || []), ...availableExtensions.flatMap((ext) => ext.capabilities || [])]),
+  ).sort();
+
+  const repositories = getExtensionRepositories(settings);
+  const extensionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    availableExtensions.forEach((ext) => {
+      counts[ext.repositoryUrl] = (counts[ext.repositoryUrl] ?? 0) + 1;
+    });
+    return counts;
+  }, [availableExtensions]);
+
+  const renderSourceDot = (source: ExtensionSource) => (
+    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: SOURCE_ACCENT_VAR[source] }} />
+  );
+
+  const sourceOptions = [
+    { value: ExtensionSourceFilter.All, label: t('settings.extensions.source.allSources') },
+    {
+      value: ExtensionSourceFilter.Official,
+      label: (
+        <span className="flex items-center gap-2">
+          {renderSourceDot(ExtensionSource.Official)}
+          {t('settings.extensions.source.official')}
+        </span>
+      ),
+    },
+    {
+      value: ExtensionSourceFilter.Community,
+      label: (
+        <span className="flex items-center gap-2">
+          {renderSourceDot(ExtensionSource.Community)}
+          {t('settings.extensions.source.community')}
+        </span>
+      ),
+    },
+    {
+      value: ExtensionSourceFilter.Custom,
+      label: (
+        <span className="flex items-center gap-2">
+          {renderSourceDot(ExtensionSource.Custom)}
+          {t('settings.extensions.source.custom')}
+        </span>
+      ),
+    },
+  ];
+
+  const renderTabButton = (tab: Tab, label: string, count: number) => (
+    <button
+      onClick={() => handleTabChange(tab)}
+      className={clsx(
+        'px-4 h-full flex items-center text-sm font-medium rounded-md transition-all duration-200',
+        activeTab === tab ? 'bg-bg-tertiary text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary hover:bg-bg-tertiary',
+      )}
+    >
+      {label}
+      {count > 0 && <span className="ml-2 text-2xs px-1.5 py-0.5 rounded-full bg-bg-tertiary">{count}</span>}
+    </button>
+  );
+
+  const renderInstalledRows = () => {
     if (loadingInstalled) {
       return (
-        <div className="flex items-center justify-center py-12 text-2xs">
+        <div className="flex items-center justify-center py-12 text-2xs relative">
           <LoadingOverlay message={t('settings.extensions.loading')} spinnerSize="sm" transparent={true} />
         </div>
       );
@@ -430,24 +491,34 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
     }
 
     return (
-      <div className="space-y-2">
+      <div className="rounded-lg border border-border-default-dark overflow-hidden bg-bg-secondary divide-y divide-border-default-dark">
         {filteredInstalledExtensions.map((extension) => {
-          const availableExt = availableExtensions.find((avail) => avail.id === extension.id);
-          const extensionHasUpdate = availableExt ? availableExt.version !== extension.metadata.version : false;
+          const available = availableExtensions.find((avail) => avail.id === extension.id);
+          const source = available ? getExtensionSource(available.repositoryUrl) : undefined;
+          const repoLabel = available ? formatRepositoryName(available.repositoryUrl) : undefined;
+          const hasUpdate = available ? available.version !== extension.metadata.version : false;
+          const hasConfig = extension.metadata.hasConfig ?? false;
 
           return (
-            <ExtensionCard
+            <ExtensionRow
               key={extension.filePath}
               extension={extension}
+              source={source}
+              repoLabel={repoLabel}
+              showSourceBadge={source !== undefined}
+              isInstalled={true}
               isDisabled={disabledExtensions.includes(extension.filePath)}
               isUninstalling={uninstallingExtensions.has(extension.filePath)}
               isUpdating={updatingExtensions.has(extension.filePath)}
               isReloading={reloadingExtensions.has(extension.filePath)}
-              hasUpdate={extensionHasUpdate}
-              onUpdate={availableExt ? () => handleUpdate(availableExt) : undefined}
-              onToggle={handleToggleDisabled}
-              onUninstall={handleUninstall}
-              onReload={handleReload}
+              hasUpdate={hasUpdate}
+              hasConfig={hasConfig}
+              onOpenDetails={() => setDetailsExtension(extension)}
+              onToggle={() => handleToggleDisabled(extension.filePath, disabledExtensions.includes(extension.filePath))}
+              onUninstall={() => handleUninstall(extension.filePath)}
+              onUpdate={available ? () => handleUpdate(available) : undefined}
+              onReload={() => handleReload(extension.filePath)}
+              onOpenSettings={hasConfig ? () => setSettingsExtension(extension) : undefined}
             />
           );
         })}
@@ -455,305 +526,240 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
     );
   };
 
-  const filteredAvailableExtensions = availableExtensions.filter((ext) => {
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch =
-      ext.name.toLowerCase().includes(searchLower) || ext.description?.toLowerCase().includes(searchLower) || ext.author?.toLowerCase().includes(searchLower);
-
-    if (!matchesSearch) {
-      return false;
-    }
-
-    if (selectedCapabilities.size > 0) {
-      const extCapabilities = ext.capabilities || [];
-      const hasSelectedCapability = Array.from(selectedCapabilities).some((cap) => extCapabilities.includes(cap));
-      if (!hasSelectedCapability) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-
-  const sortedAvailableExtensions = [...filteredAvailableExtensions].sort((a, b) => {
-    if (availableSort === ExtensionSort.MostInstalled) {
-      const diff = (b.installCount ?? 0) - (a.installCount ?? 0);
-      if (diff !== 0) {
-        return diff;
-      }
-    }
-    return a.name.localeCompare(b.name);
-  });
-
-  const renderAvailableTab = () => {
-    // Group all extensions by repository URL
-    const extensionsByRepository = new Map<string, AvailableExtension[]>();
-
-    // Add all available extensions to the map
-    sortedAvailableExtensions.forEach((extension) => {
-      const repo = extension.repositoryUrl;
-      if (!extensionsByRepository.has(repo)) {
-        extensionsByRepository.set(repo, []);
-      }
-      extensionsByRepository.get(repo)!.push(extension);
-    });
-
-    // Render extension card with appropriate controls based on installation status
-    const renderExtensionCard = (extension: AvailableExtension) => {
-      // Check if extension is installed in the current context
-      const installedExtension = installedExtensions.find((inst) => {
-        if (inst.id !== extension.id) {
-          return false;
-        }
-        // In global context, only consider global extensions
-        if (profileContext === 'global') {
-          return !inst.projectDir;
-        }
-        // In project context, only consider extensions for this specific project
-        return inst.projectDir === profileContext;
-      });
-
-      // If installed, render with available extension data but installed controls
-      if (installedExtension) {
-        const extensionHasUpdate = extension.version !== installedExtension.metadata.version;
-
-        return (
-          <ExtensionCard
-            key={extension.id}
-            extension={extension}
-            isInstalled={true}
-            isDisabled={disabledExtensions.includes(installedExtension.filePath)}
-            isUninstalling={uninstallingExtensions.has(installedExtension.filePath)}
-            isUpdating={updatingExtensions.has(installedExtension.filePath)}
-            isReloading={reloadingExtensions.has(installedExtension.filePath)}
-            hasUpdate={extensionHasUpdate}
-            installedFilePath={installedExtension.filePath}
-            onToggle={handleToggleDisabled}
-            onUninstall={handleUninstall}
-            onUpdate={() => handleUpdate(extension)}
-            onReload={handleReload}
-          />
-        );
-      }
-
-      // If not installed, render with available extension (AvailableExtension)
-      return <ExtensionCard key={extension.id} extension={extension} isInstalling={installingExtensions.has(extension.id)} onInstall={handleInstall} />;
-    };
-
-    const handleToggleRepository = (repositoryUrl: string) => {
-      setExpandedRepositories((prev) => {
-        const next = new Set(prev);
-        if (next.has(repositoryUrl)) {
-          next.delete(repositoryUrl);
-        } else {
-          next.add(repositoryUrl);
-        }
-        return next;
-      });
-    };
-
-    // Render repository section
-    const renderRepositorySection = (repositoryUrl: string, extensions: AvailableExtension[]) => {
-      const installedCount = extensions.filter((ext) =>
-        installedExtensions.some((inst) => {
-          if (inst.id !== ext.id) {
-            return false;
-          }
-          if (profileContext === 'global') {
-            return !inst.projectDir;
-          }
-          return inst.projectDir === profileContext;
-        }),
-      ).length;
-      const isDefault = repositoryUrl === AIDER_DESK_EXTENSIONS_REPO_URL;
-      const isExpanded = expandedRepositories.has(repositoryUrl);
-      const isLoadingRepo = loadingRepositories.has(repositoryUrl);
-
+  const renderAvailableRows = () => {
+    if (loadingAvailable) {
       return (
-        <div key={repositoryUrl} className="rounded-lg border border-border-light bg-bg-secondary-light overflow-hidden group">
-          {/* Repository Header */}
-          <div
-            className={clsx(
-              'flex items-center justify-between px-4 py-3 cursor-pointer transition-colors',
-              'bg-gradient-to-r from-button-primary via-button-primary to-bg-tertiary',
-              'bg-[length:4px_100%,100%_100%] bg-no-repeat hover:bg-[length:4px_100%,100%_100%]',
-              'hover:to-bg-secondary-light',
-            )}
-            onClick={() => handleToggleRepository(repositoryUrl)}
-          >
-            <div className="flex items-center gap-3 flex-1 min-w-0 ml-3">
-              <span className="text-sm font-semibold text-text-primary font-mono truncate">{formatRepositoryName(repositoryUrl)}</span>
-              {isLoadingRepo ? (
-                <span className="text-3xs text-text-muted font-medium">{t('settings.extensions.loading')}</span>
-              ) : (
-                <span className="text-3xs text-text-muted font-medium">
-                  {installedCount}/{extensions.length} {t('settings.extensions.available.installedExtensions')}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {!isDefault && (
-                <IconButton
-                  icon={<FaTrash />}
-                  onClick={() => handleRemoveRepository(repositoryUrl)}
-                  tooltip={t('settings.extensions.repositories.remove')}
-                  className="text-error hover:text-error-light transition-colors opacity-0 group-hover:opacity-100"
-                />
-              )}
-              <FaChevronDown className={clsx('w-3 h-3 text-text-muted transition-transform duration-200', !isExpanded && '-rotate-90')} />
-            </div>
-          </div>
-
-          {/* Repository Content */}
-          {isExpanded && <div className="p-4 space-y-3">{extensions.map(renderExtensionCard)}</div>}
+        <div className="flex items-center justify-center py-12 text-2xs relative">
+          <LoadingOverlay message={t('settings.extensions.loading')} spinnerSize="sm" transparent={true} />
         </div>
       );
-    };
+    }
+
+    if (sortedAvailableExtensions.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <p className="text-xs text-text-muted">{t('settings.extensions.available.empty')}</p>
+        </div>
+      );
+    }
+
+    const showSourceBadge = sourceFilter === ExtensionSourceFilter.All || sourceFilter === ExtensionSourceFilter.Custom;
 
     return (
-      <div className="space-y-3">
-        {renderAddRepository()}
-        {loadingAvailable ? (
-          <div className="flex items-center justify-center py-12 text-2xs relative">
-            <LoadingOverlay message={t('settings.extensions.loading')} spinnerSize="sm" transparent={true} />
-          </div>
-        ) : extensionsByRepository.size === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-xs text-text-muted">{t('settings.extensions.available.empty')}</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {Array.from(extensionsByRepository.entries()).map(([repoUrl, extensions]) => renderRepositorySection(repoUrl, extensions))}
-            {/* Show loading repositories that don't have extensions yet */}
-            {Array.from(loadingRepositories).map((repoUrl) => {
-              if (!extensionsByRepository.has(repoUrl)) {
-                return renderRepositorySection(repoUrl, []);
+      <div className="rounded-lg border border-border-default-dark overflow-hidden bg-bg-secondary divide-y divide-border-default-dark">
+        {sortedAvailableExtensions.map((extension) => {
+          const installedExtension = findInstalledForId(extension.id);
+          const source = getExtensionSource(extension.repositoryUrl);
+          const repoLabel = formatRepositoryName(extension.repositoryUrl);
+          const isInstalled = !!installedExtension;
+          const hasUpdate = installedExtension ? extension.version !== installedExtension.metadata.version : false;
+          const hasConfig = installedExtension?.metadata.hasConfig ?? false;
+
+          return (
+            <ExtensionRow
+              key={extension.id}
+              extension={extension}
+              source={source}
+              repoLabel={repoLabel}
+              showSourceBadge={showSourceBadge}
+              isInstalled={isInstalled}
+              isDisabled={installedExtension ? disabledExtensions.includes(installedExtension.filePath) : false}
+              isInstalling={installingExtensions.has(extension.id)}
+              isUninstalling={installedExtension ? uninstallingExtensions.has(installedExtension.filePath) : false}
+              isUpdating={installedExtension ? updatingExtensions.has(installedExtension.filePath) : false}
+              isReloading={installedExtension ? reloadingExtensions.has(installedExtension.filePath) : false}
+              hasUpdate={hasUpdate}
+              hasConfig={hasConfig}
+              onOpenDetails={() => setDetailsExtension(extension)}
+              onInstall={() => handleInstall(extension)}
+              onToggle={
+                installedExtension
+                  ? () => handleToggleDisabled(installedExtension.filePath, disabledExtensions.includes(installedExtension.filePath))
+                  : undefined
               }
-              return null;
-            })}
-          </div>
-        )}
+              onUninstall={installedExtension ? () => handleUninstall(installedExtension.filePath) : undefined}
+              onUpdate={installedExtension ? () => handleUpdate(extension) : undefined}
+              onReload={installedExtension ? () => handleReload(installedExtension.filePath) : undefined}
+              onOpenSettings={installedExtension && hasConfig ? () => setSettingsExtension(installedExtension) : undefined}
+            />
+          );
+        })}
       </div>
     );
   };
 
-  const isLoading = loadingInstalled || loadingAvailable;
+  const renderDetailsDialog = () => {
+    if (!detailsExtension) {
+      return null;
+    }
 
-  const allCapabilities = Array.from(
-    new Set([...installedExtensions.flatMap((ext) => ext.metadata.capabilities || []), ...availableExtensions.flatMap((ext) => ext.capabilities || [])]),
-  ).sort();
+    const id = detailsExtension.id;
+    const installed = findInstalledForId(id);
+    const available = availableExtensions.find((ext) => ext.id === id);
+    const repositoryUrl = available?.repositoryUrl;
+    const source = repositoryUrl ? getExtensionSource(repositoryUrl) : undefined;
+    const repoLabel = repositoryUrl ? formatRepositoryName(repositoryUrl) : undefined;
+    const isInstalled = !!installed;
+    const isDisabled = installed ? disabledExtensions.includes(installed.filePath) : false;
+    const hasUpdate = installed && available ? available.version !== installed.metadata.version : false;
+    const hasConfig = installed?.metadata.hasConfig ?? false;
+
+    const handleCloseDetails = () => setDetailsExtension(null);
+
+    return (
+      <ExtensionDetailsDialog
+        extension={detailsExtension}
+        source={source}
+        repoLabel={repoLabel}
+        isInstalled={isInstalled}
+        isDisabled={isDisabled}
+        hasUpdate={hasUpdate}
+        hasConfig={hasConfig}
+        isInstalling={installingExtensions.has(id)}
+        isUninstalling={installed ? uninstallingExtensions.has(installed.filePath) : false}
+        isUpdating={installed ? updatingExtensions.has(installed.filePath) : false}
+        onClose={handleCloseDetails}
+        onInstall={available ? () => handleInstall(available) : undefined}
+        onUninstall={installed ? () => handleUninstall(installed.filePath) : undefined}
+        onUpdate={available && installed ? () => handleUpdate(available) : undefined}
+        onToggle={installed ? () => handleToggleDisabled(installed.filePath, isDisabled) : undefined}
+        onOpenSettings={
+          installed && hasConfig
+            ? () => {
+                handleCloseDetails();
+                setSettingsExtension(installed);
+              }
+            : undefined
+        }
+      />
+    );
+  };
 
   return (
-    <div className="space-y-4">
-      {/* Tab Navigation */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex gap-1 p-1 bg-bg-primary rounded-lg border border-border-default flex-shrink-0">
-          <button
-            onClick={() => handleTabChange(Tab.Installed)}
-            className={clsx(
-              'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
-              activeTab === Tab.Installed ? 'bg-bg-tertiary text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary hover:bg-bg-tertiary',
-            )}
-          >
-            {t('settings.extensions.tabs.installed')}
-            {filteredInstalledExtensions.length > 0 && (
-              <span className="ml-2 text-2xs px-1.5 py-0.5 rounded-full bg-bg-tertiary">{filteredInstalledExtensions.length}</span>
-            )}
-          </button>
-          <button
-            onClick={() => handleTabChange(Tab.Available)}
-            className={clsx(
-              'px-4 py-2 text-sm font-medium rounded-md transition-all duration-200',
-              activeTab === Tab.Available ? 'bg-bg-tertiary text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary hover:bg-bg-tertiary',
-            )}
-          >
-            {t('settings.extensions.tabs.available')}
-            {availableExtensions.length > 0 && <span className="ml-2 text-2xs px-1.5 py-0.5 rounded-full bg-bg-tertiary">{availableExtensions.length}</span>}
-          </button>
+    <div className="space-y-3">
+      {/* Compact toolbar — primary row: tabs + scope */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 p-1 h-10 bg-bg-primary rounded-lg border border-border-default flex-shrink-0">
+          {renderTabButton(Tab.Installed, t('settings.extensions.tabs.installed'), filteredInstalledExtensions.length)}
+          {renderTabButton(Tab.Available, t('settings.extensions.tabs.available'), availableExtensions.length)}
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 ml-auto">
-          <ScopeSelector
-            contexts={contexts}
-            value={profileContext}
-            onChange={handleContextChange}
-            getDisplayName={getContextDisplayName}
-            previousTooltip={t('settings.extensions.previousContext')}
-            nextTooltip={t('settings.extensions.nextContext')}
-            className="flex-1 min-w-[180px] max-w-[200px]"
-          />
-          <Button onClick={handleRefresh} disabled={isLoading} variant="outline" size="sm">
-            <FaSync className={clsx('mr-1.5 w-3 h-3', isLoading && 'animate-spin')} />
-            {t('common.refresh')}
-          </Button>
-        </div>
+
+        <ScopeSelector
+          contexts={contexts}
+          value={profileContext}
+          onChange={handleContextChange}
+          getDisplayName={getContextDisplayName}
+          previousTooltip={t('settings.extensions.previousContext')}
+          nextTooltip={t('settings.extensions.nextContext')}
+          className="ml-auto min-w-[200px] max-w-[260px]"
+        />
       </div>
 
-      {/* Search and Filters */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1">
-            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
-            <Input
-              ref={searchInputRef}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              autoFocus
-              placeholder={t('settings.extensions.search.placeholder')}
-              className="pl-10 bg-bg-primary border w-full"
-              wrapperClassName="w-full"
-            />
-          </div>
-          {activeTab === Tab.Available && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-xs text-text-muted whitespace-nowrap">{t('settings.extensions.sort.label')}</span>
-              <Select
-                value={availableSort}
-                onChange={handleAvailableSortChange}
-                options={[
-                  { label: t('settings.extensions.sort.mostInstalled'), value: ExtensionSort.MostInstalled },
-                  { label: t('settings.extensions.sort.name'), value: ExtensionSort.Name },
-                ]}
-                size="sm"
-                className="min-w-[11rem]"
-              />
-            </div>
-          )}
+      {/* Secondary row — search + sort/source/manage/filters/refresh */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[160px]">
+          <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+          <Input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
+            placeholder={t('settings.extensions.search.placeholder')}
+            className="pl-10"
+            wrapperClassName="w-full"
+          />
         </div>
+
+        {activeTab === Tab.Available && (
+          <>
+            <Select
+              value={availableSort}
+              onChange={handleAvailableSortChange}
+              options={[
+                { label: t('settings.extensions.sort.mostInstalled'), value: ExtensionSort.MostInstalled },
+                { label: t('settings.extensions.sort.name'), value: ExtensionSort.Name },
+              ]}
+              size="sm"
+              className="min-w-[11rem]"
+            />
+            <Select value={sourceFilter} onChange={handleSourceFilterChange} options={sourceOptions} size="sm" className="min-w-[11rem]" />
+            <IconButton
+              icon={<FaCog className="w-3.5 h-3.5" />}
+              onClick={handleShowManageSources}
+              tooltip={t('settings.extensions.sources.manage')}
+              className="p-2 rounded-md border border-border-default"
+            />
+          </>
+        )}
 
         {allCapabilities.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {allCapabilities.map((capability) => {
-              const isSelected = selectedCapabilities.has(capability);
-              return (
-                <button
-                  key={capability}
-                  onClick={() => {
-                    setSelectedCapabilities((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(capability)) {
-                        next.delete(capability);
-                      } else {
-                        next.add(capability);
-                      }
-                      return next;
-                    });
-                  }}
-                  className={clsx(
-                    'px-3 py-1 text-3xs font-medium rounded-full transition-colors border border-border-default',
-                    isSelected ? 'bg-bg-secondary-light text-text-primary' : 'bg-bg-primary text-text-muted hover:text-text-secondary hover:bg-bg-tertiary',
-                  )}
-                >
-                  {capability}
-                </button>
-              );
-            })}
-          </div>
+          <IconButton
+            icon={<FaFilter className="w-3.5 h-3.5" />}
+            onClick={handleToggleCapabilityFilters}
+            tooltip={t('settings.extensions.filters')}
+            className={clsx(
+              'p-2 rounded-md border border-border-default',
+              showCapabilityFilters || selectedCapabilities.size > 0 ? 'text-text-primary bg-bg-tertiary' : '',
+            )}
+          />
         )}
+        <IconButton
+          icon={<FaSync className={clsx('w-3.5 h-3.5', isLoading && 'animate-spin')} />}
+          onClick={handleRefresh}
+          disabled={isLoading}
+          tooltip={t('common.refresh')}
+          className="p-2 rounded-md border border-border-default"
+        />
       </div>
 
+      {/* Capability filters (collapsible) */}
+      {showCapabilityFilters && allCapabilities.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {allCapabilities.map((capability) => {
+            const isSelected = selectedCapabilities.has(capability);
+            return (
+              <button
+                key={capability}
+                onClick={() => handleToggleCapability(capability)}
+                className={clsx(
+                  'px-3 py-1 text-3xs font-medium rounded-full transition-colors border border-border-default',
+                  isSelected ? 'bg-bg-secondary-light text-text-primary' : 'bg-bg-primary text-text-muted hover:text-text-secondary hover:bg-bg-tertiary',
+                )}
+              >
+                {capability}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Tab Content */}
-      <Activity mode={activeTab === Tab.Installed ? 'visible' : 'hidden'}>{renderInstalledTab()}</Activity>
-      <Activity mode={activeTab === Tab.Available ? 'visible' : 'hidden'}>{renderAvailableTab()}</Activity>
+      <Activity mode={activeTab === Tab.Installed ? 'visible' : 'hidden'}>{renderInstalledRows()}</Activity>
+      <Activity mode={activeTab === Tab.Available ? 'visible' : 'hidden'}>{renderAvailableRows()}</Activity>
+
+      {renderDetailsDialog()}
+
+      {showManageSources && (
+        <ManageSourcesDialog
+          repositories={repositories}
+          extensionCounts={extensionCounts}
+          loadingRepositories={loadingRepositories}
+          newRepositoryUrl={newRepositoryUrl}
+          onNewRepositoryUrlChange={setNewRepositoryUrl}
+          onAdd={handleAddRepository}
+          onRemove={handleRemoveRepository}
+          onClose={() => setShowManageSources(false)}
+        />
+      )}
+
+      {settingsExtension && (
+        <ExtensionSettingsDialog
+          extensionId={settingsExtension.id}
+          extensionName={settingsExtension.metadata.name}
+          projectDir={settingsExtension.projectDir}
+          onClose={() => setSettingsExtension(null)}
+        />
+      )}
     </div>
   );
 };

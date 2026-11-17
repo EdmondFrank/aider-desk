@@ -16,7 +16,7 @@ import {
   TaskStateDefinition,
 } from '@common/types';
 import { TOOL_GROUP_NAME_SEPARATOR } from '@common/tools';
-import { AIDER_DESK_EXTENSIONS_REPO_URL, EXTENSION_ORIGIN, ProviderDefinition, Tool, UIComponentDefinition } from '@common/extensions';
+import { EXTENSION_ORIGIN, getExtensionRepositories, ProviderDefinition, Tool, UIComponentDefinition } from '@common/extensions';
 import { BUILT_IN_TASK_STATE_DEFINITIONS, compareTaskStates, isValidTaskStateDefinition } from '@common/task-states';
 import { DEFAULT_AGENT_PROFILE } from '@common/agent';
 
@@ -273,8 +273,8 @@ export class ExtensionManager {
   async settingsChanged(oldSettings: SettingsData, newSettings: SettingsData): Promise<void> {
     const oldDisabled = oldSettings.extensions?.disabled || [];
     const newDisabled = newSettings.extensions?.disabled || [];
-    const oldRepositories = oldSettings.extensions?.repositories || [AIDER_DESK_EXTENSIONS_REPO_URL];
-    const newRepositories = newSettings.extensions?.repositories || [AIDER_DESK_EXTENSIONS_REPO_URL];
+    const oldRepositories = getExtensionRepositories(oldSettings);
+    const newRepositories = getExtensionRepositories(newSettings);
 
     // Check for disabled extensions changes
     const disabledChanged = JSON.stringify([...oldDisabled].sort()) !== JSON.stringify([...newDisabled].sort());
@@ -399,7 +399,7 @@ export class ExtensionManager {
    */
   private async preloadAvailableExtensions(): Promise<void> {
     const settings = this.store.getSettings();
-    const repositories = settings.extensions?.repositories || [AIDER_DESK_EXTENSIONS_REPO_URL];
+    const repositories = getExtensionRepositories(settings);
 
     logger.debug('[Extensions] Preloading available extensions from repositories...');
 

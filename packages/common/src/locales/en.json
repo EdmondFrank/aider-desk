@@ -685,6 +685,20 @@
       "search": {
         "placeholder": "Search extensions..."
       },
+      "filters": "Filters",
+      "noReadme": "No README available for this extension.",
+      "source": {
+        "allSources": "All sources",
+        "official": "Official",
+        "community": "Community",
+        "custom": "Custom"
+      },
+      "sources": {
+        "title": "Manage sources",
+        "manage": "Manage sources",
+        "addRepository": "Add a repository",
+        "locked": "Locked"
+      },
       "capabilities": {
         "all": "All"
       },

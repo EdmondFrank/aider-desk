@@ -684,6 +684,20 @@
       "search": {
         "placeholder": "확장 검색..."
       },
+      "filters": "필터",
+      "noReadme": "이 확장에 사용할 수 있는 README가 없습니다.",
+      "source": {
+        "allSources": "모든 소스",
+        "official": "공식",
+        "community": "커뮤니티",
+        "custom": "사용자 지정"
+      },
+      "sources": {
+        "title": "소스 관리",
+        "manage": "소스 관리",
+        "addRepository": "저장소 추가",
+        "locked": "잠김"
+      },
       "capabilities": {
         "all": "전체"
       },

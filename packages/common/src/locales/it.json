@@ -680,6 +680,20 @@
       "search": {
         "placeholder": "Cerca estensioni..."
       },
+      "filters": "Filtri",
+      "noReadme": "Nessun README disponibile per questa estensione.",
+      "source": {
+        "allSources": "Tutte le origini",
+        "official": "Ufficiale",
+        "community": "Community",
+        "custom": "Personalizzata"
+      },
+      "sources": {
+        "title": "Gestisci origini",
+        "manage": "Gestisci origini",
+        "addRepository": "Aggiungi un repository",
+        "locked": "Bloccato"
+      },
       "capabilities": {
         "all": "Tutte"
       },

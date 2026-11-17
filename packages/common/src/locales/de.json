@@ -680,6 +680,20 @@
       "search": {
         "placeholder": "Erweiterungen suchen..."
       },
+      "filters": "Filter",
+      "noReadme": "Für diese Erweiterung ist keine README verfügbar.",
+      "source": {
+        "allSources": "Alle Quellen",
+        "official": "Offiziell",
+        "community": "Community",
+        "custom": "Benutzerdefiniert"
+      },
+      "sources": {
+        "title": "Quellen verwalten",
+        "manage": "Quellen verwalten",
+        "addRepository": "Repository hinzufügen",
+        "locked": "Gesperrt"
+      },
       "capabilities": {
         "all": "Alle"
       },

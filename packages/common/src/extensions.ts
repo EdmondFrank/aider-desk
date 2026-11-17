@@ -85,6 +85,21 @@ export type { ModeDefinition, TaskStateDefinition };
 
 export const AIDER_DESK_EXTENSIONS_REPO_URL = 'https://github.com/magiksoft/aider-desk/tree/main/packages/extensions/extensions/';
 
+// Known community extension repositories. Extensions served from these URLs are classified as "community"
+// in the extensions UI. User-added repositories not listed here are classified as "custom".
+export const AIDER_DESK_COMMUNITY_EXTENSIONS_REPO_URLS: string[] = ['https://github.com/magiksoft/aiderdesk-community-extensions'];
+
+/**
+ * Returns the full list of extension repositories: the official repo, the known community
+ * repos, and the user-added custom repos stored in settings. Official and community repos
+ * are never stored in settings — they are merged in at read time.
+ */
+export const getExtensionRepositories = (settings?: Pick<SettingsData, 'extensions'>): string[] => [
+  AIDER_DESK_EXTENSIONS_REPO_URL,
+  ...AIDER_DESK_COMMUNITY_EXTENSIONS_REPO_URLS,
+  ...(settings?.extensions?.customRepositories ?? []),
+];
+
 export interface ResponseMessage {
   id: string;
   content: string;

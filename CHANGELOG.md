@@ -9,6 +9,7 @@
 - renamed bundled creator skills to create-agent and create-extension and added matching slash-command aliases
 - added AIDER_DESK_DISABLE_RECOVERY to suppress automatic task recovery and startup journal cleanup in secondary instances
 - added strikethrough styling for deleted files in the Updated Files tree
+- redesigned extensions settings with source filtering (official, community, custom), compact extension list and README dialog
 
 ## [0.92.0]
 

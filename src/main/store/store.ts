@@ -13,7 +13,6 @@ import {
   SuggestionMode,
   WindowState,
 } from '@common/types';
-import { AIDER_DESK_EXTENSIONS_REPO_URL } from '@common/extensions';
 import { normalizeBaseDir } from '@common/utils';
 
 import { migrateSettingsV0toV1 } from './migrations/v0-to-v1';
@@ -114,7 +113,7 @@ export const DEFAULT_SETTINGS: SettingsData = {
     renameBranchOnNameGeneration: true,
   },
   extensions: {
-    repositories: [AIDER_DESK_EXTENSIONS_REPO_URL],
+    customRepositories: [],
     disabled: [],
   },
   proxy: {

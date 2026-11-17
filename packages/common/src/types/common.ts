@@ -792,7 +792,7 @@ export interface MemoryConfig {
 }
 
 export interface ExtensionsConfig {
-  repositories: string[];
+  customRepositories: string[];
   disabled: string[];
 }
 

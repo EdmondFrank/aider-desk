@@ -37,7 +37,7 @@
       "capabilities": [
         "providers"
       ],
-      "installCount": 11
+      "installCount": 12
     },
     {
       "id": "jev",
@@ -111,7 +111,7 @@
         "tools",
         "ui"
       ],
-      "installCount": 55
+      "installCount": 56
     },
     {
       "id": "theme",
@@ -133,7 +133,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 135
+      "installCount": 136
     },
     {
       "id": "protected-paths",
@@ -167,7 +167,7 @@
       "capabilities": [
         "optimization"
       ],
-      "installCount": 58
+      "installCount": 59
     },
     {
       "id": "external-rules",
@@ -191,7 +191,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 84
+      "installCount": 85
     },
     {
       "id": "learn",
@@ -261,7 +261,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 38
+      "installCount": 39
     },
     {
       "id": "redact-secrets",
@@ -273,7 +273,7 @@
       "capabilities": [
         "security"
       ],
-      "installCount": 35
+      "installCount": 36
     },
     {
       "id": "chunkhound-search",
@@ -322,7 +322,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 30
+      "installCount": 31
     },
     {
       "id": "lsp",
@@ -387,7 +387,7 @@
         "ui",
         "workflows"
       ],
-      "installCount": 19
+      "installCount": 20
     },
     {
       "id": "providers-quota-extension",
@@ -428,7 +428,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 51
+      "installCount": 52
     },
     {
       "id": "searxng-search",
@@ -441,7 +441,7 @@
         "tools",
         "search"
       ],
-      "installCount": 37
+      "installCount": 38
     },
     {
       "id": "seek",
@@ -470,7 +470,7 @@
       "capabilities": [
         "metrics"
       ],
-      "installCount": 126
+      "installCount": 128
     },
     {
       "id": "verifier",
@@ -698,7 +698,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 165
+      "installCount": 168
     },
     {
       "id": "dbx",

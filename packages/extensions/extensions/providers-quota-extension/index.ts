@@ -1,7 +1,8 @@
 /**
  * Providers Quota Extension
  *
- * Displays API quota information for Synthetic, Z.AI, Neuralwatt, DeepSeek, and OpenCode Go providers in the task status bar.
+ * Displays API quota information for Synthetic, Z.AI, Neuralwatt, DeepSeek, OpenCode Go,
+ * and llmapi.ai providers in the task status bar.
  * Shows quota based on the active agent profile's provider.
  *
  * API keys are automatically loaded from AiderDesk provider settings.
@@ -14,6 +15,7 @@
  *    ZAI_API_KEY=your_zai_api_key_here
  *    NEURALWATT_API_KEY=your_neuralwatt_api_key_here
  *    OPENCODE_GO_API_KEY=your_opencode_go_api_key_here
+ *    LLMAPI_API_KEY=your_llmapi_api_key_here
  * 3. Restart AiderDesk
  *
  * The extension will display quota usage based on the active provider.
@@ -53,6 +55,7 @@ const zaiCache: CachedData<ZaiQuotaData> = { data: null, lastFetchTime: 0 };
 const neuralwattCache: CachedData<NeuralwattQuotaData> = { data: null, lastFetchTime: 0 };
 const deepseekCache: CachedData<DeepseekQuotaData> = { data: null, lastFetchTime: 0 };
 const opencodeGoCache: CachedData<OpencodeGoQuotaData> = { data: null, lastFetchTime: 0 };
+const llmapiCache: CachedData<LlmapiQuotaData> = { data: null, lastFetchTime: 0 };
 
 // Synthetic API types
 interface SyntheticQuotaData {
@@ -198,6 +201,23 @@ interface OpencodeGoQuotaData {
   rolling: OpencodeGoUsageWindow;
   weekly: OpencodeGoUsageWindow;
   monthly: OpencodeGoUsageWindow;
+}
+
+// llmapi.ai API types
+interface LlmapiMonthlyCap {
+  limit: number;
+  used: number;
+  remaining: number;
+}
+
+interface LlmapiQuotaData {
+  credits: number;
+  creditsBonus: number;
+  totalCredits: number;
+  currency: string;
+  mode: string;
+  gatedOnBalance: boolean;
+  monthlyCap?: LlmapiMonthlyCap;
 }
 
 // API key resolution: env var override → AiderDesk provider settings
@@ -492,6 +512,68 @@ const getOpencodeGoQuota = async (context?: ExtensionContext): Promise<OpencodeG
   return opencodeGoCache.data;
 };
 
+const fetchLlmapiQuota = async (context?: ExtensionContext): Promise<LlmapiQuotaData | null> => {
+  const apiKey = getApiKey('LLMAPI_API_KEY', 'llmapi', context);
+
+  if (!apiKey) {
+    return null;
+  }
+
+  try {
+    const response = await fetch('https://api.llmapi.ai/v1/credits', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      context?.log(`[Providers Quota] llmapi.ai API request failed: ${response.status} ${response.statusText}`);
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      credits: number;
+      credits_bonus: number;
+      total_credits: number;
+      currency: string;
+      mode: string;
+      gated_on_balance: boolean;
+      monthly_cap?: { limit: number; used: number; remaining: number };
+    };
+
+    return {
+      credits: data.credits,
+      creditsBonus: data.credits_bonus,
+      totalCredits: data.total_credits,
+      currency: data.currency,
+      mode: data.mode,
+      gatedOnBalance: data.gated_on_balance,
+      monthlyCap: data.monthly_cap ? {
+        limit: data.monthly_cap.limit,
+        used: data.monthly_cap.used,
+        remaining: data.monthly_cap.remaining,
+      } : undefined,
+    };
+  } catch (error) {
+    context?.log('[Providers Quota] Failed to fetch llmapi.ai quota:', 'error');
+    return null;
+  }
+};
+
+const getLlmapiQuota = async (context?: ExtensionContext): Promise<LlmapiQuotaData | null> => {
+  const now = Date.now();
+
+  if (llmapiCache.data && now - llmapiCache.lastFetchTime < CACHE_DURATION) {
+    return llmapiCache.data;
+  }
+
+  llmapiCache.data = await fetchLlmapiQuota(context);
+  llmapiCache.lastFetchTime = now;
+  return llmapiCache.data;
+};
+
 const getNeuralwattQuota = async (context?: ExtensionContext): Promise<NeuralwattQuotaData | null> => {
   const now = Date.now();
 
@@ -509,8 +591,8 @@ const STATUS_BAR_COMPONENT_ID = 'providers-quota-indicator';
 export default class ProvidersQuotaExtension implements Extension {
   static metadata = {
     name: 'Providers Quota',
-    version: '1.6.0',
-    description: 'Displays API quota information for Synthetic, Z.AI, Neuralwatt, DeepSeek, and OpenCode Go providers in the task status bar',
+    version: '1.7.0',
+    description: 'Displays API quota information for Synthetic, Z.AI, Neuralwatt, DeepSeek, OpenCode Go, and llmapi.ai providers in the task status bar',
     author: 'wladimiiir',
     iconUrl: 'https://raw.githubusercontent.com/magiksoft/aider-desk/refs/heads/main/packages/extensions/extensions/providers-quota-extension/icon.png',
     capabilities: ['ui'],
@@ -522,6 +604,7 @@ export default class ProvidersQuotaExtension implements Extension {
     const neuralwattKey = getApiKey('NEURALWATT_API_KEY', 'neuralwatt', context);
     const deepseekKey = getApiKey('DEEPSEEK_API_KEY', 'deepseek', context);
     const opencodeGoKey = getApiKey('OPENCODE_GO_API_KEY', 'opencode-go', context);
+    const llmapiKey = getApiKey('LLMAPI_API_KEY', 'llmapi', context);
 
     const keys: string[] = [];
     if (syntheticKey) {
@@ -538,6 +621,9 @@ export default class ProvidersQuotaExtension implements Extension {
     }
     if (opencodeGoKey) {
       keys.push('OpenCode Go');
+    }
+    if (llmapiKey) {
+      keys.push('llmapi.ai');
     }
 
     if (keys.length > 0) {
@@ -562,6 +648,9 @@ export default class ProvidersQuotaExtension implements Extension {
     if (opencodeGoKey) {
       await getOpencodeGoQuota(context);
     }
+    if (llmapiKey) {
+      await getLlmapiQuota(context);
+    }
   }
 
   async onPromptFinished(_event: PromptFinishedEvent, context: ExtensionContext): Promise<void> {
@@ -576,6 +665,8 @@ export default class ProvidersQuotaExtension implements Extension {
     deepseekCache.lastFetchTime = 0;
     opencodeGoCache.data = null;
     opencodeGoCache.lastFetchTime = 0;
+    llmapiCache.data = null;
+    llmapiCache.lastFetchTime = 0;
 
     // Trigger UI refresh
     context.triggerUIDataRefresh(STATUS_BAR_COMPONENT_ID);
@@ -604,14 +695,16 @@ export default class ProvidersQuotaExtension implements Extension {
     const hasNeuralwatt = !!getApiKey('NEURALWATT_API_KEY', 'neuralwatt', context);
     const hasDeepseek = !!getApiKey('DEEPSEEK_API_KEY', 'deepseek', context);
     const hasOpencodeGo = !!getApiKey('OPENCODE_GO_API_KEY', 'opencode-go', context);
+    const hasLlmapi = !!getApiKey('LLMAPI_API_KEY', 'llmapi', context);
 
     // Fetch all available quotas in parallel
-    const [syntheticQuota, zaiQuota, neuralwattQuota, deepseekQuota, opencodeGoQuota] = await Promise.all([
+    const [syntheticQuota, zaiQuota, neuralwattQuota, deepseekQuota, opencodeGoQuota, llmapiQuota] = await Promise.all([
       hasSynthetic ? getSyntheticQuota(context) : null,
       hasZai ? getZaiQuota(context) : null,
       hasNeuralwatt ? getNeuralwattQuota(context) : null,
       hasDeepseek ? getDeepseekBalance(context) : null,
       hasOpencodeGo ? getOpencodeGoQuota(context) : null,
+      hasLlmapi ? getLlmapiQuota(context) : null,
     ]);
 
     return {
@@ -620,11 +713,13 @@ export default class ProvidersQuotaExtension implements Extension {
       neuralwatt: neuralwattQuota,
       deepseek: deepseekQuota,
       opencodeGo: opencodeGoQuota,
+      llmapi: llmapiQuota,
       hasSynthetic,
       hasZai,
       hasNeuralwatt,
       hasDeepseek,
       hasOpencodeGo,
+      hasLlmapi,
     };
   }
 }

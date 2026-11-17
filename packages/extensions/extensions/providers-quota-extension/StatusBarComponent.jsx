@@ -103,6 +103,25 @@
     );
   }
 
+  if (agentProfile?.provider === 'llmapi' && data?.llmapi) {
+    const lm = data.llmapi;
+    return (
+      <div className="flex items-center gap-2 pt-1 justify-between w-full">
+        <span>Credits:</span>
+        <div className="flex items-center gap-2">
+          <ui.Tooltip content={lm.monthlyCap ? `Monthly: $${lm.monthlyCap.used.toFixed(2)} / $${lm.monthlyCap.limit.toFixed(2)}` : ''}>
+            <span>{formatCurrency(lm.totalCredits.toFixed(2), lm.currency)}</span>
+          </ui.Tooltip>
+          {lm.monthlyCap ? (
+            <ui.Tooltip content={`Monthly: $${lm.monthlyCap.used.toFixed(2)} / $${lm.monthlyCap.limit.toFixed(2)}`}>
+              <span>({Math.round((lm.monthlyCap.used / lm.monthlyCap.limit) * 100)}%)</span>
+            </ui.Tooltip>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   if (agentProfile?.provider === 'neuralwatt' && data?.neuralwatt) {
     const nw = data.neuralwatt;
 

@@ -1,5 +1,5 @@
 ---
-name: agent-creator
+name: create-agent
 description: Create and configure AiderDesk agent profiles by defining tool groups, approval rules, system prompts, subagent settings, subagent filtering, and provider/model selection. Use when setting up a new agent, creating a profile, or configuring agent tools, permissions, and subagent behavior.
 ---
 

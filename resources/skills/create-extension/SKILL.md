@@ -1,5 +1,5 @@
 ---
-name: extension-creator
+name: create-extension
 description: Create AiderDesk extensions by setting up extension files, defining metadata, implementing Extension interface methods, and updating documentation. Use when building a new extension, creating extension commands, tools, or event handlers.
 ---
 

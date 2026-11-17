@@ -8,7 +8,7 @@ Proposed (2026-09-27)
 
 AiderDesk shares contracts across several surfaces that mirror them: the published extension types, user-facing documentation, and agent-facing skills. When a contract changes — a parameter is renamed or redefined, a stored value's meaning changes, a field's semantics evolve — every mirror must be updated in the same change, or the published types, docs, and skill knowledge silently diverge from runtime behavior.
 
-A concrete recent miss: adding per-agent memory scoping (`useAgentMemoryScope` on `AgentProfile`, scope value `agent-profile:{profileId}`) redefined the first parameter of `MemoryManager.storeMemory/retrieveMemories` and the meaning of the persisted `projectid` value. The core code, REST/tool/UI surfaces, and the runtime contract were updated, but the `MemoryContext` interface in `packages/common/src/extensions.ts` (the public extension API), `docs-site/docs/extensions/api-reference.md`, and `resources/skills/extension-creator/SKILL.md` still documented the old `projectId` semantics — they were found and fixed only after the fact. A follow-up sweep then found that `docs-site/docs/agent-mode/memory.md` and `resources/skills/extension-creator/references/extension-interface.md` were still stale; they had been missed by both the original change and the first patch. The costs of a stale mirror are not merely cosmetic: skills are executed by agents, so a stale skill example reproduces the outdated contract in every agent-authored extension, and the doc site teaches users the old API.
+A concrete recent miss: adding per-agent memory scoping (`useAgentMemoryScope` on `AgentProfile`, scope value `agent-profile:{profileId}`) redefined the first parameter of `MemoryManager.storeMemory/retrieveMemories` and the meaning of the persisted `projectid` value. The core code, REST/tool/UI surfaces, and the runtime contract were updated, but the `MemoryContext` interface in `packages/common/src/extensions.ts` (the public extension API), `docs-site/docs/extensions/api-reference.md`, and `resources/skills/create-extension/SKILL.md` still documented the old `projectId` semantics — they were found and fixed only after the fact. A follow-up sweep then found that `docs-site/docs/agent-mode/memory.md` and `resources/skills/create-extension/references/extension-interface.md` were still stale; they had been missed by both the original change and the first patch. The costs of a stale mirror are not merely cosmetic: skills are executed by agents, so a stale skill example reproduces the outdated contract in every agent-authored extension, and the doc site teaches users the old API.
 
 The incident revealed why existing guardrails failed to trigger:
 
@@ -46,16 +46,16 @@ Implement an **explicit mirror-surface inventory** in this ADR: a change to a sh
    - `packages/extensions/extensions.d.ts` — generated artifact wrapped by the build ([ADR-0033](../packages-monorepo/0033-generated-extension-types.md)); never hand-edited, verified by a build
    - `docs-site/docs/extensions/api-reference.md` — user-facing API reference (must stay in lockstep with the contract source)
    - `docs-site/docs/extensions/creating-extensions.md` — tutorial and worked examples
-   - `resources/skills/extension-creator/SKILL.md` — agent-facing patterns and examples
-   - `resources/skills/extension-creator/references/extension-interface.md` — the skill's embedded interface reference
+   - `resources/skills/create-extension/SKILL.md` — agent-facing patterns and examples
+   - `resources/skills/create-extension/references/extension-interface.md` — the skill's embedded interface reference
 2. `packages/common/src/tools.ts` — the **tool namespace registry** ([ADR-0008](../agent-system/0008-tool-group-namespacing-contracts.md)):
    - `docs-site/docs/extensions/api-reference.md` — tools documented for extension contributions
    - `docs-site/docs/agent-mode/**` — agent-mode user docs referencing built-in tools
-   - `resources/skills/extension-creator/**` — skill references to built-in tool names
+   - `resources/skills/create-extension/**` — skill references to built-in tool names
 3. `packages/common/src/api.ts` — the **ApplicationAPI/IPC contract** ([ADR-0002](../core-architecture/0002-preload-ipc-bridge-and-api-contract.md)):
    - `docs-site/docs/**` — wherever the API surface is documented for users
    - `packages/mcp-server/**` — the standalone MCP package mirrors API operations over REST ([ADR-0019](../api-surface/0019-standalone-mcp-server-package.md))
-4. `packages/common/src/types/common.ts` — **persisted data shapes** shared across processes; mirrors are any entries in `docs-site/**` and `resources/skills/**` that document those fields (e.g. profile fields mirrored in agent settings docs and the extension-creator skill).
+4. `packages/common/src/types/common.ts` — **persisted data shapes** shared across processes; mirrors are any entries in `docs-site/**` and `resources/skills/**` that document those fields (e.g. profile fields mirrored in agent settings docs and the create-extension skill).
 
 Memory's *operational* surfaces (REST, tools, UI) remain governed by [ADR-0011](../agent-system/0011-agent-memory-system.md); this ADR adds the documentation/skill mirrors and generalizes the pattern to all shared contracts. It complements, not supersedes, ADR-0029.
 
@@ -109,4 +109,4 @@ The code surfaces of contracts already have owners: ADR-0033 generates `.d.ts` b
 
 ## References
 
-- Real-world incident this ADR responds to: per-agent memory scoping (`useAgentMemoryScope`, scope `agent-profile:{profileId}`) first shipped with stale `MemoryContext` docs in `packages/common/src/extensions.ts`, `docs-site/docs/extensions/api-reference.md`, and `resources/skills/extension-creator/SKILL.md`; the first patch missed `docs-site/docs/agent-mode/memory.md` and `resources/skills/extension-creator/references/extension-interface.md`, which were caught by a follow-up sweep.
+- Real-world incident this ADR responds to: per-agent memory scoping (`useAgentMemoryScope`, scope `agent-profile:{profileId}`) first shipped with stale `MemoryContext` docs in `packages/common/src/extensions.ts`, `docs-site/docs/extensions/api-reference.md`, and `resources/skills/create-extension/SKILL.md`; the first patch missed `docs-site/docs/agent-mode/memory.md` and `resources/skills/create-extension/references/extension-interface.md`, which were caught by a follow-up sweep.

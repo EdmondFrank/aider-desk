@@ -387,12 +387,20 @@ export const parseCommandArgs = (input: string): string[] => {
 };
 
 export const SKILL_COMMAND_PREFIX = '/skill:';
+export const SKILL_COMMAND_ALIASES = ['/create-agent', '/create-extension'];
 
 export const parseSkillCommand = (prompt: string): { skillName: string; prompt: string } | null => {
-  const match = prompt.match(/^\/skill:(\S+)(?:\s+([\s\S]+))?$/);
+  const match = prompt.match(/^(\S+)(?:\s+([\s\S]*))?$/);
   if (!match) {
     return null;
   }
 
-  return { skillName: match[1], prompt: (match[2] ?? '').trim() };
+  const command = match[1];
+  const skillName = command.startsWith(SKILL_COMMAND_PREFIX)
+    ? command.slice(SKILL_COMMAND_PREFIX.length)
+    : SKILL_COMMAND_ALIASES.includes(command)
+      ? command.slice(1)
+      : '';
+
+  return skillName ? { skillName, prompt: (match[2] ?? '').trim() } : null;
 };

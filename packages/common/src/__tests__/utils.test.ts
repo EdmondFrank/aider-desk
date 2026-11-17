@@ -84,6 +84,21 @@ describe('parseSkillCommand', () => {
       prompt: 'extract\ntables\nfrom document',
     });
   });
+
+  it.each(['create-agent', 'create-extension'])('should parse the %s alias', (skillName) => {
+    expect(parseSkillCommand(`/${skillName}`)).toEqual({ skillName, prompt: '' });
+    expect(parseSkillCommand(`/${skillName}   `)).toEqual({ skillName, prompt: '' });
+    expect(parseSkillCommand(`/${skillName}   build a helper   `)).toEqual({ skillName, prompt: 'build a helper' });
+    expect(parseSkillCommand(`/${skillName} build\na helper`)).toEqual({ skillName, prompt: 'build\na helper' });
+    expect(parseSkillCommand(`/skill:${skillName} build a helper`)).toEqual({ skillName, prompt: 'build a helper' });
+  });
+
+  it.each(['/create-agent-extra', '/create-extension-extra', '/create', '/agent-creator', '/extension-creator', 'create-agent'])(
+    'should not parse %s as a skill alias',
+    (prompt) => {
+      expect(parseSkillCommand(prompt)).toBeNull();
+    },
+  );
 });
 
 describe('getRelativePath', () => {

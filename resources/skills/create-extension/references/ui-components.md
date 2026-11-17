@@ -1099,7 +1099,7 @@ class MyExtension implements Extension {
 
 ## Validating Components
 
-Extension UI and config components are JSX strings, so they are not covered by normal TypeScript project checks. The extension-creator skill ships a validator script that checks them statically:
+Extension UI and config components are JSX strings, so they are not covered by normal TypeScript project checks. The create-extension skill ships a validator script that checks them statically:
 
 ```bash
 node <skill-dir>/assets/scripts/validate-extension-ui.mjs <Component.jsx | extension-dir> [--type=ui|config|auto]

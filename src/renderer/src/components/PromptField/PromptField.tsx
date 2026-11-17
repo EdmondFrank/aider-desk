@@ -22,7 +22,7 @@ import { BiSend } from 'react-icons/bi';
 import { MdSave, MdStop, MdMic, MdMicOff, MdOutlineScheduleSend } from 'react-icons/md';
 import { AiOutlineClose } from 'react-icons/ai';
 import { clsx } from 'clsx';
-import { parseCommandArgs, parseSkillCommand, SKILL_COMMAND_PREFIX } from '@common/utils';
+import { parseCommandArgs, parseSkillCommand, SKILL_COMMAND_ALIASES, SKILL_COMMAND_PREFIX } from '@common/utils';
 import { getSubagentId } from '@common/agent';
 
 import { QueuedPromptsList } from './QueuedPromptsList';
@@ -411,9 +411,10 @@ export const PromptField = forwardRef<PromptFieldRef, Props>(
             const allCommands = [...customCommands, ...extensionCommands];
             const customCmds = allCommands.map((cmd) => `/${cmd.name}`);
             const skillCmds = userInvocableSkills.map((skill) => `${SKILL_COMMAND_PREFIX}${skill.name}`);
+            const skillAliases = SKILL_COMMAND_ALIASES.filter((alias) => userInvocableSkills.some((skill) => skill.name === alias.slice(1)));
             return {
               from: 0,
-              options: [...COMMANDS, SKILL_COMMAND_PREFIX, ...customCmds, ...skillCmds].map((cmd) => {
+              options: [...new Set([...COMMANDS, SKILL_COMMAND_PREFIX, ...customCmds, ...skillCmds, ...skillAliases])].map((cmd) => {
                 const option: Completion = { label: cmd, type: 'keyword' };
 
                 // Re-open the completion menu to show skill names right after accepting /skill:
@@ -428,7 +429,7 @@ export const PromptField = forwardRef<PromptFieldRef, Props>(
 
                 return option;
               }),
-              validFor: /^\/\w*$/,
+              validFor: /^\/[\w-]*$/,
             };
           }
         }
@@ -876,9 +877,9 @@ export const PromptField = forwardRef<PromptFieldRef, Props>(
             return [t('commands.skill'), false];
           }
 
-          if (item.startsWith(SKILL_COMMAND_PREFIX)) {
-            const skillName = item.slice(SKILL_COMMAND_PREFIX.length);
-            const skill = skills.find((s) => s.name === skillName);
+          const skillCommand = parseSkillCommand(item);
+          if (skillCommand) {
+            const skill = skills.find((s) => s.name === skillCommand.skillName);
             if (skill) {
               return [skill.description, false];
             }

@@ -6,6 +6,7 @@
 - fixed task sidebar menus and submenus not following their task items when scrolling
 - fixed Git branch submenus appearing outside the viewport on small screens
 - improved the updated files diff modal to be usable on portrait mobile with slide-in file and change request drawers
+- renamed bundled creator skills to create-agent and create-extension and added matching slash-command aliases
 
 ## [0.92.0]
 

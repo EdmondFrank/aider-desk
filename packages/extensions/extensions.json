@@ -12,7 +12,7 @@
         "commands",
         "ui"
       ],
-      "installCount": 0
+      "installCount": 1
     },
     {
       "id": "sudo",
@@ -133,7 +133,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 134
+      "installCount": 135
     },
     {
       "id": "protected-paths",
@@ -350,7 +350,7 @@
         "commands",
         "workflows"
       ],
-      "installCount": 31
+      "installCount": 33
     },
     {
       "id": "programmatic-tool-calls",
@@ -698,7 +698,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 164
+      "installCount": 165
     },
     {
       "id": "dbx",

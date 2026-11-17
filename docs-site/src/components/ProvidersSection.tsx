@@ -14,31 +14,31 @@ const PROVIDERS: ProviderItem[] = [
   {
     name: 'Anthropic',
     category: 'Reasoning & Coding',
-    models: 'Claude 3.7 Sonnet (Thinking), Claude 3.5 Haiku',
+    models: 'Claude Fable 5.2, Claude Haiku 5.5',
     features: 'Extended thinking, prompt caching, vision support',
   },
   {
     name: 'OpenAI',
     category: 'Frontier Models',
-    models: 'o3-mini, o4-mini, GPT-4.5, GPT-4o',
+    models: 'GPT-6 Sol, GPT-6.1 Terra, GPT-6 Luna',
     features: 'Reasoning effort levels, fast tool calls',
   },
   {
     name: 'Google',
     category: 'Massive Context',
-    models: 'Gemini 2.5 Pro, Gemini 2.5 Flash',
+    models: 'Gemini 4 Carbon, Gemini 4 Hydrogen, Gemini 4 Argon',
     features: '1M+ token context window, ultra-low latency',
   },
   {
     name: 'DeepSeek',
     category: 'Open Weights & Hosted',
-    models: 'DeepSeek R1, DeepSeek V3',
+    models: 'DeepSeek V4 Pro, DeepSeek V4.1 Flash',
     features: 'Exceptional math/code reasoning at low cost',
   },
   {
     name: 'Ollama & LM Studio',
     category: '100% Local & Offline',
-    models: 'Qwen 2.5 Coder, Llama 3.3, Devstral',
+    models: 'Qwen4 Max, GLM-5.3, Muse Ember, Llama 4',
     features: 'Zero external network calls, air-gapped security',
   },
   {

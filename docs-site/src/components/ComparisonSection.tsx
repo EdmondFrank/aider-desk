@@ -35,6 +35,12 @@ const ROWS: ComparisonRow[] = [
     terminalAgents: 'Blocks the shell terminal process until the tool run or agent loop completes',
   },
   {
+    feature: 'Crash Recovery & Durability',
+    aiderDesk: 'SQLite execution journals checkpoint tool intent & outcomes; resumes interrupted tasks and subagents without replaying side effects',
+    ideAssistants: 'Chat/composer turns are ephemeral; crashes or reloads lose in-flight agent state and require starting over',
+    terminalAgents: 'Process exit or terminal disconnect kills the running loop; no checkpointed subagent recovery',
+  },
+  {
     feature: 'Editing Engine Flexibility',
     aiderDesk: 'Dual engines: Surgical diffs (/code, /architect) for quick fixes + Autonomous Agent for multi-file features',
     ideAssistants: 'Single conversational loop or inline autocomplete; often rewrites large blocks unnecessarily',

@@ -53,11 +53,11 @@ export const HeroSection = ({ className }: Props) => {
           <span className={styles.openSourceBadge}>Open Source</span>
         </div>
         <h1 className={styles.heroHeading}>
-          The desktop workspace for <br className={styles.breakDesktop} />
-          <span className={styles.gradientHeading}>AI coding without the chaos</span>.
+          AI won’t replace you. <br className={styles.breakDesktop} />
+          <span className={styles.gradientHeading}>Your workflow just evolved</span>.
         </h1>
         <p className={styles.heroSubheading}>
-          A native desktop studio for Aider and autonomous agents. Run tasks safely in isolated Git worktrees, review visual diffs with 1-click merge, and connect any LLM with your own API keys — zero subscription markup.
+          AiderDesk is here to help you make that transformation—stepping out of the single-chat bottleneck into orchestrating parallel autonomous agents in isolated Git worktrees, with surgical diff reviews, zero token markup, and any LLM you choose.
         </p>
       </div>
 

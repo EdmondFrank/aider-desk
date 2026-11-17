@@ -3,6 +3,7 @@ import { clsx } from 'clsx';
 import Layout from '@theme/Layout';
 import { HeroSection } from '../components/HeroSection';
 import { ShowcaseTabs } from '../components/ShowcaseTabs';
+import { ShiftSection } from '../components/ShiftSection';
 import { PrimitivesSection } from '../components/PrimitivesSection';
 import { CodeShowcaseSection } from '../components/CodeShowcaseSection';
 import { ComparisonSection } from '../components/ComparisonSection';
@@ -42,6 +43,9 @@ const Home = () => {
         <div className={styles.showcaseContainer}>
           <ShowcaseTabs />
         </div>
+
+        <div className={styles.sectionDivider} />
+        <ShiftSection />
 
         <div className={styles.sectionDivider} />
         <PrimitivesSection />

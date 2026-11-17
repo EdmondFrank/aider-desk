@@ -2,11 +2,11 @@ import { clsx } from 'clsx';
 import Link from '@docusaurus/Link';
 import {
   GitBranchIcon,
-  TerminalIcon,
+  SparklesIcon,
   EyeIcon,
-  LayersIcon,
   ShieldIcon,
   PuzzleIcon,
+  TerminalIcon,
   ArrowRightIcon,
 } from './Icons';
 import styles from './PrimitivesSection.module.css';
@@ -21,36 +21,36 @@ type PrimitiveItem = {
 
 const PRIMITIVES: PrimitiveItem[] = [
   {
+    title: 'Evolving Memory',
+    description:
+      'AiderDesk remembers your project conventions, architectural decisions, and past fixes across sessions. Agents stop repeating the same mistakes and get measurably smarter on your codebase over time.',
+    icon: SparklesIcon,
+    badge: 'Compounding Context',
+    link: '/docs/agent-mode/memory',
+  },
+  {
     title: 'Parallel Git Worktree Sandboxes',
     description:
-      'Every task runs on a dedicated Git branch in an isolated worktree. Experiment boldly, run tests in parallel, and never worry about dirtying your primary working directory or active editor checkout.',
+      'Every task runs on a dedicated Git branch in an isolated worktree. Let agents experiment boldly and run tests in parallel while your primary working directory and active editor stay completely untouched.',
     icon: GitBranchIcon,
     badge: 'Safe Sandboxing',
     link: '/docs/features/git-worktrees',
   },
   {
-    title: 'Dual Engines: Surgical vs. Autonomous',
+    title: 'Durable Execution',
     description:
-      'Toggle between surgical diff-based editing (/code) for quick bugfixes without prompt bloat, and autonomous Agent Mode for open-ended multi-file architectures.',
+      'Crash-proof agent runs backed by SQLite execution journals. Checkpoint tool intent and outcomes so interrupted tasks and subagents resume mid-flight after restarts—with zero duplicate side effects or wasted tokens.',
     icon: TerminalIcon,
-    badge: 'Right Tool for the Job',
-    link: '/docs/core/chat-modes',
+    badge: 'Crash-Proof Journals',
+    link: '/docs/features/task-recovery',
   },
   {
-    title: 'Visual Side-by-Side Diff Review',
+    title: 'Powerful Extension API',
     description:
-      'Inspect every modified line side-by-side with full syntax highlighting. Comment inline to give the agent targeted feedback, accept or reject changes with one click, or rollback any checkpoint.',
-    icon: EyeIcon,
-    badge: 'Total Observability',
-    link: '/docs/core/reviewing-changes',
-  },
-  {
-    title: 'Autonomous Subtasks in the Background',
-    description:
-      'Let agents break complex projects into hierarchical subtasks. Agents run autonomously in the background while you keep working in your editor, then notify you when changes are ready.',
-    icon: LayersIcon,
-    badge: 'Uninterrupted Flow',
-    link: '/docs/agent-mode/task-management',
+      'Create custom TypeScript extensions, lifecycle hooks, slash commands, and procedural skills tailored specifically for your workflow—extending AiderDesk to match how you ship software.',
+    icon: PuzzleIcon,
+    badge: 'Developer Extensible',
+    link: '/docs/extensions',
   },
   {
     title: 'Local-First & Direct API Access',
@@ -61,12 +61,12 @@ const PRIMITIVES: PrimitiveItem[] = [
     link: '/docs/configuration/providers',
   },
   {
-    title: 'TypeScript Extensions & Skills SDK',
+    title: 'Review Intent, Not Just Syntax',
     description:
-      'Write custom TypeScript plugins to hook into task events, register custom slash commands, or load team-wide procedural skills from markdown files without prompt cache churn.',
-    icon: PuzzleIcon,
-    badge: 'Developer Extensible',
-    link: '/docs/extensions',
+      'Solve the high-throughput review bottleneck. Inspect every change in side-by-side diffs, leave inline feedback, roll back any checkpoint, and accept verified work with a single click.',
+    icon: EyeIcon,
+    badge: 'Total Observability',
+    link: '/docs/core/reviewing-changes',
   },
 ];
 

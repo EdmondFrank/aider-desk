@@ -15,10 +15,10 @@ export const CtaSection = ({ className }: Props) => {
           <div className={styles.content}>
             <div className={styles.badge}>Get Started In Under 60 Seconds</div>
             <h2 className={styles.heading}>
-              Ready for an AI coding agent that stays in its lane?
+              Ready to step into the orchestrator’s seat?
             </h2>
             <p className={styles.subheading}>
-              Zero markup, parallel Git worktrees, 15+ model providers, and 100% open source.
+              Keep your hands on the architecture, let parallel agents handle the heavy lifting. Free, open-source, and 100% local-first.
             </p>
             <div className={styles.actionsRow}>
               <a href="#download" className={styles.primaryBtn}>

@@ -8,20 +8,20 @@ import {
   LayersIcon,
   TerminalIcon,
   PuzzleIcon,
-  CpuIcon,
   EyeIcon,
   CheckIcon,
   ArrowRightIcon,
+  SparklesIcon,
 } from './Icons';
 import styles from './ShowcaseTabs.module.css';
 
 export enum ShowcaseTab {
-  Worktrees = 'worktrees',
-  DiffReview = 'diff-review',
-  Subtasks = 'subtasks',
-  Aider = 'aider',
   Projects = 'projects',
-  Models = 'models',
+  Worktrees = 'worktrees',
+  Memory = 'memory',
+  Subtasks = 'subtasks',
+  DiffReview = 'diff-review',
+  Aider = 'aider',
   Extensions = 'extensions',
 }
 
@@ -42,6 +42,27 @@ type TabConfig = {
 };
 
 const TABS: TabConfig[] = [
+  {
+    id: ShowcaseTab.Projects,
+    tabLabel: 'Projects',
+    tabBadge: 'Workspace',
+    icon: FolderIcon,
+    tag: 'Workspace Management',
+    title: 'Multi-Project & Task Workspaces',
+    description:
+      'Manage multiple code repositories simultaneously with tabbed project workspaces, independent context files, and persistent task state tracking. Switch between active workstreams instantly without losing context.',
+    bullets: [
+      'Concurrent repository tabs with per-project settings and model preferences',
+      'Task lifecycle management with state filters (TODO, In Progress, Review, Done)',
+      'Instant context switching between active workstreams with zero restart time',
+      'Global command palette (Ctrl+Shift+P) for fast repository and file navigation',
+    ],
+    docLink: '/docs/getting-started/managing-projects',
+    docLinkText: 'Explore Project & Task Management',
+    imageSrc: '/img/features/gs-project-tabs-switching.png',
+    imageAlt: 'AiderDesk Multi-Project Tab Interface',
+    imageCaption: 'Project Tabs & Task Workspace',
+  },
   {
     id: ShowcaseTab.Worktrees,
     tabLabel: 'Worktrees',
@@ -64,25 +85,25 @@ const TABS: TabConfig[] = [
     imageCaption: 'Worktree Branch Isolation & Merging',
   },
   {
-    id: ShowcaseTab.DiffReview,
-    tabLabel: 'Diff Review',
-    tabBadge: 'Observability',
-    icon: EyeIcon,
-    tag: 'Total Control',
-    title: 'Visual Side-by-Side Diff Review & Undo',
+    id: ShowcaseTab.Memory,
+    tabLabel: 'Memory',
+    tabBadge: 'Evolving Context',
+    icon: SparklesIcon,
+    tag: 'Project Knowledge',
+    title: 'Evolving Project Memory',
     description:
-      'Review code changes with confidence. Side-by-side split diffs, syntax highlighting, line-by-line acceptance, inline feedback prompts, and instant recovery if an agent takes a wrong turn.',
+      'AiderDesk remembers your project conventions, architectural decisions, and past fixes across sessions—so agents stop repeating the same mistakes and get smarter on your codebase over time. All stored locally with vector search.',
     bullets: [
-      'Side-by-side and unified diff views with syntax highlighting',
-      'Inline comments that send targeted instructions back to the agent',
-      'Granular accept, reject, or edit changes before saving',
-      'Full undo/redo checkpoint history with git commit rollback',
+      'Durable project knowledge: preferences, architectural decisions, and recurring patterns',
+      'Agents retrieve relevant context automatically at the start of every task',
+      '100% local vector database (LanceDB) with local embedding models',
+      'Full memory management in Settings: browse, filter, and delete what the agent has learned',
     ],
-    docLink: '/docs/core/reviewing-changes',
-    docLinkText: 'Learn About Diff Reviewing',
-    imageSrc: '/img/features/diff-viewer-modes.gif',
-    imageAlt: 'AiderDesk Side-by-side and Unified Diff Reviewer',
-    imageCaption: 'Side-by-Side Diff Review & Rollback',
+    docLink: '/docs/agent-mode/memory',
+    docLinkText: 'Read the Memory Guide',
+    imageSrc: '/img/features/agent-memory-tools.gif',
+    imageAlt: 'Enabling Memory Tools in AiderDesk Agent Settings',
+    imageCaption: 'Project Memory: Store & Retrieve Knowledge',
   },
   {
     id: ShowcaseTab.Subtasks,
@@ -106,6 +127,27 @@ const TABS: TabConfig[] = [
     imageCaption: 'Subtask Hierarchy & Background Orchestration',
   },
   {
+    id: ShowcaseTab.DiffReview,
+    tabLabel: 'Diff Viewer',
+    tabBadge: 'Observability',
+    icon: EyeIcon,
+    tag: 'Total Control',
+    title: 'Visual Side-by-Side Diff Review & Undo',
+    description:
+      'Review code changes with confidence. Side-by-side split diffs, syntax highlighting, line-by-line acceptance, inline feedback prompts, and instant recovery if an agent takes a wrong turn.',
+    bullets: [
+      'Side-by-side and unified diff views with syntax highlighting',
+      'Inline comments that send targeted instructions back to the agent',
+      'Granular accept, reject, or edit changes before saving',
+      'Full undo/redo checkpoint history with git commit rollback',
+    ],
+    docLink: '/docs/core/reviewing-changes',
+    docLinkText: 'Learn About Diff Reviewing',
+    imageSrc: '/img/features/diff-viewer-modes.gif',
+    imageAlt: 'AiderDesk Side-by-side and Unified Diff Reviewer',
+    imageCaption: 'Side-by-Side Diff Review & Rollback',
+  },
+  {
     id: ShowcaseTab.Aider,
     tabLabel: 'Aider Mode',
     tabBadge: 'Surgical',
@@ -127,59 +169,17 @@ const TABS: TabConfig[] = [
     imageCaption: 'Aider Modes: Code, Architect, Ask & Agent',
   },
   {
-    id: ShowcaseTab.Projects,
-    tabLabel: 'Projects',
-    tabBadge: 'Workspace',
-    icon: FolderIcon,
-    tag: 'Workspace Management',
-    title: 'Multi-Project & Task Workspaces',
-    description:
-      'Manage multiple code repositories simultaneously with tabbed project workspaces, independent context files, and persistent task state tracking. Switch between active workstreams instantly without losing context.',
-    bullets: [
-      'Concurrent repository tabs with per-project settings and model preferences',
-      'Task lifecycle management with state filters (TODO, In Progress, Review, Done)',
-      'Instant context switching between active workstreams with zero restart time',
-      'Global command palette (Ctrl+Shift+P) for fast repository and file navigation',
-    ],
-    docLink: '/docs/getting-started/managing-projects',
-    docLinkText: 'Explore Project & Task Management',
-    imageSrc: '/img/features/gs-project-tabs-switching.png',
-    imageAlt: 'AiderDesk Multi-Project Tab Interface',
-    imageCaption: 'Project Tabs & Task Workspace',
-  },
-  {
-    id: ShowcaseTab.Models,
-    tabLabel: 'Models',
-    tabBadge: 'Zero Markup',
-    icon: CpuIcon,
-    tag: '15+ Providers',
-    title: 'Frontier Models & Local Offline LLMs',
-    description:
-      'Connect directly to your preferred model providers with your own API keys, or run 100% offline with local models. Switch models turn-by-turn or configure dedicated models per agent profile with zero token markup.',
-    bullets: [
-      'Claude 3.7 Sonnet, OpenAI o3/GPT-4o, Gemini 2.5, DeepSeek-R1, and more',
-      '100% local offline inference support via Ollama, LM Studio, and vLLM',
-      'Zero subscription markup — direct billing straight to provider APIs',
-      'Real-time token usage analytics, prompt cache status, and cost breakdown',
-    ],
-    docLink: '/docs/configuration/providers',
-    docLinkText: 'View All Supported Providers',
-    imageSrc: '/img/features/model-library.png',
-    imageAlt: 'AiderDesk Model Library and Provider Selection',
-    imageCaption: 'Provider Configuration & Model Library',
-  },
-  {
     id: ShowcaseTab.Extensions,
     tabLabel: 'Extensions',
     tabBadge: 'Developer SDK',
     icon: PuzzleIcon,
     tag: 'Ecosystem & SDK',
-    title: 'TypeScript Extensions & Community Gallery',
+    title: 'Extensions & Community Gallery',
     description:
-      'Customize and expand AiderDesk with TypeScript extensions and procedural skills. Hook into lifecycle events, register custom slash commands, install community extensions from the built-in gallery, or build custom UI tools.',
+      'Customize and expand AiderDesk with custom extensions and procedural skills tailored to your workflow. Hook into lifecycle events, register custom slash commands, install community extensions from the built-in gallery, or build custom UI tools.',
     bullets: [
       'In-app Extension Gallery with one-click install, enable, and update',
-      'Full TypeScript API with access to tools, commands, and app events',
+      'Extension API with access to tools, commands, and app events',
       'Reusable procedural Skills (SKILL.md) for domain-specific agent knowledge',
       'Headless REST and WebSocket APIs for external CI/CD integrations',
     ],
@@ -196,7 +196,7 @@ type Props = {
 };
 
 export const ShowcaseTabs = ({ className }: Props) => {
-  const [activeTabId, setActiveTabId] = useState<ShowcaseTab>(ShowcaseTab.Worktrees);
+  const [activeTabId, setActiveTabId] = useState<ShowcaseTab>(ShowcaseTab.Projects);
 
   const currentTab = TABS.find((t) => t.id === activeTabId) || TABS[0];
 

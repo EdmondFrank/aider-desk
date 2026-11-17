@@ -1,0 +1,105 @@
+.section {
+  padding: 5.5rem 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  max-width: 740px;
+  margin: 0 auto 3.25rem;
+}
+
+.sectionBadge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--ad-accent, #2563eb);
+  margin-bottom: 1rem;
+}
+
+.heading {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+  color: var(--ad-text-primary, #0f172a);
+  margin: 0 0 1rem 0;
+  text-decoration: none !important;
+}
+
+.subheading {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  color: var(--ad-text-secondary, #64748b);
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.card {
+  background: var(--ad-bg-card, #ffffff);
+  border: 1px solid var(--ad-border, rgba(148, 163, 184, 0.2));
+  border-radius: 16px;
+  padding: 1.75rem;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--ad-border-hover, #94a3b8);
+  box-shadow: 0 14px 28px -10px rgba(0, 0, 0, 0.08);
+}
+
+.step {
+  font-family: var(--ifm-font-family-monospace, monospace);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ad-accent, #2563eb);
+  margin-bottom: 0.9rem;
+  letter-spacing: 0.05em;
+}
+
+[data-theme='dark'] .step {
+  color: #60a5fa;
+}
+
+.cardTitle {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ad-text-primary, #0f172a);
+  margin: 0 0 0.75rem 0;
+  text-decoration: none !important;
+}
+
+.cardText {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ad-text-secondary, #475569);
+  margin: 0;
+}
+
+@media (max-width: 996px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .heading {
+    font-size: 2rem;
+  }
+}

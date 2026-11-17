@@ -23,18 +23,9 @@ const RESYNC_MIN_INTERVAL_MS = 3000;
 interface TaskEventSubscriberProps {
   baseDir: string;
   taskId: string;
-  state?: string;
 }
 
-const TaskEventSubscriber = memo(function TaskEventSubscriber({ baseDir, taskId, state }: TaskEventSubscriberProps) {
-  const previousState = usePrevious(state);
-
-  useEffect(() => {
-    if (previousState === DefaultTaskState.InProgress && state !== DefaultTaskState.InProgress) {
-      setMessages(taskId, (prevMessages) => prevMessages.filter((message) => !isLoadingMessage(message)));
-    }
-  }, [previousState, state, taskId]);
-
+const TaskEventSubscriber = memo(function TaskEventSubscriber({ baseDir, taskId }: TaskEventSubscriberProps) {
   useTaskResponseHandlers(baseDir, taskId);
   useTaskToolHandlers(baseDir, taskId);
   useTaskLogHandlers(baseDir, taskId);
@@ -59,12 +50,19 @@ const TaskEventSubscriberWrapper = memo(function TaskEventSubscriberWrapper({
 }) {
   const loaded = useTaskLoaded(taskId);
   const inProgress = state === DefaultTaskState.InProgress;
+  const previousState = usePrevious(state);
+
+  useEffect(() => {
+    if (previousState === DefaultTaskState.InProgress && !inProgress) {
+      setMessages(taskId, (prevMessages) => prevMessages.filter((message) => !isLoadingMessage(message)));
+    }
+  }, [previousState, inProgress, taskId]);
 
   if (!isActive && !inProgress && !loaded) {
     return null;
   }
 
-  return <TaskEventSubscriber baseDir={baseDir} taskId={taskId} state={state} />;
+  return <TaskEventSubscriber baseDir={baseDir} taskId={taskId} />;
 });
 
 TaskEventSubscriberWrapper.displayName = 'TaskEventSubscriberWrapper';

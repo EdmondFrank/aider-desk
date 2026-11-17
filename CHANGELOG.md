@@ -8,6 +8,7 @@
 - improved the updated files diff modal to be usable on portrait mobile with slide-in file and change request drawers
 - renamed bundled creator skills to create-agent and create-extension and added matching slash-command aliases
 - added AIDER_DESK_DISABLE_RECOVERY to suppress automatic task recovery and startup journal cleanup in secondary instances
+- added strikethrough styling for deleted files in the Updated Files tree
 
 ## [0.92.0]
 

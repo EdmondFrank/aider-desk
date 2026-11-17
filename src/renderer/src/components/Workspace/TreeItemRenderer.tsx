@@ -216,6 +216,7 @@ export const TreeItemRenderer = ({
             ? 'context-dimmed'
             : 'text-text-primary',
       type === 'updated' && !item.isFolder && 'cursor-pointer hover:text-text-tertiary',
+      type === 'updated' && !item.isFolder && updatedFile?.isDeleted && 'line-through',
     );
 
     const renderFile = () => {

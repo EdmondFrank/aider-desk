@@ -36,6 +36,39 @@ const createProps = () => ({
 });
 
 describe('TreeItemRenderer updated files', () => {
+  it.each([undefined, false, true])('strikes through only deleted filenames (isDeleted: %s)', (isDeleted) => {
+    const props = createProps();
+    props.updatedFiles[0] = { path: 'src/file.ts', additions: 0, deletions: 1, isDeleted };
+
+    render(<TreeItemRenderer {...props} />);
+
+    const title = screen.getByText('file.ts');
+    expect(title.classList.contains('line-through')).toBe(isDeleted === true);
+    expect(screen.getByText('-1')).not.toHaveClass('line-through');
+    fireEvent.click(title);
+    expect(props.onFileDiffClick).toHaveBeenCalledWith(props.updatedFiles[0]);
+    fireEvent.click(screen.getByRole('button'));
+    expect(props.onRevertFile).toHaveBeenCalledWith('src/file.ts');
+  });
+
+  it('does not strike through filenames outside Updated Files', () => {
+    const props = createProps();
+    props.updatedFiles[0].isDeleted = true;
+
+    render(<TreeItemRenderer {...props} type="project" />);
+
+    expect(screen.getByText('file.ts')).not.toHaveClass('line-through');
+  });
+
+  it('does not strike through folders', () => {
+    const props = createProps();
+    props.updatedFiles[0].isDeleted = true;
+
+    render(<TreeItemRenderer {...props} item={{ ...item, isFolder: true }} />);
+
+    expect(screen.getByText('file.ts')).not.toHaveClass('line-through');
+  });
+
   it('shows a muted add-to-Git action for untracked files', () => {
     const props = createProps();
     const onAddFileToGit = vi.fn();

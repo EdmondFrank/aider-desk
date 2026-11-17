@@ -2863,7 +2863,18 @@ export class GitManager {
   private parseUpdatedFileNumstat(worktreePath: string, output: string): UpdatedFile[] {
     const entries = output.split('\0');
     const files: UpdatedFile[] = [];
+    const deletedPaths = new Set<string>();
     for (let index = 0; index < entries.length; index++) {
+      if (entries[index].startsWith(':')) {
+        const status = entries[index].split(' ').at(-1) || '';
+        const path = entries[++index];
+        if (status === 'D') {
+          deletedPaths.add(path);
+        } else if (status.startsWith('R') || status.startsWith('C')) {
+          index++;
+        }
+        continue;
+      }
       const parts = entries[index].split('\t');
       if (parts.length < 3) {
         continue;
@@ -2879,7 +2890,14 @@ export class GitManager {
       if (!filePath || !Number.isFinite(additions) || !Number.isFinite(deletions) || this.isSymlinkPath(worktreePath, filePath)) {
         continue;
       }
-      files.push({ path: filePath, ...(previousPath ? { previousPath } : {}), additions, deletions, diff: '' });
+      files.push({
+        path: filePath,
+        ...(previousPath ? { previousPath } : {}),
+        ...(deletedPaths.has(filePath) ? { isDeleted: true } : {}),
+        additions,
+        deletions,
+        diff: '',
+      });
     }
     return files;
   }
@@ -2913,9 +2931,12 @@ export class GitManager {
     // 2. For each commit, get its files (diffs are lazy loaded via getFileDiff)
     for (const commit of commits) {
       try {
-        const { stdout: numstatOutput } = await execWithShellPath(['git', 'diff-tree', '--no-commit-id', '-r', '-M', '--numstat', '-z', commit.hash, '--'], {
-          cwd: worktreePath,
-        });
+        const { stdout: numstatOutput } = await execWithShellPath(
+          ['git', 'diff-tree', '--no-commit-id', '-r', '-M', '--raw', '--numstat', '-z', commit.hash, '--'],
+          {
+            cwd: worktreePath,
+          },
+        );
         for (const file of this.parseUpdatedFileNumstat(worktreePath, numstatOutput)) {
           files.push({ ...file, commitHash: commit.hash, commitMessage: commit.message });
         }
@@ -2935,7 +2956,7 @@ export class GitManager {
     }
 
     try {
-      const { stdout: uncommittedNumstat } = await execWithShellPath('git diff --numstat -z -M HEAD', {
+      const { stdout: uncommittedNumstat } = await execWithShellPath('git diff --raw --numstat -z -M HEAD', {
         cwd: worktreePath,
       });
 
@@ -2971,7 +2992,7 @@ export class GitManager {
     try {
       // git diff (without ...) compares the base directly to the working tree,
       // including both committed and uncommitted changes.
-      const { stdout: numstatOutput } = await execWithShellPath(['git', 'diff', '--numstat', '-z', '-M', base, '--'], {
+      const { stdout: numstatOutput } = await execWithShellPath(['git', 'diff', '--raw', '--numstat', '-z', '-M', base, '--'], {
         cwd: worktreePath,
       });
 
@@ -2995,7 +3016,7 @@ export class GitManager {
       return await this.getNoHeadUpdatedFiles(worktreePath);
     }
 
-    const { stdout } = await execWithShellPath('git diff --numstat -z -M HEAD', {
+    const { stdout } = await execWithShellPath('git diff --raw --numstat -z -M HEAD', {
       cwd: worktreePath,
     });
 
@@ -3014,7 +3035,7 @@ export class GitManager {
     const files: UpdatedFile[] = [];
 
     try {
-      const { stdout } = await execWithShellPath(`git diff --numstat -z -M ${EMPTY_TREE_HASH}`, {
+      const { stdout } = await execWithShellPath(`git diff --raw --numstat -z -M ${EMPTY_TREE_HASH}`, {
         cwd: worktreePath,
       });
 

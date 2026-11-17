@@ -79,7 +79,7 @@ describe('GitManager - getUpdatedFiles symlink filtering', () => {
       if (command === 'git rev-parse HEAD') {
         return { stdout: 'abc123\n', stderr: '' };
       }
-      if (command === 'git diff --numstat -z -M HEAD') {
+      if (command === 'git diff --raw --numstat -z -M HEAD') {
         return { stdout: '3\t2\tsrc/main/file.ts\0-\t-\tresources/linux\0', stderr: '' };
       }
       return { stdout: '', stderr: '' };
@@ -107,7 +107,7 @@ describe('GitManager - getUpdatedFiles symlink filtering', () => {
       if (command === 'git merge-base HEAD main') {
         return { stdout: 'abc123\n', stderr: '' };
       }
-      if (command === 'git diff --numstat -z -M abc123 --') {
+      if (command === 'git diff --raw --numstat -z -M abc123 --') {
         return { stdout: '5\t1\tsrc/app.ts\0-\t-\tnode_modules\0', stderr: '' };
       }
       return { stdout: '', stderr: '' };
@@ -123,7 +123,7 @@ describe('GitManager - getUpdatedFiles symlink filtering', () => {
     expect(result).toHaveLength(1);
     expect(result[0].path).toBe('src/app.ts');
     expect(execWithShellPath).toHaveBeenCalledWith(['git', 'merge-base', 'HEAD', 'main'], { cwd: testPath });
-    expect(execWithShellPath).toHaveBeenCalledWith(['git', 'diff', '--numstat', '-z', '-M', 'abc123', '--'], { cwd: testPath });
+    expect(execWithShellPath).toHaveBeenCalledWith(['git', 'diff', '--raw', '--numstat', '-z', '-M', 'abc123', '--'], { cwd: testPath });
   });
 
   it('should fall back to mainBranch when merge-base fails in worktree flat mode', async () => {
@@ -134,7 +134,7 @@ describe('GitManager - getUpdatedFiles symlink filtering', () => {
       if (command.startsWith('git merge-base HEAD')) {
         throw new Error('fatal: ambiguous argument');
       }
-      if (command === 'git diff --numstat -z -M main --') {
+      if (command === 'git diff --raw --numstat -z -M main --') {
         return { stdout: '5\t1\tsrc/app.ts\0', stderr: '' };
       }
       return { stdout: '', stderr: '' };
@@ -149,7 +149,7 @@ describe('GitManager - getUpdatedFiles symlink filtering', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].path).toBe('src/app.ts');
-    expect(execWithShellPath).toHaveBeenCalledWith(['git', 'diff', '--numstat', '-z', '-M', 'main', '--'], { cwd: testPath });
+    expect(execWithShellPath).toHaveBeenCalledWith(['git', 'diff', '--raw', '--numstat', '-z', '-M', 'main', '--'], { cwd: testPath });
   });
 
   it('should filter out symlink paths in worktree grouped uncommitted changes', async () => {
@@ -160,13 +160,13 @@ describe('GitManager - getUpdatedFiles symlink filtering', () => {
       if (command.startsWith('git log')) {
         return { stdout: 'abc123|Test commit\n', stderr: '' };
       }
-      if (command.startsWith('git diff-tree --no-commit-id -r -M --numstat -z abc123')) {
+      if (command.startsWith('git diff-tree --no-commit-id -r -M --raw --numstat -z abc123')) {
         return { stdout: '2\t1\tsrc/main/file.ts\0-\t-\tresources/linux\0', stderr: '' };
       }
       if (command === 'git rev-parse HEAD') {
         return { stdout: 'abc123\n', stderr: '' };
       }
-      if (command === 'git diff --numstat -z -M HEAD') {
+      if (command === 'git diff --raw --numstat -z -M HEAD') {
         return { stdout: '1\t1\tsrc/uncommitted.ts\0-\t-\tresources/linux\0', stderr: '' };
       }
       return { stdout: '', stderr: '' };
@@ -193,7 +193,7 @@ describe('GitManager - getUpdatedFiles symlink filtering', () => {
       if (command.startsWith('git log')) {
         return { stdout: 'abc123|Test commit\n', stderr: '' };
       }
-      if (command.startsWith('git diff-tree --no-commit-id -r -M --numstat -z abc123')) {
+      if (command.startsWith('git diff-tree --no-commit-id -r -M --raw --numstat -z abc123')) {
         return { stdout: '2\t1\tsrc/main/file.ts\0-\t-\tresources/linux\0', stderr: '' };
       }
       if (command === 'git rev-parse HEAD') {
@@ -231,7 +231,7 @@ describe('GitManager - untracked files', () => {
   it('should preserve tracked files with unstaged changes', async () => {
     (execWithShellPath as Mock).mockImplementation(async (input: string | string[]) => {
       const command = Array.isArray(input) ? input.join(' ') : input;
-      if (command === 'git diff --numstat -z -M HEAD') {
+      if (command === 'git diff --raw --numstat -z -M HEAD') {
         return { stdout: '1\t1\tsrc/modified.ts\0', stderr: '' };
       }
       if (command.startsWith('git diff --unified=3 HEAD')) {
@@ -456,7 +456,7 @@ describe('GitManager - updated files process failures', () => {
     vi.mocked(existsSync).mockReturnValue(false);
   });
 
-  it.each(['git rev-parse HEAD', 'git diff --numstat -z -M HEAD', 'git ls-files --others --exclude-standard -z', 'git diff --name-only --diff-filter=U'])(
+  it.each(['git rev-parse HEAD', 'git diff --raw --numstat -z -M HEAD', 'git ls-files --others --exclude-standard -z', 'git diff --name-only --diff-filter=U'])(
     'should stop refreshing when the directory disappears during %s',
     async (failedCommand) => {
       const commands: string[] = [];

@@ -346,6 +346,7 @@ export interface UpdatedFile {
   commitMessage?: string;
   hasConflicts?: boolean;
   isUntracked?: boolean;
+  isDeleted?: boolean;
 }
 
 export interface UpdatedFilesUpdatedData {

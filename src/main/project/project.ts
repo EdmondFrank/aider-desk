@@ -32,7 +32,7 @@ import { GitManager } from '@/git';
 import { MemoryManager } from '@/memory/memory-manager';
 import { PromptsManager } from '@/prompts';
 import { ExtensionManager } from '@/extensions/extension-manager';
-import { AIDER_DESK_TASKS_DIR, AIDER_DESK_WATCH_FILES_LOCK } from '@/constants';
+import { AIDER_DESK_TASKS_DIR, AIDER_DESK_WATCH_FILES_LOCK, DISABLE_RECOVERY } from '@/constants';
 import { PythonDependenciesInstaller } from '@/python-dependencies-installer';
 import { determineMainModel } from '@/utils';
 import { FileWatcherManager } from '@/file-watcher-manager';
@@ -87,6 +87,10 @@ export class Project {
         await this.extensionManager.dispatchEvent('onProjectStarted', { baseDir: this.baseDir }, this);
         this.eventManager.sendProjectStarted(this.baseDir);
         await this.tasksLoadingPromise;
+        if (DISABLE_RECOVERY) {
+          logger.info('Skipping task recovery because AIDER_DESK_DISABLE_RECOVERY is enabled', { baseDir: this.baseDir });
+          return;
+        }
         for (const task of this.tasks.values()) {
           if (task.task.state !== DefaultTaskState.InProgress) {
             task.durabilityManager.clear();
@@ -294,13 +298,15 @@ export class Project {
       });
 
       await this.indexTaskMetadata(taskDirs);
-      const retainedTaskIds = taskDirs.filter((taskId) => {
-        const data = this.tasks.get(taskId)?.task ?? this.deferredTasks.get(taskId);
-        return !data || data.state === DefaultTaskState.InProgress;
-      });
-      const deletedExecutions = this.dataManager.cleanupAgentExecutions(this.baseDir, retainedTaskIds);
-      if (deletedExecutions > 0) {
-        logger.info('Removed stale agent execution journals', { baseDir: this.baseDir, deletedExecutions });
+      if (!DISABLE_RECOVERY) {
+        const retainedTaskIds = taskDirs.filter((taskId) => {
+          const data = this.tasks.get(taskId)?.task ?? this.deferredTasks.get(taskId);
+          return !data || data.state === DefaultTaskState.InProgress;
+        });
+        const deletedExecutions = this.dataManager.cleanupAgentExecutions(this.baseDir, retainedTaskIds);
+        if (deletedExecutions > 0) {
+          logger.info('Removed stale agent execution journals', { baseDir: this.baseDir, deletedExecutions });
+        }
       }
 
       for (const taskId of taskDirs) {

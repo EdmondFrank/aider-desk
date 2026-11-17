@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToolRecoveryMode } from '@common/types';
 
 import { Task } from '../task';
@@ -6,7 +6,19 @@ import { Task } from '../task';
 import { DurabilityManager } from '@/agent/durability/durability-manager';
 import { createMockAgentProfile } from '@/__tests__/mocks';
 
+const recoveryFlags = vi.hoisted(() => ({ disabled: false }));
+
+vi.mock('@/constants', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/constants')>()),
+  get DISABLE_RECOVERY() {
+    return recoveryFlags.disabled;
+  },
+}));
 vi.mock('@/logger');
+
+afterEach(() => {
+  recoveryFlags.disabled = false;
+});
 
 const createFixture = () => {
   const rows = new Map<string, string>();
@@ -60,6 +72,23 @@ const createFixture = () => {
 };
 
 describe('Task durability lifecycle', () => {
+  it('does not flush cancelled executions or resume tasks when recovery is disabled', async () => {
+    const { task, fake, manager, storage } = createFixture();
+    const flushCancelled = vi.spyOn(manager, 'flushCancelled');
+    storage.deleteAgentExecution.mockClear();
+    storage.saveAgentExecution.mockClear();
+    recoveryFlags.disabled = true;
+
+    await Task.prototype.recoverDurableExecutions.call(task);
+
+    expect(flushCancelled).not.toHaveBeenCalled();
+    expect(fake.init).not.toHaveBeenCalled();
+    expect(fake.runPromptInAgent).not.toHaveBeenCalled();
+    expect(storage.deleteAgentExecution).not.toHaveBeenCalled();
+    expect(storage.saveAgentExecution).not.toHaveBeenCalled();
+    expect(manager.get('root')).toBeDefined();
+  });
+
   it('localizes missing-profile recovery errors without executing the task', async () => {
     const { task, fake, manager } = createFixture();
     Object.assign(fake, { getTaskAgentProfile: vi.fn(async () => null), store: { getSettings: () => ({ language: 'zh' }) }, addLogMessage: vi.fn() });

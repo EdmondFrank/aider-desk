@@ -103,6 +103,7 @@ import {
   AIDER_DESK_TASKS_DIR,
   AIDER_DESK_TMP_DIR,
   AIDER_DESK_TODOS_FILE,
+  DISABLE_RECOVERY,
   WORKTREE_BRANCH_PREFIX,
 } from '@/constants';
 import { Agent, AgentProfileManager, McpConfigManager, McpManager } from '@/agent';
@@ -2970,6 +2971,9 @@ export class Task {
   }
 
   public async recoverDurableExecutions(): Promise<void> {
+    if (DISABLE_RECOVERY) {
+      return;
+    }
     await this.durabilityManager.flushCancelled(this.persistDurableMessages.bind(this));
     if (this.store.getSettings().resumeAgentAfterRestart === false) {
       return;

@@ -9,6 +9,14 @@ import type { Dirent } from 'fs';
 
 import { INTERNAL_TASK_ID } from '@/task';
 
+const recoveryFlags = vi.hoisted(() => ({ disabled: false }));
+
+vi.mock('@/constants', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/constants')>()),
+  get DISABLE_RECOVERY() {
+    return recoveryFlags.disabled;
+  },
+}));
 vi.mock('@/logger');
 vi.mock('@/project/migrations', () => ({ migrateSessionsToTasks: vi.fn() }));
 vi.mock('fs/promises');
@@ -35,6 +43,7 @@ describe('Project startup journal cleanup', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    recoveryFlags.disabled = false;
     metadata.clear();
     const project: Project = Object.assign(Object.create(Project.prototype), {
       baseDir: '/project',
@@ -70,6 +79,18 @@ describe('Project startup journal cleanup', () => {
     expect(cleanupAgentExecutions.mock.invocationCallOrder[0]).toBeLessThan(prepareTask.mock.invocationCallOrder[0]);
     expect(prepareTask).toHaveBeenCalledWith('archived-running');
     expect(prepareTask).not.toHaveBeenCalledWith('archived-interrupted');
+  });
+
+  it('preserves journals when recovery is disabled while still loading tasks', async () => {
+    recoveryFlags.disabled = true;
+    metadata.set('running', { state: DefaultTaskState.InProgress });
+    metadata.set('done', { state: DefaultTaskState.Done });
+
+    await internals.loadTasks();
+
+    expect(cleanupAgentExecutions).not.toHaveBeenCalled();
+    expect(prepareTask).toHaveBeenCalledWith('running');
+    expect(prepareTask).toHaveBeenCalledWith('done');
   });
 
   it('cleans all journals when no task folders remain', async () => {
@@ -124,7 +145,8 @@ describe('Project startup journal cleanup', () => {
 });
 
 describe('Project recovery state gating', () => {
-  it('recovers only InProgress tasks and clears all other instantiated task journals', async () => {
+  it.each([false, true])('gates recovery and journal clearing when disabled=%s', async (disabled) => {
+    recoveryFlags.disabled = disabled;
     const running = createTask(DefaultTaskState.InProgress);
     const interrupted = createTask(DefaultTaskState.Interrupted);
     const archivedInterrupted = { ...createTask(DefaultTaskState.Interrupted), task: { state: DefaultTaskState.Interrupted, archived: true } };
@@ -155,11 +177,11 @@ describe('Project recovery state gating', () => {
 
     await project.start();
 
-    expect(running.recoverDurableExecutions).toHaveBeenCalledOnce();
+    expect(running.recoverDurableExecutions).toHaveBeenCalledTimes(disabled ? 0 : 1);
     expect(running.durabilityManager.clear).not.toHaveBeenCalled();
     for (const task of [interrupted, archivedInterrupted, done, review, todo, unspecified]) {
       expect(task.recoverDurableExecutions).not.toHaveBeenCalled();
-      expect(task.durabilityManager.clear).toHaveBeenCalledOnce();
+      expect(task.durabilityManager.clear).toHaveBeenCalledTimes(disabled ? 0 : 1);
     }
   });
 });

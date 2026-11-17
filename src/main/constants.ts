@@ -66,6 +66,7 @@ export const HEADLESS_MODE = process.env.AIDER_DESK_HEADLESS === 'true';
 export const READONLY_MODE = process.env.AIDER_DESK_READONLY === 'true';
 export const APP_TYPE = process.env.AIDER_DESK_APP_TYPE || (HEADLESS_MODE ? 'docker' : 'electron');
 export const DISABLE_MENU = process.env.AIDER_DESK_DISABLE_MENU === 'true';
+export const DISABLE_RECOVERY = process.env.AIDER_DESK_DISABLE_RECOVERY === 'true';
 export const AUTH_USERNAME = process.env.AIDER_DESK_USERNAME;
 export const AUTH_PASSWORD = process.env.AIDER_DESK_PASSWORD;
 export const CORS_ALLOWED_ORIGINS = process.env.AIDER_DESK_CORS_ALLOWED_ORIGINS;

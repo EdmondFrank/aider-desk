@@ -753,20 +753,15 @@ export const ProjectView = ({ projectDir, isProjectActive = false, initialTaskId
 
   const handleUpdateOptimisticTaskState = useCallback(
     (taskId: string, taskState: string) => {
-      startTransition(() => {
-        setOptimisticTasks((prev) =>
-          prev.map((task) =>
-            task.id === taskId
-              ? {
-                  ...task,
-                  state: taskState,
-                }
-              : task,
-          ),
-        );
-      });
+      const task = useProjectStore
+        .getState()
+        .projectTasksMap.get(projectDir)
+        ?.find((task) => task.id === taskId);
+      if (task) {
+        updateProjectTask(projectDir, { ...task, state: taskState });
+      }
     },
-    [setOptimisticTasks],
+    [projectDir],
   );
 
   useEffect(() => {

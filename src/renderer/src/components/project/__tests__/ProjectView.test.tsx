@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TaskCreatedData, TaskData, TaskStateData } from '@common/types';
+import { DefaultTaskState, TaskCreatedData, TaskData, TaskStateData } from '@common/types';
 import { HotkeysProvider } from 'react-hotkeys-hook';
 
 import { ProjectView } from '../ProjectView';
 
+import { useProjectStore } from '@/stores/projectStore';
 import { releaseTaskFiles } from '@/stores/taskFilesStore';
 import { useApi } from '@/contexts/ApiContext';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -124,10 +125,21 @@ vi.mock('@/components/project/TaskSidebar/TaskSidebar', async () => {
 });
 
 vi.mock('../TaskView', () => ({
-  TaskView: ({ task, isActive }: { task: TaskData; isActive?: boolean }) => (
-    <div data-testid="task-view" data-active={isActive ? 'true' : 'false'}>
-      {task.name}
-    </div>
+  TaskView: ({
+    task,
+    isActive,
+    updateOptimisticTaskState,
+  }: {
+    task: TaskData;
+    isActive?: boolean;
+    updateOptimisticTaskState: (taskId: string, taskState: string) => void;
+  }) => (
+    <>
+      <div data-testid="task-view" data-active={isActive ? 'true' : 'false'} data-state={task.state}>
+        {task.name}
+      </div>
+      <button onClick={() => updateOptimisticTaskState(task.id, DefaultTaskState.InProgress)}>Submit prompt</button>
+    </>
   ),
 }));
 
@@ -195,6 +207,40 @@ describe('ProjectView', () => {
       expect(mockApi.startProject).toHaveBeenCalledWith(projectDir);
       expect(mockApi.getTasks).toHaveBeenCalledWith(projectDir, false);
     });
+  });
+
+  it('keeps the submitted task in progress until a backend event reconciles its state', async () => {
+    const task = { id: 'task-1', name: 'Task 1', state: DefaultTaskState.Todo } as TaskData;
+    mockApi.getTasks.mockResolvedValue([task]);
+    const view = render(<ProjectView projectDir={projectDir} isProjectActive={true} initialTaskId={task.id} />);
+
+    await waitFor(() => expect(screen.getByTestId('task-view')).toHaveAttribute('data-state', DefaultTaskState.Todo));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit prompt' }));
+
+    await waitFor(() => expect(screen.getByTestId('task-view')).toHaveAttribute('data-state', DefaultTaskState.InProgress));
+    expect(
+      useProjectStore
+        .getState()
+        .projectTasksMap.get(projectDir)
+        ?.find((item) => item.id === task.id)?.state,
+    ).toBe(DefaultTaskState.InProgress);
+    expect(mockApi.updateTask).not.toHaveBeenCalled();
+
+    view.rerender(<ProjectView projectDir={projectDir} isProjectActive={false} initialTaskId={task.id} />);
+    expect(screen.getByTestId('task-view')).toHaveAttribute('data-state', DefaultTaskState.InProgress);
+
+    act(() => {
+      const onTaskUpdated = mockApi.addTaskUpdatedListener.mock.calls[0][1];
+      onTaskUpdated({ ...task, state: DefaultTaskState.Done });
+    });
+
+    await waitFor(() => expect(screen.getByTestId('task-view')).toHaveAttribute('data-state', DefaultTaskState.Done));
+    expect(
+      useProjectStore
+        .getState()
+        .projectTasksMap.get(projectDir)
+        ?.find((item) => item.id === task.id)?.state,
+    ).toBe(DefaultTaskState.Done);
   });
 
   it('loads archived tasks only after the archive filter is enabled', async () => {

@@ -133,7 +133,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 137
+      "installCount": 138
     },
     {
       "id": "protected-paths",
@@ -698,7 +698,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 168
+      "installCount": 170
     },
     {
       "id": "dbx",

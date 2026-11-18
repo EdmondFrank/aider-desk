@@ -39,7 +39,7 @@ npm install -g agent-browser && agent-browser install
 
 ## UI
 
-By default, screenshots are saved to `agent-browser-screenshots/` inside the task's data directory (`.aider-desk/tasks/<task id>/`), so they never pollute the working repository; a custom path can be passed and is resolved relative to the task working directory.
+The screenshot tool saves to `agent-browser-screenshots/` inside the task's data directory (`.aider-desk/tasks/<task id>/`), outside the working tree. Pass an optional `filename` (for example, `homepage.png`), not a path. If the filename has no extension, `.png` is added; if omitted, the tool generates a timestamped filename.
 
 All `agent_browser_*` tool messages are rendered with custom task-message components. The `agent_browser_screenshot` component shows the saved file path and the screenshot image inline (click to enlarge); the other tools (`open`, `snapshot`, `click`, `fill`, `close`, `execute`, `install`) share one component that shows a tool-specific title, arg summary rows (URL, selector, command, session, …) and the CLI output in a scrollable code block. The screenshot image is also attached to the tool result itself (`media` part), so the model can analyze it immediately without reading the file from disk.
 

@@ -70,8 +70,8 @@
 
   const result = parseContent(message.content);
   const savedPathMatch = /saved to (.+)\. The image is attached/.exec(result.text ?? '');
-  const filePath = (typeof message.args?.path === 'string' && message.args.path) || (savedPathMatch ? savedPathMatch[1] : '');
-  const fileName = filePath ? filePath.split(/[\\/]/).pop() : 'screenshot';
+  const filePath = savedPathMatch?.[1] || (typeof message.args?.path === 'string' ? message.args.path : '');
+  const fileName = filePath ? filePath.split(/[\\/]/).pop() : message.args?.filename || 'screenshot';
   const dataUrl = result.media ? `data:${result.media.mimeType};base64,${result.media.data}` : null;
 
   const title = (

@@ -180,20 +180,6 @@ const ensureDir = (dir: string): boolean => {
   }
 };
 
-const resolveScreenshotPath = (taskDir: string, path: string): string => {
-  const absolutePath = isAbsolute(path) ? path : join(taskDir, path);
-  ensureDir(dirname(absolutePath));
-  return absolutePath;
-};
-
-const defaultScreenshotPath = (context: ExtensionContext): string => {
-  const absolutePath = join(getTaskDataDir(context), 'agent-browser-screenshots', `screenshot-${Date.now()}.png`);
-  if (!ensureDir(dirname(absolutePath))) {
-    return '';
-  }
-  return absolutePath;
-};
-
 const inferScreenshotMimeType = (filePath: string): string => {
   const extension = filePath.split('.').pop()?.toLowerCase() ?? '';
   if (extension === 'jpg' || extension === 'jpeg') {
@@ -205,25 +191,9 @@ const inferScreenshotMimeType = (filePath: string): string => {
   return 'image/png';
 };
 
-const extractSavedScreenshotPath = (explicitPath: string | undefined, taskDir: string, cliResult: CliRunResult): string | null => {
-  if (explicitPath) {
-    return isAbsolute(explicitPath) ? explicitPath : join(taskDir, explicitPath);
-  }
-  const match = /((?:[A-Za-z]:[\\/]|\/)[^\r\n]+?\.(?:png|jpe?g|webp))/i.exec(cliResult.stdout);
-  return match ? match[1] : null;
-};
-
-const attachScreenshotMedia = async (
-  taskDir: string,
-  input: z.infer<typeof screenshotSchema>,
-  cliResult: CliRunResult,
-): Promise<ToolResult> => {
+const attachScreenshotMedia = async (savedPath: string, cliResult: CliRunResult): Promise<ToolResult> => {
   const baseResult = cliResultToToolResult(cliResult);
   if (baseResult.isError) {
-    return baseResult;
-  }
-  const savedPath = extractSavedScreenshotPath(input.path, taskDir, cliResult);
-  if (!savedPath || !existsSync(savedPath)) {
     return baseResult;
   }
   try {
@@ -294,24 +264,12 @@ const defineTool = <TSchema extends ToolSchema>(
   inputSchema: TSchema,
   buildArgs: (input: z.infer<TSchema>, context: ExtensionContext) => string[],
   timeoutMs: number = DEFAULT_COMMAND_TIMEOUT_MS,
-  transformResult?: (input: z.infer<TSchema>, cliResult: CliRunResult) => ToolResult | Promise<ToolResult>,
 ): ToolDefinition<TSchema> => ({
   name,
   description,
   inputSchema,
-  execute: (input, signal, context) => {
-    const transform: CliResultTransform | undefined = transformResult
-      ? (cliResult) => transformResult(input as z.infer<TSchema>, cliResult)
-      : undefined;
-    return runToolCommand(
-      context,
-      buildArgs(input as z.infer<TSchema>, context),
-      readSessionInput(input as Record<string, unknown>),
-      timeoutMs,
-      signal,
-      transform,
-    );
-  },
+  execute: (input, signal, context) =>
+    runToolCommand(context, buildArgs(input as z.infer<TSchema>, context), readSessionInput(input as Record<string, unknown>), timeoutMs, signal),
 });
 
 const sessionSchema = z
@@ -355,11 +313,12 @@ const fillSchema = z.object({
 });
 
 const screenshotSchema = z.object({
-  path: z
+  filename: z
     .string()
+    .regex(/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/, 'Use a filename with letters, numbers, hyphens, underscores, or periods, not a path.')
     .optional()
     .describe(
-      'File path for the screenshot, relative to the task working directory. When omitted, the screenshot is saved to agent-browser-screenshots/ in the task data directory (outside of the working tree).',
+      'Optional filename only, such as homepage.png. Do not include a path. A name without an extension gets .png; omit the filename to use a timestamped name.',
     ),
   fullPage: z.boolean().optional().describe('Capture the entire page instead of the viewport (--full).'),
   session: sessionSchema,
@@ -428,7 +387,7 @@ const getSkillSourceDirs = (): string[] => {
 
 const metadata = {
   name: 'Agent Browser',
-  version: '1.0.0',
+  version: '1.0.1',
   description:
     'Browser automation for agents via the agent-browser CLI: navigate, snapshot pages as accessibility trees with element refs, click, fill, screenshot, and run any CLI command. Uses a globally installed agent-browser when available, otherwise the CLI bundled with this extension, and ships version-fresh agent-browser skills.',
   author: 'wladimiiir',
@@ -479,9 +438,7 @@ export default class AgentBrowserExtension implements Extension {
     ];
   }
 
-  getTools(context: ExtensionContext): ToolDefinition[] {
-    const taskDir = getTaskDir(context);
-
+  getTools(): ToolDefinition[] {
     return [
       defineTool(
         'agent_browser_execute',
@@ -528,24 +485,29 @@ export default class AgentBrowserExtension implements Extension {
         fillSchema,
         (input) => ['fill', input.selector, input.text],
       ),
-      defineTool(
-        'agent_browser_screenshot',
-        'Capture a screenshot of the current page state and return both the saved file path and the image itself (attached to the task as multimodal media), so no separate file read is needed. Use it to visually verify page state that a plain snapshot cannot capture.',
-        screenshotSchema,
-        (input) => {
-          const args = ['screenshot'];
-          const outputPath = input.path ? resolveScreenshotPath(taskDir, input.path) : defaultScreenshotPath(context);
-          if (outputPath) {
-            args.push(outputPath);
+      {
+        name: 'agent_browser_screenshot',
+        description:
+          'Capture a screenshot of the current page state and return both the saved file path and the image itself (attached to the task as multimodal media), so no separate file read is needed. Use it to visually verify page state that a plain snapshot cannot capture.',
+        inputSchema: screenshotSchema,
+        execute: async (input, signal, context) => {
+          const parsed = screenshotSchema.safeParse(input);
+          if (!parsed.success) {
+            return { content: [{ type: 'text', text: parsed.error.issues.map((issue) => issue.message).join(' ') }], isError: true };
           }
-          if (input.fullPage) {
+          const { filename = `screenshot-${Date.now()}.png`, fullPage, session } = parsed.data;
+          const directory = join(getTaskDataDir(context), 'agent-browser-screenshots');
+          if (!ensureDir(directory)) {
+            return { content: [{ type: 'text', text: `Could not create screenshot directory: ${directory}` }], isError: true };
+          }
+          const outputPath = join(directory, filename.includes('.') ? filename : `${filename}.png`);
+          const args = ['screenshot', outputPath];
+          if (fullPage) {
             args.push('--full');
           }
-          return args;
+          return runToolCommand(context, args, session, DEFAULT_COMMAND_TIMEOUT_MS, signal, (result) => attachScreenshotMedia(outputPath, result));
         },
-        DEFAULT_COMMAND_TIMEOUT_MS,
-        (input, cliResult) => attachScreenshotMedia(taskDir, input, cliResult),
-      ),
+      },
       defineTool(
         'agent_browser_close',
         'Close the browser managed for the current session, releasing its background daemon.',

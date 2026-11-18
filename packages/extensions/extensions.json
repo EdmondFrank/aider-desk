@@ -111,7 +111,7 @@
         "tools",
         "ui"
       ],
-      "installCount": 57
+      "installCount": 58
     },
     {
       "id": "theme",
@@ -133,7 +133,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 136
+      "installCount": 137
     },
     {
       "id": "protected-paths",
@@ -374,7 +374,7 @@
         "ui",
         "example"
       ],
-      "installCount": 22
+      "installCount": 23
     },
     {
       "id": "multi-model-run",
@@ -572,7 +572,7 @@
         "events",
         "ui"
       ],
-      "installCount": 46
+      "installCount": 47
     },
     {
       "id": "codegraph",
@@ -597,7 +597,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 60
+      "installCount": 62
     },
     {
       "id": "doom",

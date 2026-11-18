@@ -2104,6 +2104,10 @@
     "minimize": "Свернуть терминал",
     "addTerminal": "Добавить терминал"
   },
+  "projectTabs": {
+    "confirmCloseTitle": "Закрыть проект",
+    "confirmCloseMessage": "Вы уверены, что хотите закрыть «{{project}}»?"
+  },
   "contextMenu": {
     "copy": "Копировать",
     "paste": "Вставить",

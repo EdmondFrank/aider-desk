@@ -2116,6 +2116,10 @@
     "minimize": "最小化终端",
     "addTerminal": "添加新终端"
   },
+  "projectTabs": {
+    "confirmCloseTitle": "关闭项目",
+    "confirmCloseMessage": "确定要关闭“{{project}}”吗？"
+  },
   "contextMenu": {
     "copy": "复制",
     "paste": "粘贴",

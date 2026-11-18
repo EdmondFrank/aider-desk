@@ -2108,6 +2108,10 @@
     "minimize": "Minimize terminal",
     "addTerminal": "Add new terminal"
   },
+  "projectTabs": {
+    "confirmCloseTitle": "Close Project",
+    "confirmCloseMessage": "Are you sure you want to close \"{{project}}\"?"
+  },
   "contextMenu": {
     "copy": "Copy",
     "paste": "Paste",

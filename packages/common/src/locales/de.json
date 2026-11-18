@@ -2078,6 +2078,10 @@
     "minimize": "Terminal minimieren",
     "addTerminal": "Neues Terminal hinzufügen"
   },
+  "projectTabs": {
+    "confirmCloseTitle": "Projekt schließen",
+    "confirmCloseMessage": "Möchten Sie \"{{project}}\" wirklich schließen?"
+  },
   "contextMenu": {
     "copy": "Kopieren",
     "paste": "Einfügen",

@@ -2104,6 +2104,10 @@
     "minimize": "터미널 최소화",
     "addTerminal": "새 터미널 추가"
   },
+  "projectTabs": {
+    "confirmCloseTitle": "프로젝트 닫기",
+    "confirmCloseMessage": "\"{{project}}\"을(를) 닫으시겠습니까?"
+  },
   "contextMenu": {
     "copy": "복사",
     "paste": "붙여넣기",

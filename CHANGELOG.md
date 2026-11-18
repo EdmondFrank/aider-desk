@@ -13,6 +13,7 @@
 - fixed Thinking... remaining visible when opening tasks completed from another client
 - fixed tasks hanging on load when an extension asks a question during worktree creation
 - fixed long file paths not fitting into file tool message tooltips
+- improved project tabs to reveal the close button on hover with a confirmation dialog, and added a close button to the mobile project menu
 
 ## [0.92.0]
 

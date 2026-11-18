@@ -5,7 +5,7 @@ import { MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Tab, TabGroup, TabList, Listbox, ListboxButton, ListboxOption, ListboxOptions } from '@headlessui/react';
 import { clsx } from 'clsx';
 import { CgSpinner } from 'react-icons/cg';
-import { MdAdd, MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import { MdAdd, MdChevronLeft, MdChevronRight, MdClose } from 'react-icons/md';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, arrayMove, useSortable, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +14,7 @@ import { HiChevronDown, HiCheck } from 'react-icons/hi2';
 import type { DragEndEvent } from '@dnd-kit/core';
 
 import { MenuOption, useContextMenu } from '@/contexts/ContextMenuContext';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useProjectProcessingState } from '@/stores/projectStore';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useOS } from '@/hooks/useOS';
@@ -46,8 +47,21 @@ export const ProjectTabs = ({
   const [showLeftScrollButton, setShowLeftScrollButton] = useState(false);
   const [showRightScrollButton, setShowRightScrollButton] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [mobileProjectToClose, setMobileProjectToClose] = useState<string | null>(null);
   const { isMobile } = useResponsive();
   const os = useOS();
+  const { t } = useTranslation();
+
+  const handleConfirmMobileClose = () => {
+    if (mobileProjectToClose) {
+      onCloseProject(mobileProjectToClose);
+    }
+    setMobileProjectToClose(null);
+  };
+
+  const handleCancelMobileClose = () => {
+    setMobileProjectToClose(null);
+  };
 
   const checkScrollButtonsVisibility = () => {
     const container = tabsContainerRef.current;
@@ -137,7 +151,7 @@ export const ProjectTabs = ({
               </ListboxButton>
               <ListboxOptions className="absolute left-0 top-full z-50 mt-2 max-h-60 max-w-[300px] overflow-auto rounded-sm bg-bg-primary py-1 shadow-lg ring-1 ring-border-default focus:outline-none">
                 {openProjects.map((project) => (
-                  <MobileTabItem key={project.baseDir} project={project} />
+                  <MobileTabItem key={project.baseDir} project={project} onRequestClose={setMobileProjectToClose} />
                 ))}
               </ListboxOptions>
             </div>
@@ -150,6 +164,17 @@ export const ProjectTabs = ({
           <MdAdd className="h-5 w-5" />
         </button>
         <ExtensionComponentWrapper placement="header-left" projectDir={activeProject ?? undefined} />
+        {mobileProjectToClose && (
+          <ConfirmDialog
+            title={t('projectTabs.confirmCloseTitle')}
+            onConfirm={handleConfirmMobileClose}
+            onCancel={handleCancelMobileClose}
+            confirmButtonText={t('contextMenu.close')}
+            closeOnEscape
+          >
+            <p className="text-sm">{t('projectTabs.confirmCloseMessage', { project: mobileProjectToClose.split(/[\\/]/).pop() })}</p>
+          </ConfirmDialog>
+        )}
       </div>
     );
   }
@@ -213,17 +238,24 @@ export const ProjectTabs = ({
 
 type MobileTabItemProps = {
   project: ProjectData;
+  onRequestClose: (baseDir: string) => void;
 };
 
-const MobileTabItem = ({ project }: MobileTabItemProps) => {
+const MobileTabItem = ({ project, onRequestClose }: MobileTabItemProps) => {
   const isProcessing = useProjectProcessingState(project.baseDir);
+
+  const handleCloseClick = (event: MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onRequestClose(project.baseDir);
+  };
 
   return (
     <ListboxOption
       value={project.baseDir}
       className={({ focus, selected }) =>
         clsx(
-          'relative cursor-pointer select-none py-2 pl-9 pr-3 text-sm transition-colors',
+          'relative cursor-pointer select-none py-2 pl-9 pr-2 text-sm transition-colors',
           focus ? 'bg-bg-secondary-light text-text-primary' : 'text-text-muted',
           selected && 'text-text-primary font-medium',
         )
@@ -232,8 +264,17 @@ const MobileTabItem = ({ project }: MobileTabItemProps) => {
       {({ selected }) => (
         <>
           <div className="flex items-center gap-2">
-            <span className="block truncate">{project.baseDir.split(/[\\/]/).pop()}</span>
-            {isProcessing && <CgSpinner className="h-3 w-3 animate-spin text-text-primary flex-shrink-0" />}
+            <span className="block flex-1 min-w-0 truncate">{project.baseDir.split(/[\\/]/).pop()}</span>
+            {isProcessing ? (
+              <CgSpinner className="h-3 w-3 animate-spin text-text-primary flex-shrink-0" />
+            ) : (
+              <button
+                className="flex flex-shrink-0 items-center justify-center rounded-full p-1 hover:bg-bg-tertiary-strong transition-colors duration-200"
+                onClick={handleCloseClick}
+              >
+                <MdClose className="h-3.5 w-3.5 opacity-60 hover:opacity-100 transition-opacity duration-200" />
+              </button>
+            )}
           </div>
           {selected && (
             <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-text-tertiary">
@@ -261,6 +302,20 @@ const SortableTabItem = ({ project, isActive, onCloseProject, onCloseOtherProjec
   const { t } = useTranslation();
   const api = useApi();
   const isProcessing = useProjectProcessingState(project.baseDir);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+  const handleRequestClose = () => {
+    setShowCloseConfirm(true);
+  };
+
+  const handleConfirmClose = () => {
+    setShowCloseConfirm(false);
+    onCloseProject(project.baseDir);
+  };
+
+  const handleCancelClose = () => {
+    setShowCloseConfirm(false);
+  };
 
   const handleRightClick = (event: MouseEvent) => {
     event.preventDefault();
@@ -280,7 +335,7 @@ const SortableTabItem = ({ project, isActive, onCloseProject, onCloseOtherProjec
       },
       {
         label: t('contextMenu.close'),
-        action: () => onCloseProject(project.baseDir),
+        action: handleRequestClose,
       },
     ];
 
@@ -314,8 +369,19 @@ const SortableTabItem = ({ project, isActive, onCloseProject, onCloseOtherProjec
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="touch-none">
       <Tab onContextMenu={handleRightClick} className={({ selected }) => getProjectTabClassName(selected)}>
-        <ProjectTabContent baseDir={project.baseDir} isActive={isActive} isProcessing={isProcessing} onClose={() => onCloseProject(project.baseDir)} />
+        <ProjectTabContent baseDir={project.baseDir} isActive={isActive} isProcessing={isProcessing} onClose={handleRequestClose} />
       </Tab>
+      {showCloseConfirm && (
+        <ConfirmDialog
+          title={t('projectTabs.confirmCloseTitle')}
+          onConfirm={handleConfirmClose}
+          onCancel={handleCancelClose}
+          confirmButtonText={t('contextMenu.close')}
+          closeOnEscape
+        >
+          <p className="text-sm">{t('projectTabs.confirmCloseMessage', { project: project.baseDir.split(/[\\/]/).pop() })}</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 };

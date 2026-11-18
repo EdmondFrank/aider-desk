@@ -67,7 +67,7 @@ export const FileReadToolMessage = ({ message, onRemove, compact = false, onFork
       </div>
       <div className="text-xs text-text-primary flex flex-wrap gap-1 align-center">
         <span>{t('toolMessage.power.fileRead.title')}</span>
-        <Tooltip content={filePath}>
+        <Tooltip content={filePath} maxWidth="600px">
           <span>
             <CodeInline className="bg-bg-primary-light">{filePath.split(/[/\\]/).pop()}</CodeInline>
           </span>

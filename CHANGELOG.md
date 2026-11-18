@@ -12,6 +12,7 @@
 - redesigned extensions settings with source filtering (official, community, custom), compact extension list and README dialog
 - fixed Thinking... remaining visible when opening tasks completed from another client
 - fixed tasks hanging on load when an extension asks a question during worktree creation
+- fixed long file paths not fitting into file tool message tooltips
 
 ## [0.92.0]
 

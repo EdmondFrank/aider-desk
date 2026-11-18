@@ -19,7 +19,7 @@ export const CompactionSnippetBlock = ({ filePath }: Props) => {
           <RiFileEditLine className="w-3.5 h-3.5" />
         </div>
         <span className="text-2xs text-text-secondary">{t('compaction.fileEdited')}</span>
-        <Tooltip content={filePath}>
+        <Tooltip content={filePath} maxWidth="600px">
           <span>
             <CodeInline className="bg-bg-secondary-light">{fileName}</CodeInline>
           </span>

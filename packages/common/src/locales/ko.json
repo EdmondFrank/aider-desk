@@ -1244,6 +1244,8 @@
         "all": "전체",
         "loading": "메모리를 불러오는 중...",
         "empty": "메모리가 없습니다.",
+        "search": "검색",
+        "searchPlaceholder": "내용으로 메모리 필터링...",
         "delete": "삭제",
         "deleteAllForProject": "프로젝트의 모든 메모리 삭제",
         "deleteDialogTitle": "메모리 삭제",

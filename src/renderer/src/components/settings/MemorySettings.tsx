@@ -6,6 +6,7 @@ import { FaFolderOpen, FaRobot, FaTrash } from 'react-icons/fa';
 import { useMount } from '@reactuses/core';
 
 import { Checkbox } from '../common/Checkbox';
+import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import { Section } from '../common/Section';
 
@@ -51,6 +52,7 @@ export const MemorySettings = ({ settings, setSettings }: Props) => {
   const [memories, setMemories] = useState<MemoryEntry[] | null>(null);
   const [agentProfiles, setAgentProfiles] = useState<AgentProfile[]>([]);
   const [selectedScopeId, setSelectedScopeId] = useState<string>(ALL_SCOPES);
+  const [searchQuery, setSearchQuery] = useState('');
   const [memoryToDelete, setMemoryToDelete] = useState<MemoryEntry | null>(null);
   const [isDeleteScopeDialogOpen, setIsDeleteScopeDialogOpen] = useState(false);
 
@@ -153,11 +155,13 @@ export const MemorySettings = ({ settings, setSettings }: Props) => {
     if (!memories) {
       return null;
     }
-    if (selectedScopeId === ALL_SCOPES) {
-      return memories;
+    const scoped = selectedScopeId === ALL_SCOPES ? memories : memories.filter((m) => m.projectId === selectedScopeId);
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return scoped;
     }
-    return memories.filter((m) => m.projectId === selectedScopeId);
-  }, [memories, selectedScopeId]);
+    return scoped.filter((m) => m.content.toLowerCase().includes(query));
+  }, [memories, selectedScopeId, searchQuery]);
 
   const handleDeleteMemory = async () => {
     if (!memoryToDelete) {
@@ -218,7 +222,7 @@ export const MemorySettings = ({ settings, setSettings }: Props) => {
   };
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-6 flex flex-col">
       <Section id="memory-general" title={t('settings.memory.configuration')}>
         <div className="px-4 py-5 space-y-4">
           <div className="text-xs py-2">{t('settings.memory.description')}</div>
@@ -301,16 +305,27 @@ export const MemorySettings = ({ settings, setSettings }: Props) => {
         </div>
       </Section>
 
-      <Section id="memory-memories" title={t('settings.memory.memories.title')} className="flex-1 min-h-0 flex flex-col">
-        <div className="px-4 py-5 space-y-4 flex-1 min-h-0 flex flex-col">
+      <Section id="memory-memories" title={t('settings.memory.memories.title')}>
+        <div className="px-4 py-5 space-y-4">
           <div className="flex items-end justify-between gap-4">
-            <Select
-              label={t('settings.memory.memories.scope')}
-              value={selectedScopeId}
-              onChange={(value) => setSelectedScopeId(value)}
-              options={scopeOptions}
-              className="min-w-[400px]"
-            />
+            <div className="w-[400px]">
+              <Select
+                label={t('settings.memory.memories.scope')}
+                value={selectedScopeId}
+                onChange={(value) => setSelectedScopeId(value)}
+                options={scopeOptions}
+              />
+            </div>
+
+            <div className="flex-1 min-w-48">
+              <Input
+                label={t('settings.memory.memories.search')}
+                placeholder={t('settings.memory.memories.searchPlaceholder')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
 
             {selectedScopeId !== ALL_SCOPES && (
               <Button variant="contained" onClick={() => setIsDeleteScopeDialogOpen(true)} size="sm" color="danger">
@@ -319,44 +334,42 @@ export const MemorySettings = ({ settings, setSettings }: Props) => {
             )}
           </div>
 
-          <div className="border border-border-default-dark rounded-md overflow-hidden flex-1 min-h-0">
+          <div className="border border-border-default-dark rounded-md max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-track-bg-secondary-light scrollbar-thumb-bg-fourth hover:scrollbar-thumb-bg-tertiary">
             {!filteredMemories ? (
               <div className="px-4 py-3 text-xs text-text-secondary bg-bg-secondary">{t('settings.memory.memories.loading')}</div>
             ) : filteredMemories.length === 0 ? (
               <div className="px-4 py-3 text-xs text-text-secondary bg-bg-secondary">{t('settings.memory.memories.empty')}</div>
             ) : (
-              <div className="h-full overflow-y-auto scrollbar-thin scrollbar-track-bg-secondary-light scrollbar-thumb-bg-fourth hover:scrollbar-thumb-bg-tertiary">
-                <div className="divide-y divide-border-default-dark">
-                  {filteredMemories
-                    .slice()
-                    .sort((a, b) => b.timestamp - a.timestamp)
-                    .map((m) => (
-                      <div key={m.id} className="px-3 py-2.5 bg-bg-secondary flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-xs text-text-muted flex flex-wrap gap-x-1 gap-y-0.5 leading-4">
-                            {m.projectId && (
-                              <span>
-                                <CodeInline>{getScopeLabel(m.projectId)}</CodeInline>
-                              </span>
-                            )}
+              <div className="divide-y divide-border-default-dark">
+                {filteredMemories
+                  .slice()
+                  .sort((a, b) => b.timestamp - a.timestamp)
+                  .map((m) => (
+                    <div key={m.id} className="px-3 py-2.5 bg-bg-secondary flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs text-text-muted flex flex-wrap gap-x-1 gap-y-0.5 leading-4">
+                          {m.projectId && (
                             <span>
-                              <CodeInline>{m.type}</CodeInline>
+                              <CodeInline>{getScopeLabel(m.projectId)}</CodeInline>
                             </span>
-                          </div>
-                          <div className="text-2xs text-text-primary mt-1 whitespace-pre-wrap break-words">{m.content}</div>
+                          )}
+                          <span>
+                            <CodeInline>{m.type}</CodeInline>
+                          </span>
                         </div>
-
-                        <div className="flex-shrink-0">
-                          <IconButton
-                            icon={<FaTrash className="w-3.5 h-3.5" />}
-                            onClick={() => setMemoryToDelete(m)}
-                            className="p-1.5 hover:bg-bg-tertiary hover:text-error rounded-md"
-                            tooltip={t('settings.memory.memories.delete')}
-                          />
-                        </div>
+                        <div className="text-2xs text-text-primary mt-1 whitespace-pre-wrap break-words">{m.content}</div>
                       </div>
-                    ))}
-                </div>
+
+                      <div className="flex-shrink-0">
+                        <IconButton
+                          icon={<FaTrash className="w-3.5 h-3.5" />}
+                          onClick={() => setMemoryToDelete(m)}
+                          className="p-1.5 hover:bg-bg-tertiary hover:text-error rounded-md"
+                          tooltip={t('settings.memory.memories.delete')}
+                        />
+                      </div>
+                    </div>
+                  ))}
               </div>
             )}
           </div>

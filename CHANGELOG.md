@@ -14,6 +14,7 @@
 - fixed tasks hanging on load when an extension asks a question during worktree creation
 - fixed long file paths not fitting into file tool message tooltips
 - improved project tabs to reveal the close button on hover with a confirmation dialog, and added a close button to the mobile project menu
+- added content search to the memories list in memory settings and improved its layout with a fixed-width scope select and scrollable page
 
 ## [0.92.0]
 

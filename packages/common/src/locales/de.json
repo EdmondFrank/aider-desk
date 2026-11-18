@@ -1233,6 +1233,8 @@
         "all": "Alle",
         "loading": "Erinnerungen werden geladen...",
         "empty": "Keine Erinnerungen gefunden.",
+        "search": "Suche",
+        "searchPlaceholder": "Erinnerungen nach Inhalt filtern...",
         "delete": "Löschen",
         "deleteAllForProject": "Alle für Projekt löschen",
         "deleteDialogTitle": "Gedächtnis löschen",

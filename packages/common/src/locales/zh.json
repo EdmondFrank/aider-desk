@@ -1178,6 +1178,8 @@
         "all": "全部",
         "loading": "正在加载记忆...",
         "empty": "未找到记忆。",
+        "search": "搜索",
+        "searchPlaceholder": "按内容筛选记忆...",
         "delete": "删除",
         "deleteAllForProject": "删除该项目的全部记忆",
         "deleteDialogTitle": "删除记忆",

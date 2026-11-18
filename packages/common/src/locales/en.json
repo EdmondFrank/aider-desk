@@ -1245,6 +1245,8 @@
         "all": "All",
         "loading": "Loading memories...",
         "empty": "No memories found.",
+        "search": "Search",
+        "searchPlaceholder": "Filter memories by content...",
         "delete": "Delete",
         "deleteAllForProject": "Delete all for project",
         "deleteDialogTitle": "Delete memory",

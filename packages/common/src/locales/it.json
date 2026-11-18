@@ -1237,6 +1237,8 @@
         "all": "Tutte",
         "loading": "Caricamento delle memorie...",
         "empty": "Nessuna memoria trovata.",
+        "search": "Ricerca",
+        "searchPlaceholder": "Filtra le memorie per contenuto...",
         "delete": "Elimina",
         "deleteAllForProject": "Elimina tutte per il progetto",
         "deleteDialogTitle": "Elimina memoria",

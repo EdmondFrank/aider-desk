@@ -16,6 +16,11 @@ vi.mock('@/utils', async (importOriginal) => {
   return { ...actual, execWithShellPath: vi.fn(actual.execWithShellPath) };
 });
 
+// These cases drive a real git repository through subprocesses; the 5s default is
+// not enough once the whole suite runs in parallel (the Bun runtime makes it
+// slower still, which is what the pre-commit hook uses).
+vi.setConfig({ testTimeout: 30_000 });
+
 const revisionExpression = 'HEAD^{/.*|$(printf REVIEW_PROBE >&2)}';
 
 describe('GitManager worktree base safety', () => {

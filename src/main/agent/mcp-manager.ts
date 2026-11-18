@@ -47,6 +47,23 @@ export interface McpToolsCache {
 
 const MCP_CLIENT_TIMEOUT = 600_000;
 
+/**
+ * How long prompt setup waits for a single MCP connector (handshake + `tools/list`).
+ *
+ * `MCP_CLIENT_TIMEOUT` is right for a tool that is genuinely long-running, but far
+ * too long for building the toolset: the prompt is submitted and nothing renders
+ * until every enabled connector settles, so one unreachable server (hub
+ * restarting, upstream saturated) used to freeze the start of the turn for up to
+ * ten minutes with no progress and no way out but restarting the session.
+ *
+ * A connector that misses this deadline is evicted from the pool and retried on
+ * the next prompt. Set `AIDER_DESK_MCP_INIT_TIMEOUT_MS=0` to disable the bound.
+ */
+const MCP_INIT_TIMEOUT_MS = (() => {
+  const raw = Number.parseInt(process.env.AIDER_DESK_MCP_INIT_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(raw) && raw >= 0 ? raw : 20_000;
+})();
+
 export class McpAuthenticationRequiredError extends Error {
   constructor(serverName: string, language?: string) {
     super(translate(language, 'mcp.oauth.authenticationRequiredMessage', { serverName }));
@@ -60,6 +77,13 @@ interface McpConnector {
   tools: McpTool[];
   toolDefinitions: ListToolsResult;
   serverConfig: McpServerConfig;
+}
+
+/** A pooled connector the current toolset build is waiting for. */
+interface PendingConnector {
+  serverName: string;
+  poolKey: string;
+  promise: Promise<McpConnector>;
 }
 
 type McpClientTransport = Parameters<typeof createMCPClient>[0]['transport'];
@@ -147,13 +171,28 @@ export class McpManager {
           task.addLogMessage('loading', 'Initializing MCP servers...', false, promptContext);
         }, 3000);
 
+      const failedServers = new Set<string>();
       try {
-        connectors = await this.initMcpConnectors(mcpServers, task.getProjectDir(), task.getTaskDir(), false, profile.enabledServers);
+        connectors = await this.initMcpConnectors(mcpServers, task.getProjectDir(), task.getTaskDir(), false, profile.enabledServers, (serverName) =>
+          failedServers.add(serverName),
+        );
       } finally {
         clearTimeout(loadingTimeout);
         if (loadingMessageShown) {
           task.addLogMessage('loading', undefined, false, promptContext);
         }
+      }
+
+      // A server that failed to connect is silently missing from the toolset, so
+      // the prompt would run without its tools and the user would only notice by
+      // the model "forgetting" them. Say so, and say that it is retried.
+      if (failedServers.size > 0) {
+        task.addLogMessage(
+          'error',
+          `MCP server${failedServers.size > 1 ? 's' : ''} ${Array.from(failedServers).join(', ')} failed to initialize and ${failedServers.size > 1 ? 'are' : 'is'} excluded from this run. It will be retried on the next prompt.`,
+          false,
+          promptContext,
+        );
       }
 
       for (const serverName of profile.enabledServers) {
@@ -447,6 +486,7 @@ export class McpManager {
     taskDir: string | null,
     forceReload = false,
     enabledServers?: string[],
+    onFailure?: (serverName: string, error: unknown) => void,
   ): Promise<McpConnector[]> {
     logger.info('Initializing MCP connectors', {
       projectDir,
@@ -458,7 +498,18 @@ export class McpManager {
 
     this.currentInitId = initId;
 
-    const connectorsToInitialize: Promise<McpConnector>[] = [];
+    // A server can fail in both passes below (fresh attempt, then pooled replay);
+    // report each one once.
+    const reportedFailures = new Set<string>();
+    const reportFailure = (serverName: string, error: unknown) => {
+      if (!onFailure || reportedFailures.has(serverName)) {
+        return;
+      }
+      reportedFailures.add(serverName);
+      onFailure(serverName, error);
+    };
+
+    const connectorsToInitialize: PendingConnector[] = [];
     const serversToInitialize = enabledServers || Object.keys(mcpServers);
     for (const serverName of serversToInitialize) {
       const serverConfig = mcpServers[serverName];
@@ -470,7 +521,7 @@ export class McpManager {
       if (!existingConnector || forceReload) {
         const connectorPromise = this.initMcpConnector(projectDir, taskDir, serverName, serverConfig, forceReload, initId, scope);
         this.setPooledConnector(scope, serverName, connectorPromise, serverConfig);
-        connectorsToInitialize.push(connectorPromise);
+        connectorsToInitialize.push({ serverName, poolKey: this.getPoolKey(scope, serverName), promise: connectorPromise });
 
         if (existingConnector) {
           try {
@@ -485,13 +536,14 @@ export class McpManager {
     }
 
     const initializedConnectors: McpConnector[] = [];
-    for (const connectorPromise of connectorsToInitialize) {
+    for (const { serverName, poolKey, promise } of connectorsToInitialize) {
       try {
-        const connector = await connectorPromise;
+        const connector = await this.awaitConnectorWithDeadline(serverName, poolKey, promise);
         initializedConnectors.push(connector);
         this.updateToolsCache(connector.serverName, connector.tools);
       } catch (error) {
-        logger.error('Failed to initialize MCP connector:', error);
+        logger.error(`Failed to initialize MCP connector ${serverName}:`, error);
+        reportFailure(serverName, error);
       }
     }
 
@@ -499,7 +551,7 @@ export class McpManager {
       await this.saveToolsCache();
     }
 
-    const allConnectors: Promise<McpConnector>[] = [];
+    const allConnectors: PendingConnector[] = [];
     const serversToReturn = enabledServers || Object.keys(mcpServers);
     for (const serverName of serversToReturn) {
       const serverConfig = mcpServers[serverName];
@@ -509,21 +561,22 @@ export class McpManager {
       const scope = this.calculateServerScope(serverConfig, projectDir, taskDir, serverName);
       const connector = this.getPooledConnector(scope, serverName);
       if (connector) {
-        allConnectors.push(connector);
+        allConnectors.push({ serverName, poolKey: this.getPoolKey(scope, serverName), promise: connector });
       }
     }
 
-    const results = await Promise.allSettled(allConnectors);
+    const results = await Promise.allSettled(
+      allConnectors.map(({ serverName, poolKey, promise }) => this.awaitConnectorWithDeadline(serverName, poolKey, promise)),
+    );
     const successfullyResolvedConnectors: McpConnector[] = [];
 
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
         successfullyResolvedConnectors.push(result.value);
       } else {
-        // Ensure index is within bounds for serverNames, though it should be if Object.values and Object.keys maintain order
-        const serverNames = Object.keys(allConnectors);
-        const failedServerName = serverNames[index] || 'unknown server';
+        const failedServerName = allConnectors[index]?.serverName ?? 'unknown server';
         logger.warn(`Connector promise for server '${failedServerName}' was rejected when trying to get all connectors:`, result.reason);
+        reportFailure(failedServerName, result.reason);
       }
     });
     return successfullyResolvedConnectors;
@@ -900,6 +953,57 @@ export class McpManager {
       this.connectorServerUrls.set(poolKey, new URL(config.url).toString());
     } else {
       this.connectorServerUrls.delete(poolKey);
+    }
+  }
+
+  /** Drop a pooled entry, unless a reload replaced it with a different promise in the meantime. */
+  private evictConnectorIfCurrent(poolKey: string, promise: Promise<McpConnector>): void {
+    if (this.mcpConnectors.get(poolKey) !== promise) {
+      return;
+    }
+    this.mcpConnectors.delete(poolKey);
+    this.connectorServerUrls.delete(poolKey);
+  }
+
+  /**
+   * Await a pooled connector without letting a stuck one hold prompt setup for
+   * `MCP_CLIENT_TIMEOUT`.
+   *
+   * Two things go wrong when this wait is unbounded: the turn shows nothing until
+   * every connector settles, and a rejected connector promise stays in the pool
+   * forever — `initMcpConnectors` treats any pooled entry as reusable, so a server
+   * that was down when it was first dialled is never dialled again and its tools
+   * silently disappear for the rest of the session.
+   *
+   * Evicting on either failure fixes both: the next prompt opens a fresh
+   * connection, and a connector that connects after the deadline is closed
+   * instead of being leaked.
+   */
+  private async awaitConnectorWithDeadline(serverName: string, poolKey: string, promise: Promise<McpConnector>): Promise<McpConnector> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline =
+      MCP_INIT_TIMEOUT_MS > 0
+        ? new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              reject(new Error(`MCP server '${serverName}' did not respond within ${MCP_INIT_TIMEOUT_MS}ms`));
+            }, MCP_INIT_TIMEOUT_MS);
+            timer.unref?.();
+          })
+        : undefined;
+
+    try {
+      return deadline ? await Promise.race([promise, deadline]) : await promise;
+    } catch (error) {
+      this.evictConnectorIfCurrent(poolKey, promise);
+      void promise.then(
+        (connector) => connector.client.close().catch(() => undefined),
+        () => undefined,
+      );
+      throw error;
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
     }
   }
 

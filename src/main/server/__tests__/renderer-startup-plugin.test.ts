@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -31,7 +31,11 @@ describe('renderer startup development', () => {
 
 describe('renderer startup build', () => {
   it('tracks only initial dependencies, defers styles, and leaves the progress window untouched', async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), 'aiderdesk-startup-'));
+    // Resolve the temp dir: on macOS `os.tmpdir()` is `/var/folders/...`, a symlink
+    // into `/private/var/...`. Vite realpaths its root, so an unresolved input path
+    // is then relative to the root by way of `../../private/var/...` and rollup
+    // rejects the emitted `index.html` ("must be neither absolute nor relative").
+    const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'aiderdesk-startup-')));
     try {
       await writeFile(
         path.join(directory, 'index.html'),

@@ -7,6 +7,7 @@
 - made `cloudflared`, `@homebridge/node-pty-prebuilt-multiarch` and the `probe` binary optional, with a clear error instead of an opaque `ENOENT` when one is missing
 - mapped aider-backed task modes to `agent` when read under the lite profile, so a data dir shared with the full build keeps the user's own mode choice
 - fixed MCP server configs sending literal `${projectDir}`/`${taskDir}` placeholders in commands, URLs and headers instead of the resolved paths
+- fixed a failed MCP server being cached for the rest of the session, which silently removed its tools until the app was restarted, and bounded toolset setup per connector with `AIDER_DESK_MCP_INIT_TIMEOUT_MS` instead of the 10 minute tool timeout, reporting the servers left out of the run
 - added a collapsible file list to the updated-files diff dialog, opening it as a drawer on mobile and rendering diffs unified on small screens so the code keeps the full width
 
 ## [0.91.0]

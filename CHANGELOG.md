@@ -11,6 +11,7 @@
 - added strikethrough styling for deleted files in the Updated Files tree
 - redesigned extensions settings with source filtering (official, community, custom), compact extension list and README dialog
 - fixed Thinking... remaining visible when opening tasks completed from another client
+- fixed tasks hanging on load when an extension asks a question during worktree creation
 
 ## [0.92.0]
 

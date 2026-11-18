@@ -63,6 +63,7 @@ const createFixture = () => {
     cleanupChunkBuffers: vi.fn(),
     initialized: false,
     init: vi.fn(async () => undefined),
+    ensureWorktreeCreated: vi.fn(async () => undefined),
     getTaskAgentProfile: vi.fn(async () => profile),
     runPromptInAgent: vi.fn(async () => []),
     persistDurableMessages: vi.fn(async () => undefined),

@@ -241,6 +241,7 @@ describe('Agent execution recovery', () => {
     Object.assign(fixture.task, {
       store: { getSettings: () => ({ resumeAgentAfterRestart: true }) },
       init: vi.fn(async () => undefined),
+      ensureWorktreeCreated: vi.fn(async () => undefined),
       getTaskAgentProfile: vi.fn(async () => profile),
       extensionManager: { dispatchEvent: fixture.dispatchEvent },
       runPromptInAgent: vi.fn(async () => agent.runAgent(fixture.task, profile, null, 'agent', { id: 'execution' })),

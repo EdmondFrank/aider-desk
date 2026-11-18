@@ -77,6 +77,7 @@ vi.mock('@/task/aider-manager', () => ({
     start = vi.fn();
     stop = vi.fn();
     dispose = vi.fn();
+    sendUpdateAiderModels = vi.fn();
   },
 }));
 
@@ -137,6 +138,11 @@ describe('Task - initWorktree post-create command', () => {
   let mockProject: any;
   let mockGitManager: any;
   let addLogMessageSpy: any;
+  const eventManager = {
+    sendAskQuestion: vi.fn(),
+    sendQuestionAnswered: vi.fn(),
+    sendTaskInitialized: vi.fn(),
+  };
 
   const createTask = (taskSettings: Record<string, unknown>) =>
     new Task(
@@ -149,7 +155,7 @@ describe('Task - initWorktree post-create command', () => {
       { getProfile: vi.fn(() => null) } as any,
       {} as any,
       {} as any,
-      {} as any,
+      eventManager as unknown as ConstructorParameters<typeof Task>[9],
       {} as any,
       mockGitManager,
       {} as any,
@@ -173,6 +179,7 @@ describe('Task - initWorktree post-create command', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    dispatchEvent.mockReset().mockResolvedValue(undefined);
     execWithShellPathMock.mockReset();
 
     mockProject = {
@@ -276,6 +283,90 @@ describe('Task - initWorktree post-create command', () => {
       mockProject,
       t,
     );
+  });
+
+  it('completes init without creating worktree and keeps load() unblocked while onWorktreeCreated asks a question', async () => {
+    const t = prepareTask({});
+    t.task.workingMode = 'worktree';
+    t.task.currentMode = 'agent';
+    mockGitManager.getTaskWorktree = vi.fn().mockResolvedValue(null);
+    const updateAutocompletionData = vi.fn().mockResolvedValue(undefined);
+    Object.assign(t, {
+      loadContext: vi.fn().mockResolvedValue(undefined),
+      shouldStartAider: vi.fn().mockResolvedValue(false),
+      updateContextInfo: vi.fn().mockResolvedValue(undefined),
+      updateAutocompletionData,
+      sendContextFilesUpdated: vi.fn().mockResolvedValue(undefined),
+      sendUpdatedFilesUpdated: vi.fn().mockResolvedValue(undefined),
+      sendTaskGitStatusUpdated: vi.fn().mockResolvedValue(undefined),
+      getContextFiles: vi.fn().mockResolvedValue([]),
+      getTodos: vi.fn().mockResolvedValue([]),
+      contextManager: {
+        getContextMessagesData: vi.fn().mockReturnValue([]),
+        removeMissingFiles: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+    const question = { baseDir, taskId: t.taskId, text: 'Set up the worktree?', defaultAnswer: 'y' };
+    const hookAnswer = vi.fn();
+    dispatchEvent.mockImplementation(async (name: string, event: unknown) => {
+      if (name === 'onWorktreeCreated') {
+        const [answer] = await t.askQuestion(question);
+        hookAnswer(answer);
+      }
+      return event;
+    });
+
+    await t.init();
+    expect(t.isInitialized()).toBe(true);
+    expect(eventManager.sendTaskInitialized).toHaveBeenCalledWith(t.task);
+    expect(mockGitManager.createWorktree).not.toHaveBeenCalled();
+
+    await expect(t.load()).resolves.toMatchObject({ question: null, workingMode: 'worktree' });
+    await vi.waitFor(() => expect(eventManager.sendAskQuestion).toHaveBeenCalledWith(question));
+    expect(hookAnswer).not.toHaveBeenCalled();
+
+    await expect(t.load()).resolves.toMatchObject({ question, workingMode: 'worktree' });
+
+    await t.answerQuestion('y');
+    await vi.waitFor(() => expect(hookAnswer).toHaveBeenCalledWith('y'));
+    expect(mockGitManager.createWorktree).toHaveBeenCalledOnce();
+    await expect(t.load()).resolves.toMatchObject({ question: null });
+  });
+
+  it('waits for an in-flight manual switch to worktree before proceeding', async () => {
+    const t = prepareTask({});
+    Object.assign(t, {
+      initialized: true,
+      waitForCurrentPromptToFinish: vi.fn().mockResolvedValue(undefined),
+      updateTask: vi.fn().mockResolvedValue(undefined),
+      sendUpdatedFilesUpdated: vi.fn().mockResolvedValue(undefined),
+      sendSkillsUpdated: vi.fn().mockResolvedValue(undefined),
+      updateAutocompletionData: vi.fn().mockResolvedValue(undefined),
+    });
+    mockGitManager.getTaskWorktree = vi.fn().mockResolvedValue(null);
+
+    let finishHook!: () => void;
+    dispatchEvent.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishHook = resolve;
+        }),
+    );
+
+    const switching = t.switchToWorktreeWorkingMode();
+    await vi.waitFor(() => expect(dispatchEvent).toHaveBeenCalledWith('onWorktreeCreated', expect.anything(), mockProject, t));
+
+    let workspaceReady = false;
+    const waiting = (t as unknown as { ensureWorktreeCreated(): Promise<void> }).ensureWorktreeCreated().then(() => {
+      workspaceReady = true;
+    });
+
+    await Promise.resolve();
+    expect(workspaceReady).toBe(false);
+
+    finishHook();
+    await Promise.all([switching, waiting]);
+    expect(workspaceReady).toBe(true);
   });
 
   it('does not dispatch creation when reusing a worktree', async () => {

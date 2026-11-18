@@ -820,7 +820,7 @@ export class ContextManager {
     }
   }
 
-  private async cleanupContext(): Promise<void> {
+  async removeMissingFiles(): Promise<void> {
     // Filter out files that no longer exist
     const existingFiles: ContextFile[] = [];
     for (const file of this.files) {
@@ -859,7 +859,7 @@ export class ContextManager {
     return migratedContext;
   }
 
-  async load(): Promise<void> {
+  async load(removeMissingFiles = true): Promise<void> {
     try {
       if (this.loaded) {
         return;
@@ -870,7 +870,7 @@ export class ContextManager {
         return;
       }
 
-      this.loadPromise = this.loadInternal();
+      this.loadPromise = this.loadInternal(removeMissingFiles);
       await this.loadPromise;
       this.loadPromise = null;
 
@@ -914,7 +914,7 @@ export class ContextManager {
         this.messages = messages;
         this.files = files;
         this.undoSnapshot = null;
-        await this.cleanupContext();
+        await this.removeMissingFiles();
       }
 
       return changed;
@@ -1012,16 +1012,17 @@ export class ContextManager {
     };
   }
 
-  private async loadInternal(): Promise<void> {
+  private async loadInternal(removeMissingFiles: boolean): Promise<void> {
     const contextData = await this.readContextFromDisk();
 
     if (contextData) {
       this.messages = contextData.contextMessages || [];
       this.files = contextData.contextFiles || [];
     }
+    if (removeMissingFiles) {
+      await this.removeMissingFiles();
+    }
     this.loaded = true;
-
-    await this.cleanupContext();
   }
 
   async loadMessages(messages: ContextMessage[], updateTaskState = true, executionId?: string, createSnapshot = false): Promise<void> {

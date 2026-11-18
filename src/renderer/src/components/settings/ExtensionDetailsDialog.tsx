@@ -78,27 +78,28 @@ export const ExtensionDetailsDialog = ({
         )}
       </div>
       <div className="flex items-center gap-3">
-        <Button onClick={onClose} variant="outline" color="tertiary" size="sm">
-          {t('common.close')}
-        </Button>
-        {isInstalled ? (
+        {isInstalled && (
           <>
+            <Button onClick={onUninstall} disabled={isUninstalling} variant="text" size="sm" color="danger">
+              {isUninstalling ? t('settings.extensions.uninstalling') : t('settings.extensions.uninstall')}
+            </Button>
             {hasUpdate && onUpdate && (
-              <Button onClick={onUpdate} disabled={isUpdating} variant="contained" size="sm">
+              <Button onClick={onUpdate} disabled={isUpdating} variant="text" size="sm">
                 <FaDownload className={`mr-1.5 w-3 h-3 ${isUpdating ? 'animate-spin' : ''}`} />
                 {isUpdating ? t('settings.extensions.updating') : t('settings.extensions.update')}
               </Button>
             )}
-            <Button onClick={onUninstall} disabled={isUninstalling} variant="outline" size="sm" color="danger">
-              {isUninstalling ? t('settings.extensions.uninstalling') : t('settings.extensions.uninstall')}
-            </Button>
           </>
-        ) : (
+        )}
+        {!isInstalled && onInstall && (
           <Button onClick={onInstall} disabled={isInstalling} variant="contained" size="sm">
             <FaDownload className="mr-1.5 w-3 h-3" />
             {isInstalling ? t('settings.extensions.installing') : t('settings.extensions.install')}
           </Button>
         )}
+        <Button onClick={onClose} variant="contained" color="primary" size="sm">
+          {t('common.close')}
+        </Button>
       </div>
     </div>
   );

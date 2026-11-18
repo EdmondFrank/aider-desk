@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
+import { CgSpinner } from 'react-icons/cg';
 import { FaCog, FaDownload } from 'react-icons/fa';
 
 import type { AvailableExtension, InstalledExtension } from '@common/types';
@@ -85,7 +86,7 @@ export const ExtensionDetailsDialog = ({
             </Button>
             {hasUpdate && onUpdate && (
               <Button onClick={onUpdate} disabled={isUpdating} variant="text" size="sm">
-                <FaDownload className={`mr-1.5 w-3 h-3 ${isUpdating ? 'animate-spin' : ''}`} />
+                {isUpdating ? <CgSpinner className="mr-1.5 w-3 h-3 animate-spin" /> : <FaDownload className="mr-1.5 w-3 h-3" />}
                 {isUpdating ? t('settings.extensions.updating') : t('settings.extensions.update')}
               </Button>
             )}

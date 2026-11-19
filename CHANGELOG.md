@@ -15,6 +15,7 @@
 - fixed long file paths not fitting into file tool message tooltips
 - improved project tabs to reveal the close button on hover with a confirmation dialog, and added a close button to the mobile project menu
 - added content search to the memories list in memory settings and improved its layout with a fixed-width scope select and scrollable page
+- fixed tool follow-ups failing on OpenCode Go Luna and Muse models
 
 ## [0.92.0]
 

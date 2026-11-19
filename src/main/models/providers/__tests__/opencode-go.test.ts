@@ -151,6 +151,69 @@ describe('createOpencodeGoLlm', () => {
   });
 });
 
+describe('OpenCode Go Responses tool continuation', () => {
+  it.each(['grok-4.7', 'gpt-5.6-luna', 'gpt-6-luna', 'muse-spark-1.2-contributor', 'muse-spark-1.3-contributor'])(
+    'replays multiple tool steps for %s without losing encrypted reasoning',
+    async (id) => {
+      const { createOpenAI } = await vi.importActual<typeof import('@ai-sdk/openai')>('@ai-sdk/openai');
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 400 }));
+      const model = createOpenAI({ apiKey: 'test-api-key', fetch: fetchMock }).responses(id);
+      const providerOptions = opencodeGoProviderStrategy.getProviderOptions?.(profile.provider, { id, providerId: profile.id });
+      const steps = [1, 2, 3];
+
+      await expect(
+        model.doGenerate({
+          providerOptions,
+          prompt: [
+            { role: 'user', content: [{ type: 'text', text: 'Look up the value.' }] },
+            ...steps.flatMap((step) => [
+              {
+                role: 'assistant' as const,
+                content: [
+                  {
+                    type: 'reasoning' as const,
+                    text: 'Use the lookup tool.',
+                    providerOptions: { openai: { itemId: `rs_${step}`, reasoningEncryptedContent: `encrypted-reasoning-${step}` } },
+                  },
+                  {
+                    type: 'tool-call' as const,
+                    toolCallId: `call_${step}`,
+                    toolName: 'lookup',
+                    input: {},
+                    providerOptions: { openai: { itemId: `fc_${step}` } },
+                  },
+                ],
+              },
+              {
+                role: 'tool' as const,
+                content: [{ type: 'tool-result' as const, toolCallId: `call_${step}`, toolName: 'lookup', output: { type: 'text' as const, value: 'blue' } }],
+              },
+            ]),
+          ],
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+      expect(body.store).toBe(false);
+      expect(body.input).not.toEqual(expect.arrayContaining([expect.objectContaining({ type: 'item_reference' })]));
+      expect(body.input).toEqual(
+        expect.arrayContaining(
+          steps.flatMap((step) => [
+            expect.objectContaining({ type: 'reasoning', encrypted_content: `encrypted-reasoning-${step}` }),
+            expect.objectContaining({ type: 'function_call', call_id: `call_${step}`, name: 'lookup' }),
+            expect.objectContaining({ type: 'function_call_output', call_id: `call_${step}`, output: 'blue' }),
+          ]),
+        ),
+      );
+    },
+  );
+
+  it.each(['minimax-m3', 'gemini-4-argon', 'glm-5.3'])('leaves storage unchanged for %s', (id) => {
+    expect(opencodeGoProviderStrategy.getProviderOptions?.(profile.provider, { id, providerId: profile.id })).toBeUndefined();
+  });
+});
+
 describe('OpenCode Go model endpoints', () => {
   beforeEach(() => {
     vi.clearAllMocks();

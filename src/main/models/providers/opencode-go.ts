@@ -5,11 +5,11 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogle } from '@ai-sdk/google';
 import { app } from 'electron';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { omit } from 'lodash';
 
 import { getDefaultModelInfo, getDefaultUsageReport } from './default';
 
-import type { LanguageModel, ModelMessage, ToolSet } from 'ai';
+import type { LanguageModel, ToolSet } from 'ai';
+import type { SharedV4ProviderOptions } from '@ai-sdk/provider';
 
 import { AiderModelMapping, LlmProviderStrategy, LoadModelsResponse } from '@/models';
 import { getEffectiveEnvironmentVariable } from '@/utils';
@@ -208,36 +208,12 @@ export const createOpencodeGoLlm = (
   }
 };
 
-// Grok's upstream rejects the `item_reference` input items that @ai-sdk/openai emits for
-// Responses history parts carrying OpenAI item IDs. Stripping that metadata makes the SDK
-// inline full content instead while keeping store (and thus caching behavior) at its default.
-const normalizeOpencodeGoMessages = (llmProvider: LlmProvider, model: Model, messages: ModelMessage[]): ModelMessage[] => {
-  if (!isOpenCodeGoProvider(llmProvider)) {
-    return messages;
+const getOpencodeGoProviderOptions = (provider: LlmProvider, model: Model): SharedV4ProviderOptions | undefined => {
+  if (!isOpenCodeGoProvider(provider) || getModelEndpointType(model.id) !== ModelEndpointType.OpenAIResponses) {
+    return undefined;
   }
 
-  if (getModelEndpointType(model.id) !== ModelEndpointType.OpenAIResponses || !model.id.startsWith('grok')) {
-    return messages;
-  }
-
-  return messages.map((message) => {
-    if (typeof message.content === 'string') {
-      return message;
-    }
-
-    const content = message.content.map((part) => {
-      const next = { ...part };
-      if (next.providerMetadata) {
-        next.providerMetadata = omit(next.providerMetadata, 'openai');
-      }
-      if (next.providerOptions) {
-        next.providerOptions = omit(next.providerOptions, 'openai');
-      }
-      return next;
-    });
-
-    return { ...message, content } as typeof message;
-  });
+  return { openai: { store: false } };
 };
 
 // === Complete Strategy Implementation ===
@@ -245,13 +221,11 @@ export const opencodeGoProviderStrategy: LlmProviderStrategy = {
   // Core LLM functions
   createLlm: createOpencodeGoLlm,
   getUsageReport: getDefaultUsageReport,
+  getProviderOptions: getOpencodeGoProviderOptions,
 
   // Model discovery functions
   loadModels: loadOpencodeGoModels,
   hasEnvVars: hasOpencodeGoEnvVars,
   getAiderMapping: getOpencodeGoAiderMapping,
   getModelInfo: getDefaultModelInfo,
-
-  // Message normalization
-  normalizeMessages: normalizeOpencodeGoMessages,
 };

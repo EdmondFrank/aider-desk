@@ -62,7 +62,7 @@
         "tools",
         "ui"
       ],
-      "installCount": 50
+      "installCount": 51
     },
     {
       "id": "wakatime",
@@ -73,7 +73,7 @@
       "capabilities": [
         "tracking"
       ],
-      "installCount": 15
+      "installCount": 16
     },
     {
       "id": "pirate",
@@ -111,7 +111,7 @@
         "tools",
         "ui"
       ],
-      "installCount": 58
+      "installCount": 59
     },
     {
       "id": "theme",
@@ -133,7 +133,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 138
+      "installCount": 139
     },
     {
       "id": "protected-paths",
@@ -167,7 +167,7 @@
       "capabilities": [
         "optimization"
       ],
-      "installCount": 59
+      "installCount": 60
     },
     {
       "id": "external-rules",
@@ -179,7 +179,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 33
+      "installCount": 34
     },
     {
       "id": "external-skills",
@@ -191,7 +191,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 85
+      "installCount": 86
     },
     {
       "id": "learn",
@@ -228,7 +228,7 @@
       "capabilities": [
         "notifications"
       ],
-      "installCount": 40
+      "installCount": 42
     },
     {
       "id": "sandbox",
@@ -322,7 +322,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 31
+      "installCount": 32
     },
     {
       "id": "lsp",
@@ -335,7 +335,7 @@
         "tools",
         "code-intelligence"
       ],
-      "installCount": 101
+      "installCount": 102
     },
     {
       "id": "plannotator",
@@ -350,7 +350,7 @@
         "commands",
         "workflows"
       ],
-      "installCount": 33
+      "installCount": 34
     },
     {
       "id": "programmatic-tool-calls",
@@ -428,7 +428,7 @@
         "linux",
         "macos"
       ],
-      "installCount": 52
+      "installCount": 53
     },
     {
       "id": "searxng-search",
@@ -441,7 +441,7 @@
         "tools",
         "search"
       ],
-      "installCount": 38
+      "installCount": 39
     },
     {
       "id": "seek",
@@ -483,7 +483,7 @@
         "workflows",
         "ui"
       ],
-      "installCount": 70
+      "installCount": 71
     },
     {
       "id": "bmad",
@@ -572,7 +572,7 @@
         "events",
         "ui"
       ],
-      "installCount": 47
+      "installCount": 48
     },
     {
       "id": "codegraph",
@@ -585,7 +585,7 @@
         "tools",
         "search"
       ],
-      "installCount": 96
+      "installCount": 97
     },
     {
       "id": "kanban",
@@ -597,7 +597,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 62
+      "installCount": 63
     },
     {
       "id": "doom",
@@ -622,7 +622,7 @@
         "agents",
         "example"
       ],
-      "installCount": 79
+      "installCount": 80
     },
     {
       "id": "wigolo",
@@ -635,7 +635,7 @@
         "tools",
         "search"
       ],
-      "installCount": 77
+      "installCount": 78
     },
     {
       "id": "destructive-command-guard",
@@ -660,7 +660,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 64
+      "installCount": 65
     },
     {
       "id": "skill-gallery",
@@ -672,7 +672,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 187
+      "installCount": 188
     },
     {
       "id": "task-scheduler",
@@ -686,7 +686,7 @@
         "commands",
         "events"
       ],
-      "installCount": 36
+      "installCount": 37
     },
     {
       "id": "reasoning-selector",
@@ -698,7 +698,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 171
+      "installCount": 172
     },
     {
       "id": "dbx",

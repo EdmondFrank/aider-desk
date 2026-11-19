@@ -368,7 +368,7 @@ const SortableTabItem = ({ project, isActive, onCloseProject, onCloseOtherProjec
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="touch-none">
-      <Tab onContextMenu={handleRightClick} className={({ selected }) => getProjectTabClassName(selected)}>
+      <Tab onContextMenu={handleRightClick} className={({ selected }) => getProjectTabClassName(selected, isProcessing)}>
         <ProjectTabContent baseDir={project.baseDir} isActive={isActive} isProcessing={isProcessing} onClose={handleRequestClose} />
       </Tab>
       {showCloseConfirm && (

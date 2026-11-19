@@ -100,8 +100,17 @@ interface ZaiApiResponse {
 }
 
 // Neuralwatt API types
+interface NeuralwattDailyFreeEnergy {
+  kwh_included: number;
+  kwh_used: number;
+  kwh_remaining: number;
+  reset_at: string;
+  model_labels: string[];
+}
+
 interface NeuralwattQuotaData {
   isSubscription: boolean;
+  dailyFreeEnergy: NeuralwattDailyFreeEnergy | null;
   // Subscription fields
   kwhUsed?: number;
   kwhIncluded?: number;
@@ -118,6 +127,7 @@ interface NeuralwattQuotaData {
 
 interface NeuralwattApiResponse {
   snapshot_at: string;
+  daily_free_energy?: NeuralwattDailyFreeEnergy | null;
   balance: {
     credits_remaining_usd: number;
     total_credits_usd: number;
@@ -358,6 +368,7 @@ const fetchNeuralwattQuota = async (context?: ExtensionContext): Promise<Neuralw
       const kwhIncluded = data.subscription.kwh_included ?? 0;
       return {
         isSubscription: true,
+        dailyFreeEnergy: data.daily_free_energy ?? null,
         kwhUsed,
         kwhIncluded,
         kwhPercentage: kwhIncluded > 0 ? Math.round((kwhUsed / kwhIncluded) * 100) : 0,
@@ -369,6 +380,7 @@ const fetchNeuralwattQuota = async (context?: ExtensionContext): Promise<Neuralw
 
     return {
       isSubscription: false,
+      dailyFreeEnergy: data.daily_free_energy ?? null,
       creditsRemaining: data.balance.credits_remaining_usd,
       creditsTotal: data.balance.total_credits_usd,
       creditsPercentage: data.balance.total_credits_usd > 0 ? Math.round((data.balance.credits_remaining_usd / data.balance.total_credits_usd) * 100) : 0,
@@ -591,7 +603,7 @@ const STATUS_BAR_COMPONENT_ID = 'providers-quota-indicator';
 export default class ProvidersQuotaExtension implements Extension {
   static metadata = {
     name: 'Providers Quota',
-    version: '1.7.0',
+    version: '1.8.0',
     description: 'Displays API quota information for Synthetic, Z.AI, Neuralwatt, DeepSeek, OpenCode Go, and llmapi.ai providers in the task status bar',
     author: 'wladimiiir',
     iconUrl: 'https://raw.githubusercontent.com/magiksoft/aider-desk/refs/heads/main/packages/extensions/extensions/providers-quota-extension/icon.png',

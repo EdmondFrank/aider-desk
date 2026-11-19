@@ -9,7 +9,8 @@ Displays API quota information for **Synthetic**, **Z.AI**, **Neuralwatt**, **De
 - **OpenCode Go Provider**: Shows 5-hour, weekly, and monthly usage percentages with reset times
 - **Neuralwatt Provider**: Shows quota based on account type:
   - **Subscription**: kWh used/included with percentage and renewal date
-  - **Pay-as-you-go**: Credits remaining/total with percentage
+  - **Pay-as-you-go**: Remaining USD credits
+  - **Daily free energy** (when available): Remaining/included Wh, with the reset time and covered models in a tooltip
 - API keys are automatically loaded from AiderDesk provider settings
 - Optional `.env` file to override API keys
 - Automatic provider detection based on active agent profile
@@ -37,8 +38,8 @@ The extension automatically displays quota information based on the active agent
 |----------|---------------|
 | `synthetic` | `Synthetic: 54/100 (54%)` |
 | `zai-plan` | `Z.ai: 5 Hours: 12% \| Weekly: 45%` |
-| `neuralwatt` (subscription) | `Neuralwatt: 13.90/20.0 kWh (70%)` |
-| `neuralwatt` (pay-as-you-go) | `Neuralwatt: $32.68/$52.34 (62%)` |
+| `neuralwatt` (subscription) | `Daily free energy: 108/150 Wh \| Usage: 13.90/20.0 kWh (70%)` |
+| `neuralwatt` (pay-as-you-go) | `Daily free energy: 108/150 Wh \| Credits: $32.68` |
 | `deepseek` | `DeepSeek: $10.25` |
 | `opencode-go` | `Usage: 5 Hours: 19% \| Weekly: 30% \| Monthly: 25%` |
 
@@ -241,6 +242,13 @@ The `getUIExtensionData` method returns:
   } | null,
   neuralwatt: {
     isSubscription: boolean,
+    dailyFreeEnergy: {
+      kwh_included: number,
+      kwh_used: number,
+      kwh_remaining: number,
+      reset_at: string,
+      model_labels: string[]
+    } | null,
     // Subscription fields
     kwhUsed?: number,
     kwhIncluded?: number,

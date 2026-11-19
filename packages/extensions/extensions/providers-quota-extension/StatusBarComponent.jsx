@@ -124,38 +124,33 @@
 
   if (agentProfile?.provider === 'neuralwatt' && data?.neuralwatt) {
     const nw = data.neuralwatt;
-
-    if (nw.isSubscription) {
-      const kwhUsed = nw.kwhUsed?.toFixed(2) ?? '0.00';
-      const kwhIncluded = nw.kwhIncluded?.toFixed(1) ?? '0.0';
-      const periodEnd = nw.currentPeriodEnd ? formatResetTime(nw.currentPeriodEnd) : null;
-
-      return (
-        <div className="flex items-center gap-2 pt-1 justify-between w-full">
-          <span>Usage:</span>
-          <div className="flex items-center gap-2">
-            <ui.Tooltip content={periodEnd ? `Renews at ${periodEnd}` : ''}>
-              <span>{kwhUsed}/{kwhIncluded} kWh</span>
-            </ui.Tooltip>
-            <span>({nw.kwhPercentage}%)</span>
-            {nw.inOverage && (
-              <span className="text-red-400 text-xs">overage</span>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    const creditsRemaining = nw.creditsRemaining?.toFixed(2) ?? '0.00';
+    const freeEnergy = nw.dailyFreeEnergy;
+    const formatWh = (kwh) => (kwh * 1000).toLocaleString(undefined, { maximumFractionDigits: 1 });
+    const periodEnd = formatResetTime(nw.currentPeriodEnd);
 
     return (
-      <div className="flex items-center gap-2 pt-1 justify-between w-full">
-        <span>Neuralwatt:</span>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-x-2 pt-1 w-full">
+        {freeEnergy && (
+          <>
+            <ui.Tooltip content={`Resets at ${formatResetTime(freeEnergy.reset_at)} · Covered models: ${freeEnergy.model_labels.join(', ')}`}>
+              <span>Daily free energy: {formatWh(freeEnergy.kwh_remaining)}/{formatWh(freeEnergy.kwh_included)} Wh</span>
+            </ui.Tooltip>
+            <span aria-hidden="true">|</span>
+          </>
+        )}
+        {nw.isSubscription ? (
+          <div className="flex items-center gap-2">
+            <ui.Tooltip content={periodEnd ? `Renews at ${periodEnd}` : ''}>
+              <span>Usage: {nw.kwhUsed?.toFixed(2) ?? '0.00'}/{nw.kwhIncluded?.toFixed(1) ?? '0.0'} kWh</span>
+            </ui.Tooltip>
+            <span>({nw.kwhPercentage}%)</span>
+            {nw.inOverage && <span className="text-red-400 text-xs">overage</span>}
+          </div>
+        ) : (
           <ui.Tooltip content={`Accounting: ${nw.accountingMethod || 'energy'}`}>
-            <span>${creditsRemaining}</span>
+            <span>Credits: ${nw.creditsRemaining?.toFixed(2) ?? '0.00'}</span>
           </ui.Tooltip>
-        </div>
+        )}
       </div>
     );
   }

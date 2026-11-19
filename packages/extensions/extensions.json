@@ -191,7 +191,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 86
+      "installCount": 87
     },
     {
       "id": "learn",
@@ -204,7 +204,7 @@
         "commands",
         "tools"
       ],
-      "installCount": 116
+      "installCount": 117
     },
     {
       "id": "legacy-system-prompt",
@@ -411,7 +411,7 @@
       "capabilities": [
         "providers"
       ],
-      "installCount": 42
+      "installCount": 43
     },
     {
       "id": "fff",
@@ -672,7 +672,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 188
+      "installCount": 189
     },
     {
       "id": "task-scheduler",

@@ -627,12 +627,12 @@ export class EventsHandler {
     return this.mcpManager.getOAuthStatus(serverConfig);
   }
 
-  async startMcpOAuth(serverName: string, config?: McpServerConfig, projectDir?: string): Promise<string> {
+  async startMcpOAuth(serverName: string, config?: McpServerConfig, projectDir?: string, reopen?: boolean): Promise<string> {
     const serverConfig = config ?? this.mcpConfigManager.getMergedServers(projectDir)[serverName];
     if (!serverConfig) {
       throw new Error(`MCP server '${serverName}' is not configured`);
     }
-    return this.mcpManager.startOAuth(serverName, serverConfig);
+    return this.mcpManager.startOAuth(serverName, serverConfig, reopen);
   }
 
   async disconnectMcpOAuth(serverName: string, config?: McpServerConfig, projectDir?: string): Promise<void> {

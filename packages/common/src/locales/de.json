@@ -1560,7 +1560,8 @@
     "all": "Alle",
     "oauth": {
       "connect": "Verbinden",
-      "reopen": "Erneut öffnen",
+      "reopen": "Anmeldung erneut öffnen",
+      "startOver": "Von vorne beginnen",
       "connected": "Mit OAuth verbunden",
       "disconnect": "Trennen",
       "authorizing": "Schließen Sie die Authentifizierung im geöffneten Browserfenster ab.",

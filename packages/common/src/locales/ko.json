@@ -1568,7 +1568,8 @@
     "tools": "도구",
     "oauth": {
       "connect": "연결",
-      "reopen": "다시 열기",
+      "reopen": "로그인 다시 열기",
+      "startOver": "처음부터 다시 시작",
       "connected": "OAuth로 연결됨",
       "disconnect": "연결 끊기",
       "authorizing": "열린 브라우저 창에서 인증을 완료하세요.",

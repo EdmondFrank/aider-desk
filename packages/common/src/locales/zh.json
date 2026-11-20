@@ -1526,7 +1526,8 @@
     "all": "全部",
     "oauth": {
       "connect": "连接",
-      "reopen": "重新打开",
+      "reopen": "重新打开登录页面",
+      "startOver": "重新开始",
       "connected": "已通过 OAuth 连接",
       "disconnect": "断开连接",
       "authorizing": "请在打开的浏览器窗口中完成身份验证。",

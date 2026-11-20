@@ -345,8 +345,8 @@ export const setupIpcHandlers = (eventsHandler: EventsHandler, serverController:
     return await eventsHandler.getMcpOAuthStatus(serverName, config, projectDir);
   });
 
-  ipcMain.handle('start-mcp-oauth', async (_, serverName: string, config?: McpServerConfig, projectDir?: string) => {
-    return await eventsHandler.startMcpOAuth(serverName, config, projectDir);
+  ipcMain.handle('start-mcp-oauth', async (_, serverName: string, config?: McpServerConfig, projectDir?: string, reopen?: boolean) => {
+    return await eventsHandler.startMcpOAuth(serverName, config, projectDir, reopen);
   });
 
   ipcMain.handle('disconnect-mcp-oauth', async (_, serverName: string, config?: McpServerConfig, projectDir?: string) => {

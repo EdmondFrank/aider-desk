@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { McpServerScope } from '@common/types';
 
 import { BaseApi } from './base-api';
+import { OAUTH_ERROR_HTML, OAUTH_SUCCESS_HTML } from './mcp-oauth-callback-html';
 
 import { EventsHandler } from '@/events-handler';
 
@@ -21,6 +22,8 @@ const LoadMcpServerToolsSchema = z.object({
   projectDir: z.string().optional(),
 });
 
+const StartMcpOAuthSchema = LoadMcpServerToolsSchema.extend({ reopen: z.boolean().optional() });
+
 const ReloadMcpServersSchema = z.object({
   projectDir: z.string().optional(),
   force: z.boolean().optional(),
@@ -36,11 +39,6 @@ const OAuthCallbackSchema = z.object({
   state: z.string().min(1).optional(),
   error: z.string().optional(),
 });
-
-const OAUTH_SUCCESS_HTML =
-  '<!doctype html><html><head><meta charset="utf-8"><title>AiderDesk</title></head><body><h1>Authentication complete</h1><p>You can close this window and return to AiderDesk.</p></body></html>';
-const OAUTH_ERROR_HTML =
-  '<!doctype html><html><head><meta charset="utf-8"><title>AiderDesk</title></head><body><h1>Authentication failed</h1><p>Return to AiderDesk and try connecting the MCP server again.</p></body></html>';
 
 const AddMcpServerSchema = z.object({
   name: z.string().min(1, 'Server name is required'),
@@ -101,11 +99,11 @@ export class McpApi extends BaseApi {
     router.post(
       '/mcp/oauth/connect',
       this.handleRequest(async (req, res) => {
-        const parsed = this.validateRequest(LoadMcpServerToolsSchema, req.body, res);
+        const parsed = this.validateRequest(StartMcpOAuthSchema, req.body, res);
         if (!parsed) {
           return;
         }
-        const authorizationUrl = await this.eventsHandler.startMcpOAuth(parsed.serverName, parsed.config, parsed.projectDir);
+        const authorizationUrl = await this.eventsHandler.startMcpOAuth(parsed.serverName, parsed.config, parsed.projectDir, parsed.reopen);
         res.status(200).json({ authorizationUrl });
       }),
     );
@@ -124,7 +122,7 @@ export class McpApi extends BaseApi {
 
     router.get('/mcp/oauth/callback', async (req, res) => {
       res.setHeader('Cache-Control', 'no-store');
-      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'");
+      res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:");
       res.setHeader('Referrer-Policy', 'no-referrer');
       const parsed = OAuthCallbackSchema.safeParse(req.query);
       if (!parsed.success || !parsed.data.state) {

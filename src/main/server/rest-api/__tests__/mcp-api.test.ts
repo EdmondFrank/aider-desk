@@ -35,16 +35,16 @@ describe('McpApi OAuth routes', () => {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   });
 
-  it('returns the authorization URL when connecting', async () => {
+  it.each([undefined, true])('returns the authorization URL (reopen: %s)', async (reopen) => {
     const response = await fetch(`${baseUrl}/api/mcp/oauth/connect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ serverName: 'sentry', config: { url: 'https://mcp.sentry.dev/mcp' } }),
+      body: JSON.stringify({ serverName: 'sentry', config: { url: 'https://mcp.sentry.dev/mcp' }, reopen }),
     });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ authorizationUrl: 'https://mcp.example.com/oauth/authorize' });
-    expect(eventsHandler.startMcpOAuth).toHaveBeenCalledWith('sentry', { url: 'https://mcp.sentry.dev/mcp' }, undefined);
+    expect(eventsHandler.startMcpOAuth).toHaveBeenCalledWith('sentry', { url: 'https://mcp.sentry.dev/mcp' }, undefined, reopen);
   });
 
   it('completes the callback without exposing callback values in the response', async () => {

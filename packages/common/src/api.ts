@@ -191,7 +191,7 @@ export interface ApplicationAPI {
   reloadMcpServers: (projectDir?: string, force?: boolean) => Promise<void>;
   reloadMcpServer: (serverName: string, config: McpServerConfig) => Promise<McpTool[]>;
   getMcpOAuthStatus: (serverName: string, config?: McpServerConfig, projectDir?: string) => Promise<McpOAuthStatusData>;
-  startMcpOAuth: (serverName: string, config?: McpServerConfig, projectDir?: string) => Promise<string>;
+  startMcpOAuth: (serverName: string, config?: McpServerConfig, projectDir?: string, reopen?: boolean) => Promise<string>;
   disconnectMcpOAuth: (serverName: string, config?: McpServerConfig, projectDir?: string) => Promise<void>;
 
   // MCP server config operations (file-based, global + per-project)

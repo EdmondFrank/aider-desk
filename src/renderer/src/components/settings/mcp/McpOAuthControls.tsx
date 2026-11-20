@@ -69,11 +69,11 @@ export const McpOAuthControls = ({ serverName, config, refreshTrigger, onAuthent
     return () => clearInterval(interval);
   }, [api, config, onAuthenticated, serverName, status, updateStatus]);
 
-  const handleConnect = async () => {
+  const openAuthorization = async (reopen: boolean) => {
     setBusy(true);
     setError(null);
     try {
-      const authorizationUrl = await api.startMcpOAuth(serverName, config);
+      const authorizationUrl = await api.startMcpOAuth(serverName, config, undefined, reopen);
       updateStatus(McpOAuthStatus.Authorizing);
       await api.openUrlExternally(authorizationUrl);
     } catch (error) {
@@ -83,6 +83,9 @@ export const McpOAuthControls = ({ serverName, config, refreshTrigger, onAuthent
       setBusy(false);
     }
   };
+
+  const handleConnect = () => openAuthorization(false);
+  const handleReopen = () => openAuthorization(true);
 
   const handleDisconnect = async () => {
     setBusy(true);
@@ -117,9 +120,16 @@ export const McpOAuthControls = ({ serverName, config, refreshTrigger, onAuthent
             {t('mcp.oauth.disconnect')}
           </Button>
         ) : (
-          <Button size="xs" disabled={busy} onClick={handleConnect}>
-            {busy ? t('common.loading') : status === McpOAuthStatus.Authorizing ? t('mcp.oauth.reopen') : t('mcp.oauth.connect')}
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            {status === McpOAuthStatus.Authorizing && (
+              <Button size="xs" variant="outline" disabled={busy} onClick={handleReopen}>
+                {t('mcp.oauth.reopen')}
+              </Button>
+            )}
+            <Button size="xs" disabled={busy} onClick={handleConnect}>
+              {busy ? t('common.loading') : status === McpOAuthStatus.Authorizing ? t('mcp.oauth.startOver') : t('mcp.oauth.connect')}
+            </Button>
+          </div>
         )}
       </div>
       {error && <span className="text-error-light">{error}</span>}

@@ -188,6 +188,10 @@ AiderDesk supports **OAuth authorization** for remote MCP servers that require i
 2.  Select the server that requires authentication.
 3.  Click **Connect** — the authorization flow opens in your browser. Once you complete it, the connection is stored and the server's tools become available.
 
+**Reopen sign-in** opens the pending authorization link again. If the browser shows an error such as `Invalid client_id`, choose **Start over** to request a fresh OAuth client registration.
+
+AiderDesk discovers the OAuth issuer automatically, including when it is hosted on a separate HTTPS origin, as with [Appwrite](https://appwrite.io/docs/tooling/ai/mcp-servers#connection-details). For Appwrite, use `{"mcpServers":{"appwrite":{"url":"https://mcp.appwrite.io"}}}` and click **Connect**. No issuer setting or API key is needed.
+
 If your server requires an authorization flow that the built-in OAuth support does not cover, you can fall back to [mcp-remote](https://github.com/geelen/mcp-remote) as a stdio-based proxy.
 
 ### Step 1: Authorize in Your Terminal

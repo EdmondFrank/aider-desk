@@ -786,11 +786,10 @@ export class McpManager {
       logger.debug(`Connected to MCP server: ${serverName}`);
     } else if (config.url) {
       const headers = config.headers ? { ...config.headers } : undefined;
-      const oauthProvider = await this.oauthManager.getProvider(config.url);
+      const validatedFetch = this.oauthManager.createValidatedFetch(config.url, headers);
       const mcpSdkOAuthProvider = await this.oauthManager.getMcpSdkProvider(config.url);
-      const validatedFetch = this.oauthManager.createValidatedFetch(config.url);
       const transport = new StreamableHTTPClientTransport(new URL(config.url), {
-        requestInit: { headers, redirect: 'error' },
+        requestInit: { redirect: 'error' },
         authProvider: mcpSdkOAuthProvider,
         fetch: validatedFetch,
       });
@@ -807,13 +806,14 @@ export class McpManager {
         logger.debug(`Failed to connect to MCP server using Streamable HTTP: ${serverName}`, { message: (error as Error).message });
         logger.debug(`Connecting to MCP server using SSE: ${serverName}`);
         try {
+          const sseFetch = this.oauthManager.createValidatedFetch(config.url);
           client = await this.createClient({
             type: 'sse',
             url: config.url,
             headers,
-            authProvider: oauthProvider,
+            authProvider: await this.oauthManager.getProvider(config.url),
             redirect: 'error',
-            fetch: validatedFetch,
+            fetch: sseFetch,
           });
           logger.debug(`Connected to MCP server: ${serverName}`);
         } catch (sseError) {
@@ -888,22 +888,29 @@ export class McpManager {
     return this.oauthManager.getStatus(config.url);
   }
 
-  async startOAuth(serverName: string, config: McpServerConfig): Promise<string> {
+  async startOAuth(serverName: string, config: McpServerConfig, reopen = false): Promise<string> {
     if (!config.url) {
       throw new Error(`MCP server '${serverName}' does not use a remote URL`);
     }
 
-    let authorizationUrl = await this.oauthManager.startAuthorization(config.url);
-    if (!authorizationUrl) {
-      try {
-        await this.reloadSingleServer(serverName, config);
-      } catch (error) {
-        if (!(error instanceof McpAuthenticationRequiredError)) {
-          throw error;
-        }
+    if (reopen) {
+      const authorizationUrl = await this.oauthManager.getPendingAuthorizationUrl(config.url);
+      if (!authorizationUrl) {
+        throw new Error('No pending OAuth sign-in; click Connect to start a new one');
       }
-      authorizationUrl = await this.oauthManager.startAuthorization(config.url);
+      return authorizationUrl;
     }
+
+    await this.invalidateConnectorsForUrl(config.url);
+    await this.oauthManager.resetClientRegistration(config.url);
+    try {
+      await this.reloadSingleServer(serverName, config);
+    } catch (error) {
+      if (!(error instanceof McpAuthenticationRequiredError)) {
+        throw error;
+      }
+    }
+    const authorizationUrl = await this.oauthManager.startAuthorization(config.url);
     if (!authorizationUrl) {
       throw new Error(`MCP server '${serverName}' did not provide an OAuth authorization URL`);
     }

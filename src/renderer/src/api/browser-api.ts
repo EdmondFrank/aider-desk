@@ -765,13 +765,14 @@ export class BrowserApi implements ApplicationAPI {
   getMcpOAuthStatus(serverName: string, config?: McpServerConfig, projectDir?: string): Promise<McpOAuthStatusData> {
     return this.post('/mcp/oauth/status', { serverName, config, projectDir });
   }
-  async startMcpOAuth(serverName: string, config?: McpServerConfig, projectDir?: string): Promise<string> {
-    const response = await this.post<{ serverName: string; config?: McpServerConfig; projectDir?: string }, { authorizationUrl: string }>(
+  async startMcpOAuth(serverName: string, config?: McpServerConfig, projectDir?: string, reopen?: boolean): Promise<string> {
+    const response = await this.post<{ serverName: string; config?: McpServerConfig; projectDir?: string; reopen?: boolean }, { authorizationUrl: string }>(
       '/mcp/oauth/connect',
       {
         serverName,
         config,
         projectDir,
+        reopen,
       },
     );
     return response.authorizationUrl;

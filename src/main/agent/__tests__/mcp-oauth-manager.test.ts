@@ -6,6 +6,7 @@ import path from 'path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { McpOAuthStatus } from '@common/types';
+import { auth } from '@modelcontextprotocol/sdk/client/auth.js';
 
 import { McpOAuthManager } from '../mcp-oauth-manager';
 
@@ -21,6 +22,8 @@ const createManager = async () => {
 };
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   await Promise.all(temporaryDirectories.splice(0).map((directory) => fs.rm(directory, { recursive: true, force: true })));
 });
 
@@ -91,24 +94,82 @@ describe('McpOAuthManager', () => {
     expect(await manager.startAuthorization(serverUrl)).toBeNull();
   });
 
-  it('rejects authorization servers on a different origin', async () => {
-    const { manager } = await createManager();
-    const provider = await manager.getProvider('https://mcp.example.com/mcp');
+  it.each(['http://login.example.com', 'https://user:password@login.example.com', 'https://login.example.com/oauth#frag'])(
+    'rejects unsafe OAuth URL %s',
+    async (unsafeUrl) => {
+      const { manager } = await createManager();
+      const serverUrl = 'https://mcp.example.com/mcp';
+      const provider = await manager.getProvider(serverUrl);
+      const validatedFetch = manager.createValidatedFetch(serverUrl);
 
-    expect(() => provider.validateAuthorizationServerURL?.('https://mcp.example.com/mcp', 'https://login.example.com')).toThrow(
-      'OAuth authorization server must use the MCP server origin',
-    );
-    await expect(
-      (await manager.getMcpSdkProvider('https://mcp.example.com/mcp')).redirectToAuthorization(new URL('https://login.example.com/oauth')),
-    ).rejects.toThrow('OAuth authorization server must use the MCP server origin');
-  });
+      expect(() => provider.validateAuthorizationServerURL?.(serverUrl, unsafeUrl)).toThrow('OAuth URLs must use HTTPS');
+      await expect((await manager.getMcpSdkProvider(serverUrl)).redirectToAuthorization(new URL(unsafeUrl))).rejects.toThrow('OAuth URLs must use HTTPS');
+      await expect(validatedFetch(unsafeUrl)).rejects.toThrow('OAuth URLs must use HTTPS');
+    },
+  );
 
-  it('blocks cross-origin OAuth requests before sending them', async () => {
-    const { manager } = await createManager();
-    const validatedFetch = manager.createValidatedFetch('https://mcp.example.com/mcp');
+  it('completes Appwrite discovery, registration, callback, and refresh from the MCP URL alone', async () => {
+    const { manager, storePath } = await createManager();
+    const serverUrl = 'https://mcp.appwrite.io/';
+    const issuer = 'https://fra.cloud.appwrite.io/v1/oauth2/console';
+    const discoveryUrl = 'https://fra.cloud.appwrite.io/.well-known/oauth-authorization-server/v1/oauth2/console';
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      switch (input.toString()) {
+        case 'https://mcp.appwrite.io/.well-known/oauth-protected-resource':
+          return Response.json({
+            resource: serverUrl,
+            authorization_servers: [issuer],
+          });
+        case discoveryUrl:
+          return Response.json({
+            issuer,
+            authorization_endpoint: `${issuer}/authorize`,
+            token_endpoint: `${issuer}/token`,
+            registration_endpoint: `${issuer}/register`,
+            response_types_supported: ['code'],
+            code_challenge_methods_supported: ['S256'],
+            token_endpoint_auth_methods_supported: ['none'],
+          });
+        case `${issuer}/register`:
+          return Response.json({
+            ...JSON.parse(init?.body?.toString() ?? '{}'),
+            client_id: 'appwrite-client',
+          });
+        case `${issuer}/token`:
+          expect(init?.redirect).toBe('error');
+          expect(new URLSearchParams(init?.body?.toString()).get('resource')).toBe(serverUrl);
+          return Response.json({
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+            token_type: 'Bearer',
+          });
+        case serverUrl:
+          return new Response(null, { status: 204 });
+        default:
+          throw new Error(`Unexpected fetch: ${input.toString()}`);
+      }
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const validatedFetch = manager.createValidatedFetch(serverUrl, { 'X-MCP-Key': 'resource-only' });
+    await validatedFetch(serverUrl);
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get('X-MCP-Key')).toBe('resource-only');
 
-    await expect(validatedFetch('https://login.example.com/.well-known/oauth-authorization-server')).rejects.toThrow(
-      'OAuth authorization server must use the MCP server origin',
-    );
+    const provider = await manager.getMcpSdkProvider(serverUrl);
+    expect(await auth(provider, { serverUrl, fetchFn: validatedFetch })).toBe('REDIRECT');
+    const authorizationUrl = new URL((await manager.startAuthorization(serverUrl))!);
+    expect(authorizationUrl.origin + authorizationUrl.pathname).toBe(`${issuer}/authorize`);
+    expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(authorizationUrl.searchParams.get('resource')).toBe(serverUrl);
+    const reloaded = new McpOAuthManager(storePath);
+    expect(await reloaded.completeAuthorization('test-code', authorizationUrl.searchParams.get('state')!)).toBe(serverUrl);
+    expect(await reloaded.getStatus(serverUrl)).toEqual({ status: McpOAuthStatus.Authenticated });
+    expect(await (await reloaded.getProvider('https://different-mcp.example.com/')).tokens()).toBeUndefined();
+    const refreshFetch = reloaded.createValidatedFetch(serverUrl);
+    expect(await auth(await reloaded.getMcpSdkProvider(serverUrl), { serverUrl, fetchFn: refreshFetch })).toBe('AUTHORIZED');
+    const tokenRequests = fetchMock.mock.calls.filter(([url]) => url.toString() === `${issuer}/token`);
+    expect(tokenRequests.map(([, init]) => new URLSearchParams(init?.body?.toString()).get('grant_type'))).toEqual(['authorization_code', 'refresh_token']);
+    for (const [, init] of fetchMock.mock.calls.slice(1)) {
+      expect(new Headers(init?.headers).has('X-MCP-Key')).toBe(false);
+    }
   });
 });

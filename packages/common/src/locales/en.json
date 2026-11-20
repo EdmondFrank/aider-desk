@@ -1572,7 +1572,8 @@
     "all": "All",
     "oauth": {
       "connect": "Connect",
-      "reopen": "Reopen",
+      "reopen": "Reopen sign-in",
+      "startOver": "Start over",
       "connected": "Connected with OAuth",
       "disconnect": "Disconnect",
       "authorizing": "Complete authentication in the opened browser window.",

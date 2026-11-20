@@ -11,10 +11,10 @@ import {
   type OAuthTokens,
 } from '@ai-sdk/mcp';
 import { McpOAuthStatus, type McpOAuthStatusData } from '@common/types';
-
-import type {
-  OAuthClientProvider as McpSdkOAuthClientProvider,
-  OAuthDiscoveryState as McpSdkOAuthDiscoveryState,
+import {
+  auth as mcpSdkAuth,
+  type OAuthClientProvider as McpSdkOAuthClientProvider,
+  type OAuthDiscoveryState as McpSdkOAuthDiscoveryState,
 } from '@modelcontextprotocol/sdk/client/auth.js';
 
 import { AIDER_DESK_DATA_DIR, MCP_OAUTH_CALLBACK_PATH, SERVER_PORT } from '@/constants';
@@ -36,6 +36,7 @@ type McpOAuthRecord = {
   state?: string;
   authorizationUrl?: string;
   authorizationStartedAt?: number;
+  authorizationFromMcpSdk?: boolean;
 };
 
 type PlainStoreData = {
@@ -57,6 +58,18 @@ const normalizeServerUrl = (serverUrl: string): string => {
 };
 
 const isLoopbackHostname = (hostname: string): boolean => hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+
+const validateOAuthUrl = (candidateUrl: string | URL): void => {
+  const candidate = new URL(candidateUrl);
+  if (
+    candidate.username ||
+    candidate.password ||
+    candidate.hash ||
+    (candidate.protocol !== 'https:' && !(candidate.protocol === 'http:' && isLoopbackHostname(candidate.hostname)))
+  ) {
+    throw new Error('OAuth URLs must use HTTPS without credentials or fragments (HTTP is allowed on loopback)');
+  }
+};
 
 export class McpOAuthManager {
   private records: Record<string, McpOAuthRecord> = {};
@@ -99,19 +112,13 @@ export class McpOAuthManager {
         record.tokens = tokens;
         record.oauthRequired = true;
         delete record.authorizationUrl;
+        delete record.authorizationFromMcpSdk;
         delete record.authorizationStartedAt;
         delete record.codeVerifier;
         delete record.state;
         await this.save();
       },
-      redirectToAuthorization: async (authorizationUrl) => {
-        this.validateOAuthUrl(normalizedUrl, authorizationUrl);
-        const record = this.ensureRecord(normalizedUrl);
-        record.oauthRequired = true;
-        record.authorizationUrl = authorizationUrl.toString();
-        delete record.authorizationStartedAt;
-        await this.save();
-      },
+      redirectToAuthorization: (authorizationUrl) => this.saveAuthorizationUrl(normalizedUrl, authorizationUrl, false),
       saveCodeVerifier: async (codeVerifier) => {
         this.ensureRecord(normalizedUrl).codeVerifier = codeVerifier;
         await this.save();
@@ -131,6 +138,8 @@ export class McpOAuthManager {
       storedState: () => this.records[normalizedUrl]?.state,
       authorizationServerInformation: () => this.records[normalizedUrl]?.authorizationServerInformation,
       saveAuthorizationServerInformation: async (authorizationServerInformation) => {
+        validateOAuthUrl(authorizationServerInformation.authorizationServerUrl);
+        validateOAuthUrl(authorizationServerInformation.tokenEndpoint);
         this.ensureRecord(normalizedUrl).authorizationServerInformation = authorizationServerInformation;
         await this.save();
       },
@@ -148,12 +157,13 @@ export class McpOAuthManager {
           delete record.codeVerifier;
           delete record.state;
           delete record.authorizationUrl;
+          delete record.authorizationFromMcpSdk;
           delete record.authorizationStartedAt;
         }
         await this.save();
       },
-      validateAuthorizationServerURL: (registeredServerUrl, authorizationServerUrl) => {
-        this.validateOAuthUrl(registeredServerUrl, authorizationServerUrl);
+      validateAuthorizationServerURL: (_registeredServerUrl, authorizationServerUrl) => {
+        validateOAuthUrl(authorizationServerUrl);
       },
     };
   }
@@ -169,10 +179,7 @@ export class McpOAuthManager {
       saveClientInformation: provider.saveClientInformation,
       tokens: provider.tokens,
       saveTokens: provider.saveTokens,
-      redirectToAuthorization: async (authorizationUrl) => {
-        this.validateOAuthUrl(normalizedUrl, authorizationUrl);
-        await provider.redirectToAuthorization(authorizationUrl);
-      },
+      redirectToAuthorization: (authorizationUrl) => this.saveAuthorizationUrl(normalizedUrl, authorizationUrl, true),
       saveCodeVerifier: provider.saveCodeVerifier,
       codeVerifier: provider.codeVerifier,
       state: async () => await this.createAndSaveState(normalizedUrl),
@@ -187,17 +194,23 @@ export class McpOAuthManager {
         await provider.invalidateCredentials?.(scope);
       },
       saveDiscoveryState: async (discoveryState) => {
-        this.validateOAuthUrl(normalizedUrl, discoveryState.authorizationServerUrl);
-        const tokenEndpoint = discoveryState.authorizationServerMetadata?.token_endpoint;
-        if (tokenEndpoint) {
-          this.validateOAuthUrl(normalizedUrl, tokenEndpoint);
+        validateOAuthUrl(discoveryState.authorizationServerUrl);
+        if (discoveryState.resourceMetadataUrl) {
+          validateOAuthUrl(discoveryState.resourceMetadataUrl);
+        }
+        const metadata = discoveryState.authorizationServerMetadata;
+        for (const endpoint of [metadata?.authorization_endpoint, metadata?.token_endpoint, metadata?.registration_endpoint]) {
+          if (endpoint) {
+            validateOAuthUrl(endpoint);
+          }
         }
         const record = this.ensureRecord(normalizedUrl);
         record.discoveryState = discoveryState;
-        if (tokenEndpoint) {
+        if (metadata?.token_endpoint) {
           record.authorizationServerInformation = {
             authorizationServerUrl: discoveryState.authorizationServerUrl,
-            tokenEndpoint,
+            issuer: metadata.issuer,
+            tokenEndpoint: metadata.token_endpoint,
           };
         }
         await this.save();
@@ -207,16 +220,26 @@ export class McpOAuthManager {
     };
   }
 
-  createValidatedFetch(serverUrl: string): typeof fetch {
+  createValidatedFetch(serverUrl: string, resourceHeaders?: Readonly<Record<string, string>>): typeof fetch {
     const server = new URL(normalizeServerUrl(serverUrl));
 
     return async (input, init) => {
       const requestUrl = new URL(input instanceof Request ? input.url : input.toString());
       const isMcpEndpoint = requestUrl.origin === server.origin && requestUrl.pathname === server.pathname;
       if (!isMcpEndpoint) {
-        this.validateOAuthUrl(server, requestUrl);
+        validateOAuthUrl(requestUrl);
       }
-      return await fetch(input, init);
+      const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+      if (isMcpEndpoint && resourceHeaders) {
+        for (const [name, value] of Object.entries(resourceHeaders)) {
+          headers.set(name, value);
+        }
+      }
+      return await fetch(input, {
+        ...init,
+        headers,
+        redirect: isMcpEndpoint && init?.redirect === 'manual' ? 'manual' : 'error',
+      });
     };
   }
 
@@ -233,6 +256,25 @@ export class McpOAuthManager {
       return { status: McpOAuthStatus.Authorizing };
     }
     return { status: McpOAuthStatus.AuthenticationRequired };
+  }
+
+  async getPendingAuthorizationUrl(serverUrl: string): Promise<string | null> {
+    await this.init();
+    const record = this.records[normalizeServerUrl(serverUrl)];
+    if (!record?.authorizationStartedAt || Date.now() - record.authorizationStartedAt >= AUTHORIZATION_TIMEOUT_MS) {
+      return null;
+    }
+    return record.authorizationUrl ?? null;
+  }
+
+  async resetClientRegistration(serverUrl: string): Promise<void> {
+    await this.init();
+    const record = this.records[normalizeServerUrl(serverUrl)];
+    if (record) {
+      delete record.clientInformation;
+      delete record.tokens;
+      await this.clearPendingAuthorization(serverUrl);
+    }
   }
 
   async startAuthorization(serverUrl: string): Promise<string | null> {
@@ -258,12 +300,14 @@ export class McpOAuthManager {
     }
 
     try {
-      const provider = await this.getProvider(record.serverUrl);
-      const result = await auth(provider, {
-        serverUrl: record.serverUrl,
-        authorizationCode: code,
-        callbackState: state,
-      });
+      const fetchFn = this.createValidatedFetch(record.serverUrl);
+      const options = { serverUrl: record.serverUrl, authorizationCode: code, fetchFn };
+      const issuer = record.authorizationServerInformation?.authorizationServerUrl;
+      // Use the same SDK for a cross-origin exchange so it sends the same resource indicator as the authorize request.
+      const result =
+        record.authorizationFromMcpSdk && issuer && new URL(issuer).origin !== new URL(record.serverUrl).origin
+          ? await mcpSdkAuth(await this.getMcpSdkProvider(record.serverUrl), options)
+          : await auth(await this.getProvider(record.serverUrl), { ...options, callbackState: state });
       if (result !== 'AUTHORIZED') {
         throw new Error('OAuth authorization did not complete');
       }
@@ -299,6 +343,7 @@ export class McpOAuthManager {
       return;
     }
     delete record.authorizationUrl;
+    delete record.authorizationFromMcpSdk;
     delete record.authorizationStartedAt;
     delete record.codeVerifier;
     delete record.state;
@@ -312,15 +357,14 @@ export class McpOAuthManager {
     return state;
   }
 
-  private validateOAuthUrl(serverUrl: string | URL, candidateUrl: string | URL): void {
-    const server = new URL(serverUrl);
-    const candidate = new URL(candidateUrl);
-    if (server.origin !== candidate.origin) {
-      throw new Error(`OAuth authorization server must use the MCP server origin: ${candidate.origin}`);
-    }
-    if (candidate.protocol !== 'https:' && !isLoopbackHostname(candidate.hostname)) {
-      throw new Error('OAuth authorization server must use HTTPS');
-    }
+  private async saveAuthorizationUrl(serverUrl: string, url: URL, fromMcpSdk: boolean): Promise<void> {
+    validateOAuthUrl(url);
+    const record = this.ensureRecord(serverUrl);
+    record.oauthRequired = true;
+    record.authorizationUrl = url.toString();
+    record.authorizationFromMcpSdk = fromMcpSdk;
+    delete record.authorizationStartedAt;
+    await this.save();
   }
 
   private get redirectUrl(): string {

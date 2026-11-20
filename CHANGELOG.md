@@ -16,6 +16,7 @@
 - improved project tabs to reveal the close button on hover with a confirmation dialog, and added a close button to the mobile project menu
 - added content search to the memories list in memory settings and improved its layout with a fixed-width scope select and scrollable page
 - fixed tool follow-ups failing on OpenCode Go Luna and Muse models
+- added cross-origin MCP OAuth issuer discovery, separate reopen/start-over sign-in controls, and styled OAuth callback pages
 
 ## [0.92.0]
 

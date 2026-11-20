@@ -24,6 +24,7 @@ const createOAuthMcpServer = async () => {
   let baseUrl = '';
   let expectedAccessToken = 'access-token';
   let refreshCount = 0;
+  let registrationCount = 0;
   const mcpRequestMethods: string[] = [];
 
   app.get('/.well-known/oauth-protected-resource/mcp', (_req, res) => {
@@ -48,7 +49,7 @@ const createOAuthMcpServer = async () => {
     });
   });
   app.post('/oauth/register', (req, res) => {
-    res.status(201).json({ ...req.body, client_id: 'test-client' });
+    res.status(201).json({ ...req.body, client_id: `test-client-${++registrationCount}` });
   });
   app.post('/oauth/token', (req, res) => {
     const isRefresh = req.body.grant_type === 'refresh_token';
@@ -108,6 +109,7 @@ const createOAuthMcpServer = async () => {
       expectedAccessToken = 'refreshed-access-token';
     },
     getRefreshCount: () => refreshCount,
+    getRegistrationCount: () => registrationCount,
     getMcpRequestMethods: () => mcpRequestMethods,
     close: () => new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
   };
@@ -130,7 +132,15 @@ describe('McpManager OAuth integration', () => {
       await expect(manager.getMcpServerTools('sentry', config)).rejects.toBeInstanceOf(McpAuthenticationRequiredError);
       expect(await manager.getOAuthStatus(config)).toEqual({ status: McpOAuthStatus.AuthenticationRequired });
 
+      await expect(manager.startOAuth('sentry', config, true)).rejects.toThrow('No pending OAuth sign-in');
+      const firstUrl = new URL(await manager.startOAuth('sentry', config));
+      const firstRegistrationCount = testServer.getRegistrationCount();
+      await expect(manager.startOAuth('sentry', config, true)).resolves.toBe(firstUrl.href);
+
       const authorizationUrl = new URL(await manager.startOAuth('sentry', config));
+      expect(testServer.getRegistrationCount()).toBe(firstRegistrationCount + 1);
+      expect(authorizationUrl.searchParams.get('client_id')).not.toBe(firstUrl.searchParams.get('client_id'));
+      await expect(manager.completeOAuth('old-code', firstUrl.searchParams.get('state')!)).rejects.toThrow('invalid or expired');
       const state = authorizationUrl.searchParams.get('state');
       expect(state).toBeTruthy();
 
@@ -150,6 +160,7 @@ describe('McpManager OAuth integration', () => {
       testServer.requireRefreshedToken();
       await expect(manager.reloadSingleServer('sentry', config)).resolves.toEqual(expectedTools);
       expect(testServer.getRefreshCount()).toBe(1);
+      expect(testServer.getRegistrationCount()).toBe(firstRegistrationCount + 1);
     } finally {
       await manager.close();
       await testServer.close();

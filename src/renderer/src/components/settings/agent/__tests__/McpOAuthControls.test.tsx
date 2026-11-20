@@ -47,10 +47,18 @@ describe('McpOAuthControls', () => {
     fireEvent.click(await screen.findByText('mcp.oauth.connect'));
 
     await waitFor(() => {
-      expect(api.startMcpOAuth).toHaveBeenCalledWith('sentry', config);
+      expect(api.startMcpOAuth).toHaveBeenCalledWith('sentry', config, undefined, false);
       expect(api.openUrlExternally).toHaveBeenCalledWith('https://mcp.example.com/oauth/authorize');
     });
     expect(screen.getByText('mcp.oauth.authorizing')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'mcp.oauth.reopen' }));
+    await waitFor(() => expect(api.startMcpOAuth).toHaveBeenNthCalledWith(2, 'sentry', config, undefined, true));
+
+    const startOver = screen.getByRole('button', { name: 'mcp.oauth.startOver' });
+    await waitFor(() => expect(startOver).toBeEnabled());
+    fireEvent.click(startOver);
+    await waitFor(() => expect(api.startMcpOAuth).toHaveBeenNthCalledWith(3, 'sentry', config, undefined, false));
   });
 
   it('disconnects an authenticated server', async () => {

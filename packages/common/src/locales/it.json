@@ -1564,7 +1564,8 @@
     "all": "Tutti",
     "oauth": {
       "connect": "Connetti",
-      "reopen": "Riapri",
+      "reopen": "Riapri accesso",
+      "startOver": "Ricomincia",
       "connected": "Connesso con OAuth",
       "disconnect": "Disconnetti",
       "authorizing": "Completa l'autenticazione nella finestra del browser aperta.",

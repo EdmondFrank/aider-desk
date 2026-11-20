@@ -62,7 +62,7 @@
         "tools",
         "ui"
       ],
-      "installCount": 51
+      "installCount": 52
     },
     {
       "id": "wakatime",
@@ -228,7 +228,7 @@
       "capabilities": [
         "notifications"
       ],
-      "installCount": 42
+      "installCount": 43
     },
     {
       "id": "sandbox",

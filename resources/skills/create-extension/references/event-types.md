@@ -254,16 +254,25 @@ interface AgentStepStartedEvent {
 
 ### AgentStepFinishedEvent
 
-Dispatched at the end of each agent step/iteration. With streaming AI SDK providers, finalization follows the consumer reaching `finish-step`, after earlier chunks have been handled; do not treat this as the raw SDK callback timing.
+Dispatched at the end of each agent step/iteration, including when a step fails with a model/stream error. With streaming AI SDK providers, finalization follows the consumer reaching `finish-step`, after earlier chunks have been handled (or on stream error). Extensions can return `continue` to force or stop the next iteration and/or `modelId` (`provider-profile-id/model-id`) to switch models for subsequent steps within the current run.
 
 ```typescript
 interface AgentStepFinishedEvent {
   readonly mode: Mode;
   readonly agentProfile: AgentProfile;
+  readonly providerId: string;
+  readonly model: string;
   readonly currentResponseId: string;
-  readonly stepResult: AgentStepResult;
-  finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other';
+  readonly iterationCount: number;
+  readonly retryCount: number;
+  readonly stepResult?: AgentStepResult;
+  readonly error?: unknown;
+  readonly hasOutput?: boolean;
+  readonly hasToolCalls?: boolean;
+  finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other' | 'interrupted';
   responseMessages: ContextMessage[];
+  continue?: boolean;
+  modelId?: string;
 }
 ```
 

@@ -580,10 +580,25 @@ export interface AgentStepStartedEvent {
 export interface AgentStepFinishedEvent {
   readonly mode: Mode;
   readonly agentProfile: AgentProfile;
+  readonly providerId: string;
+  readonly model: string;
   readonly currentResponseId: string;
-  readonly stepResult: AgentStepResult;
+  readonly iterationCount: number;
+  readonly retryCount: number;
+  /** Present when the step completed and produced a result; undefined when the step failed before completing. */
+  readonly stepResult?: AgentStepResult;
+  /** Present when the step failed with a model or stream error. */
+  readonly error?: unknown;
+  /** True if text or reasoning output was emitted during this step. */
+  readonly hasOutput?: boolean;
+  /** True if any tool input or execution started during this step. */
+  readonly hasToolCalls?: boolean;
   finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other' | 'interrupted';
   responseMessages: ContextMessage[];
+  /** Override loop continuation: true forces another iteration (including retrying an error step), false stops the run. */
+  continue?: boolean;
+  /** Optional replacement model in 'provider-profile-id/model-id' format for subsequent steps in this run. */
+  modelId?: string;
 }
 
 /** Event payload for stored-context to model-message transformations. */
@@ -2251,7 +2266,8 @@ export interface Extension {
   onAgentStepStarted?(event: AgentStepStartedEvent, context: ExtensionContext): Promise<void | Partial<AgentStepStartedEvent>>;
 
   /**
-   * Called after each agent step completes
+   * Called after each agent step completes or fails with a model/stream error.
+   * Return `continue` to control loop continuation or `modelId` ('provider-profile-id/model-id') to switch models for subsequent steps.
    * @returns void or partial event
    */
   onAgentStepFinished?(event: AgentStepFinishedEvent, context: ExtensionContext): Promise<void | Partial<AgentStepFinishedEvent>>;

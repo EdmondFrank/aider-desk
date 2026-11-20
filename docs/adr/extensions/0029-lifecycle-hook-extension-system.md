@@ -41,6 +41,16 @@ The message-preparation pipeline separates context transformation, optional opti
 
 Migration is required for existing handlers that relied on the old semantics: move raw Aider/subagent payload customization to `onTransformMessages` (or explicitly retrieve stored context through the task API), and cache-marker customization to `onApplyCacheControl`. Existing optional-optimization overrides remain in `onOptimizeMessages`. There is no legacy dispatch mode; this breaking change and migration must be called out when released. Other lifecycle hooks retain the additive-only evolution policy below.
 
+### Step-finished hook error and loop-control amendment (2026-11-20)
+
+`onAgentStepFinished` is extended to cover failed LLM/stream steps as well as completed steps, and to let extensions steer loop continuation and mid-run model selection:
+
+- **Firing condition**: `onAgentStepFinished` now dispatches both after a completed LLM step and when a step fails with a model/stream error (unless the run was aborted by the user or failed in post-step `onStepEnd` processing).
+- **Optional `stepResult` and error metadata**: `AgentStepFinishedEvent.stepResult` is now optional (`undefined` on error steps), accompanied by additive fields `providerId`, `model`, `iterationCount`, `retryCount`, `error`, `hasOutput`, and `hasToolCalls`.
+- **Loop and model control**: Extensions may return `continue` (`true` to force another iteration even after an error or `'stop'`, `false` to stop after a completed step) and `modelId` (`'provider-profile-id/model-id'`) to atomically switch the runtime provider/model for subsequent steps without modifying the task's saved model. On error steps, only `continue` and `modelId` are honored; `finishReason` and `responseMessages` modifications apply only to completed steps.
+
+Migration is required for existing `onAgentStepFinished` handlers that assume `event.stepResult` is always defined: guard against `event.error` / `!event.stepResult` before dereferencing `event.stepResult`. There is no legacy dispatch mode; this breaking change and migration must be called out when released.
+
 ## Rationale
 
 A documented, typed hook interface keeps the core unaware of specific extensions while guaranteeing (via structured dispatch results) that extension verdicts actually gate behavior. Isolated loading/registration confines failures, and the published types make third-party development stable across releases.

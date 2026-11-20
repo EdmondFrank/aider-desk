@@ -293,16 +293,25 @@ interface AgentFinishedEvent {
 ```
 
 ### AgentStepFinishedEvent
-Called after each agent step completes. For streaming AI SDK providers, AiderDesk finalizes the step after consuming its `finish-step` event so queued deltas cannot append to already-finalized messages. This is not a direct timing alias for the SDK callback.
+Called after each agent step completes or fails with a model/stream error. For streaming AI SDK providers, AiderDesk finalizes completed steps after consuming the `finish-step` event so queued deltas cannot append to already-finalized messages. Return `continue` to force or stop the next iteration and/or `modelId` (`provider-profile-id/model-id`) to switch models for subsequent steps within the current run.
 
 ```typescript
 interface AgentStepFinishedEvent {
   readonly mode: Mode;
   readonly agentProfile: AgentProfile;
+  readonly providerId: string;
+  readonly model: string;
   readonly currentResponseId: string;
-  readonly stepResult: AgentStepResult;
-  finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other' | 'unknown';
+  readonly iterationCount: number;
+  readonly retryCount: number;
+  readonly stepResult?: AgentStepResult;
+  readonly error?: unknown;
+  readonly hasOutput?: boolean;
+  readonly hasToolCalls?: boolean;
+  finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other' | 'interrupted';
   responseMessages: ContextMessage[];
+  continue?: boolean;
+  modelId?: string;
 }
 ```
 

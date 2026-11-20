@@ -17,6 +17,7 @@ import {
   ModelCallSettings,
   PromptContext,
   ProviderProfile,
+  SettingsData,
   ToolApprovalState,
   ToolRecoveryMode,
   UsageReportData,
@@ -28,6 +29,7 @@ import {
   generateText,
   asSchema,
   InvalidToolInputError,
+  type LanguageModel,
   type ModelMessage,
   NoSuchToolError,
   Output,
@@ -728,14 +730,14 @@ export class Agent {
     const projectProfiles = this.agentProfileManager.getProjectProfiles(task.project);
     const providers = this.modelManager.getProviders();
 
-    let provider = providers.find((p) => p.id === profile.provider);
+    let initiallyResolvedProvider = providers.find((p) => p.id === profile.provider);
     let modelName = profile.model;
     let modelCallSettings: ModelCallSettings = {
       maxRetries: MAX_RETRIES,
       abortSignal,
     };
 
-    if (provider) {
+    if (initiallyResolvedProvider) {
       // Register an abort controller for the duration of the onAgentStarted dispatch so that
       // agent runs driven by extensions (which return blocked: true) are visible via isRunning().
       // This way Task.isPromptRunning() reports busy while such a run is in progress and
@@ -754,7 +756,7 @@ export class Agent {
             mode,
             prompt,
             agentProfile: profile,
-            providerProfile: provider,
+            providerProfile: initiallyResolvedProvider,
             model: modelName,
             promptContext,
             contextMessages,
@@ -772,7 +774,7 @@ export class Agent {
           return [];
         }
         profile = extensionResult.agentProfile;
-        provider = extensionResult.providerProfile;
+        initiallyResolvedProvider = extensionResult.providerProfile;
         modelName = extensionResult.model;
         prompt = extensionResult.prompt;
         promptContext = extensionResult.promptContext;
@@ -882,14 +884,13 @@ export class Agent {
       }
     }
 
-    if (!provider) {
+    if (!initiallyResolvedProvider) {
       logger.error(`Provider ${profile.provider} not found`);
       task.addLogMessage('error', 'Selected model is not configured. Select another model and try again.', true, promptContext);
       return resultMessages;
     }
 
-    // Store resolved provider for use in retry logic
-    const resolvedProvider = provider;
+    let provider = initiallyResolvedProvider;
 
     this.telemetryManager.captureAgentRun(profile, task.task, Object.keys(this.mcpConfigManager.getMergedServers(task.getProjectDir())).length);
 
@@ -916,9 +917,6 @@ export class Agent {
       this.abortControllers.set(controllerId, newController);
     }
     const effectiveAbortSignal = modelCallSettings.abortSignal || (controllerId ? this.abortControllers.get(controllerId)?.signal : undefined);
-    const cacheControl = this.modelManager.getCacheControl(provider, modelName);
-    const providerParameters = this.modelManager.getProviderParameters(provider, modelName, modelCallSettings.reasoning);
-    const providerOptions = this.modelManager.getProviderOptions(provider, modelName, modelCallSettings?.reasoning);
 
     const firstUserMessage = contextMessages.find((message) => message.role === 'user');
     let messages = await this.prepareMessages(task, profile, contextMessages, contextFiles);
@@ -963,7 +961,7 @@ export class Agent {
     }
 
     const approvalManager = new ApprovalManager(task, profile);
-    const toolSet = await this.getAvailableTools(
+    let toolSet = await this.getAvailableTools(
       task,
       mode,
       profile,
@@ -1026,26 +1024,8 @@ export class Agent {
         resultMessages.push(...recovered);
       }
 
-      logger.debug('Creating LLM model', {
-        providerId: provider.id,
-        providerName: provider.provider.name,
-        modelName: modelName,
-      });
-
-      const model = await this.modelManager.createLlm(
-        provider,
-        modelName,
-        settings,
-        task.getProjectDir(),
-        toolSet,
-        systemPrompt,
-        task.task.lastAgentProviderMetadata,
-        task.task.id,
-        approvalManager.createProviderToolApprovalHandler(toolSet),
-      );
-      logger.debug('LLM model created successfully', {
-        model: typeof model !== 'string' ? model.modelId : model,
-      });
+      let model = await this.createAgentModel(task, provider, modelName, settings, toolSet, systemPrompt, approvalManager, task.task.lastAgentProviderMetadata);
+      let switchedModel = false;
 
       // repairToolCall function that attempts to repair tool calls
       const repairToolCall = async ({ toolCall, tools, error, messages, system }) => {
@@ -1141,22 +1121,13 @@ export class Agent {
         }
       };
 
-      // Get the model to use its temperature and max output tokens settings
-      const modelSettings = this.modelManager.getModelSettings(provider.id, modelName);
-      const effectiveTemperature = profile.temperature ?? modelSettings?.temperature;
-      const effectiveMaxOutputTokens = profile.maxTokens ?? modelSettings?.maxOutputTokens;
-
-      logger.debug('Parameters:', {
-        model: typeof model !== 'string' ? model.modelId : model,
-        temperature: effectiveTemperature,
-        maxOutputTokens: effectiveMaxOutputTokens,
-        minTimeBetweenToolCalls: profile.minTimeBetweenToolCalls,
-        ...providerParameters,
-      });
-
       let allowAttachmentWarnings = true;
 
-      const getBaseModelCallParams = async () => {
+      const getBaseModelCallParams = async (onToolExecutionStart: () => void) => {
+        const cacheControl = this.modelManager.getCacheControl(provider, modelName);
+        const providerParameters = this.modelManager.getProviderParameters(provider, modelName, modelCallSettings.reasoning);
+        const providerOptions = this.modelManager.getProviderOptions(provider, modelName, modelCallSettings?.reasoning);
+        const modelSettings = this.modelManager.getModelSettings(provider.id, modelName);
         const optimizedMessages = await prepareMessagesForModel(
           messages,
           cacheControl,
@@ -1180,12 +1151,14 @@ export class Agent {
           instructions: systemPrompt,
           messages: optimizedMessages,
           tools: toolSet,
-          maxOutputTokens: effectiveMaxOutputTokens,
+          maxOutputTokens: profile.maxTokens ?? modelSettings?.maxOutputTokens,
           maxRetries: MAX_RETRIES,
-          temperature: effectiveTemperature,
+          temperature: profile.temperature ?? modelSettings?.temperature,
           telemetry: this.getTelemetrySettings(),
           ...modelCallSettings,
+          ...(switchedModel ? { headers: undefined } : {}),
           ...providerParameters,
+          onToolExecutionStart,
           onLanguageModelCallEnd: (event: LanguageModelCallEndEvent<ToolSet>) => {
             if (!isDurable) {
               return;
@@ -1207,12 +1180,51 @@ export class Agent {
         };
       };
 
+      const applyModelSwitch = async (targetModelId: string, logReason?: 'error' | 'step'): Promise<boolean> => {
+        const switched = await this.switchModelRuntime({
+          modelId: targetModelId,
+          profile,
+          provider,
+          modelName,
+          task,
+          mode,
+          settings,
+          systemPrompt,
+          contextMessages,
+          resultMessages,
+          messages,
+          approvalManager,
+          abortSignal: effectiveAbortSignal,
+          promptContext,
+        });
+        if (!switched) {
+          return false;
+        }
+        profile = switched.profile;
+        provider = switched.provider;
+        modelName = switched.modelName;
+        toolSet = switched.toolSet;
+        model = switched.model;
+        messages = switched.messages;
+        switchedModel = true;
+        allowAttachmentWarnings = true;
+        if (logReason === 'error') {
+          task.addLogMessage('warning', `Model request failed. Continuing with ${switched.provider.name} / ${switched.modelName}.`, false, promptContext);
+        }
+        return true;
+      };
+
       let iterationCount = 0;
       let retryCount = 0;
+      let consecutiveErrorContinues = 0;
+      let retryWithoutAdvancingStep = false;
+      let needsCompactionCheck = false;
 
       while (true) {
         logger.info(`Starting iteration ${iterationCount}`, { task: task.taskId });
-        iterationCount++;
+        if (!retryWithoutAdvancingStep) {
+          iterationCount++;
+        }
 
         if (profile.maxIterations > 0 && iterationCount > profile.maxIterations) {
           logger.warn(`Max iterations (${profile.maxIterations}) reached. Stopping agent.`);
@@ -1229,8 +1241,15 @@ export class Agent {
           durability.beginStep(executionId!, currentResponseId);
         }
         let iterationError: unknown | null = null;
+        let stepProcessingError: unknown | null = null;
+        let deferredStreamError: unknown | null = null;
+        let thrownStreamError: unknown | null = null;
+        let generateTextError: unknown | null = null;
+        let completedStepResult: StepResult<typeof toolSet> | undefined;
         let finishReason: null | FinishReason = null;
         let currentStepMessages: ContextMessage[] = [];
+        let hasOutput = false;
+        let hasToolCalls = false;
         const assistantMessage = new AssistantMessageState();
 
         const onStepEnd = async (stepResult: StepResult<typeof toolSet>) => {
@@ -1247,37 +1266,24 @@ export class Agent {
           }
 
           try {
-            currentStepMessages = await this.processStep(currentResponseId, stepResult, task, provider, modelName, promptContext, effectiveAbortSignal);
-            const extensionResult = await this.extensionManager.dispatchEvent(
-              'onAgentStepFinished',
-              {
-                mode,
-                agentProfile: profile,
-                currentResponseId,
-                stepResult,
-                finishReason,
-                responseMessages: currentStepMessages,
-              },
-              task.project,
+            currentStepMessages = await this.processStep(
+              currentResponseId,
+              stepResult,
               task,
+              provider,
+              modelName,
+              promptContext,
+              effectiveAbortSignal,
+              !switchedModel,
             );
-            currentStepMessages = extensionResult.responseMessages;
-            finishReason = extensionResult.finishReason;
-
-            currentResponseId = uuidv4();
-            assistantMessage.reset();
-            streamingMessageIds.clear();
-
-            if (currentStepMessages.length > 0) {
-              // Reset retry count when we get a response
-              retryCount = 0;
-            }
+            completedStepResult = stepResult;
           } catch (error) {
             // The AI SDK swallows errors thrown in onStepEnd callbacks, so
             // capture them here to stop the loop instead of silently re-sending
             // the same prompt on the next iteration
             logger.error('Error processing step result:', error);
             iterationError = error;
+            stepProcessingError = error;
             if (typeof error === 'string') {
               task.addLogMessage('error', error, false, promptContext);
             } else if (error instanceof Error) {
@@ -1288,57 +1294,80 @@ export class Agent {
           }
         };
 
-        const extensionStepStartedResult = await this.extensionManager.dispatchEvent(
-          'onAgentStepStarted',
-          {
-            mode,
-            agentProfile: profile,
-            currentResponseId,
-            iterationCount,
-            messages: messages as ContextMessage[],
-          },
-          task.project,
-          task,
-        );
-        if (extensionStepStartedResult.messages) {
-          messages = extensionStepStartedResult.messages as ModelMessage[];
+        if (!retryWithoutAdvancingStep) {
+          const extensionStepStartedResult = await this.extensionManager.dispatchEvent(
+            'onAgentStepStarted',
+            {
+              mode,
+              agentProfile: profile,
+              currentResponseId,
+              iterationCount,
+              messages: messages as ContextMessage[],
+            },
+            task.project,
+            task,
+          );
+          if (extensionStepStartedResult.messages) {
+            messages = extensionStepStartedResult.messages as ModelMessage[];
+          }
         }
 
-        const shouldContinue = await this.compactMessagesIfNeeded(
-          task,
-          profile,
-          provider,
-          modelName,
-          userRequestMessage ?? findLastUserMessage([...contextMessages, ...resultMessages]) ?? undefined,
-          contextMessages,
-          contextFiles,
-          messages,
-          resultMessages,
-          promptContext,
-          effectiveAbortSignal,
-        );
+        if (!retryWithoutAdvancingStep || needsCompactionCheck) {
+          const shouldContinue = await this.compactMessagesIfNeeded(
+            task,
+            profile,
+            provider,
+            modelName,
+            userRequestMessage ?? findLastUserMessage([...contextMessages, ...resultMessages]) ?? undefined,
+            contextMessages,
+            contextFiles,
+            messages,
+            resultMessages,
+            promptContext,
+            effectiveAbortSignal,
+          );
 
-        if (!shouldContinue) {
-          logger.debug('Agent run aborted due to context compaction');
-          await task.updateTask({
-            state: DefaultTaskState.Delegated,
-          });
-          break;
+          if (!shouldContinue) {
+            logger.debug('Agent run aborted due to context compaction');
+            await task.updateTask({
+              state: DefaultTaskState.Delegated,
+            });
+            break;
+          }
         }
+        retryWithoutAdvancingStep = false;
+        needsCompactionCheck = false;
+        effectiveAbortSignal?.throwIfAborted();
+        const callParams = await getBaseModelCallParams(() => {
+          hasToolCalls = true;
+        });
+        effectiveAbortSignal?.throwIfAborted();
 
         if (this.modelManager.isStreamingDisabled(provider, modelName)) {
           logger.debug('Streaming disabled, using generateText');
-          await generateText({
-            ...(await getBaseModelCallParams()),
-            onStepEnd,
-            experimental_repairToolCall: repairToolCall,
-          });
+          try {
+            await generateText({
+              ...callParams,
+              onStepEnd,
+              experimental_repairToolCall: repairToolCall,
+            });
+          } catch (error) {
+            if (effectiveAbortSignal?.aborted) {
+              throw error;
+            }
+            if (stepProcessingError !== null && stepProcessingError === error) {
+              iterationError = error;
+            } else {
+              iterationError = error;
+              generateTextError = error;
+            }
+          }
         } else {
           logger.debug('Streaming enabled, using streamText');
           const toolCallStreamingDisabled = this.modelManager.isToolCallStreamingDisabled(provider, modelName);
           const streamedSteps = new StepResultQueue<StepResult<typeof toolSet>>();
           const result = streamText({
-            ...(await getBaseModelCallParams()),
+            ...callParams,
             experimental_transform: smoothStream({
               delayInMs: 20,
               chunking: 'line',
@@ -1348,18 +1377,8 @@ export class Agent {
                 return;
               }
 
-              logger.error('Error during prompt:', { error });
               iterationError = error;
-              if (typeof error === 'string') {
-                task.addLogMessage('error', error, false, promptContext);
-                // @ts-expect-error checking keys in error
-              } else if (APICallError.isInstance(error) || ('message' in error && 'responseBody' in error)) {
-                task.addLogMessage('error', `${error.message}: ${error.responseBody}`, false, promptContext);
-              } else if (error instanceof Error) {
-                task.addLogMessage('error', error.message, false, promptContext);
-              } else {
-                task.addLogMessage('error', JSON.stringify(error), false, promptContext);
-              }
+              deferredStreamError = error;
             },
             onStepEnd: (step) => streamedSteps.push(step),
             experimental_repairToolCall: repairToolCall,
@@ -1382,6 +1401,7 @@ export class Agent {
                   durability.appendText(executionId!, 'text', chunk.text);
                 }
                 if (chunk.text.trim()) {
+                  hasOutput = true;
                   assistantMessage.text();
                   streamingMessageIds.add(responseMessageId);
                   await task.processResponseMessage({
@@ -1393,6 +1413,7 @@ export class Agent {
                   });
                 }
               } else if (chunk.type === 'reasoning-start') {
+                hasOutput = true;
                 streamingMessageIds.add(responseMessageId);
                 if (assistantMessage.hasReasoning) {
                   await task.processResponseMessage({
@@ -1405,6 +1426,7 @@ export class Agent {
                   });
                 }
               } else if (chunk.type === 'reasoning-delta') {
+                hasOutput = true;
                 if (isDurable) {
                   durability.appendText(executionId!, 'reasoning', chunk.text);
                 }
@@ -1419,6 +1441,7 @@ export class Agent {
                   promptContext,
                 });
               } else if (chunk.type === 'tool-input-start') {
+                hasToolCalls = true;
                 if (toolCallStreamingDisabled) {
                   continue;
                 }
@@ -1437,10 +1460,12 @@ export class Agent {
                 }
                 task.finishToolInput(chunk.id);
               } else if (chunk.type === 'tool-call') {
+                hasToolCalls = true;
                 assistantMessage.tool();
                 task.addLogMessage('loading', 'Executing tool...', false, promptContext);
                 streamingMessageIds.add(chunk.toolCallId);
               } else if (chunk.type === 'tool-result') {
+                hasToolCalls = true;
                 assistantMessage.tool();
                 const [serverName, toolName] = extractServerNameToolName(chunk.toolName);
                 const toolPromptContext = extractPromptContextFromToolResult(chunk.output) ?? promptContext;
@@ -1457,18 +1482,9 @@ export class Agent {
             if (isDurable && durability.get(executionId!)?.step?.calls.length) {
               throw streamError;
             }
-            if (isNetworkError(streamError) && retryCount < MAX_RETRIES) {
-              logger.warn(`Network error during streaming, retrying (${retryCount + 1}/${MAX_RETRIES})...`, { error: streamError });
-              iterationError = streamError;
-              this.removeUnfinishedStreamingMessages(task, streamingMessageIds);
-              task.addLogMessage('loading', 'Network error occured. Retrying...');
-            } else if (isNetworkError(streamError)) {
-              const error = streamError as Error;
-              const underlyingMessage = error.cause instanceof Error ? error.cause.message : error.message;
-              throw new Error(`Network error after ${MAX_RETRIES} retries (check your connection): ${underlyingMessage}`, { cause: streamError });
-            } else {
-              throw streamError;
-            }
+
+            thrownStreamError = streamError;
+            iterationError = iterationError ?? streamError;
           }
         }
 
@@ -1476,6 +1492,88 @@ export class Agent {
           throw iterationError;
         }
         if (iterationError) {
+          if (effectiveAbortSignal?.aborted) {
+            throw iterationError;
+          }
+
+          if (stepProcessingError === null) {
+            const stepHasOutput = hasOutput || streamingMessageIds.size > 0 || currentStepMessages.length > 0;
+            const stepHasToolCalls = hasToolCalls || (isDurable && Boolean(durability.get(executionId!)?.step?.calls.length));
+            const extensionResult = await this.extensionManager.dispatchEvent(
+              'onAgentStepFinished',
+              {
+                mode,
+                agentProfile: profile,
+                providerId: provider.id,
+                model: modelName,
+                currentResponseId,
+                iterationCount,
+                retryCount,
+                stepResult: undefined,
+                error: iterationError,
+                hasOutput: stepHasOutput,
+                hasToolCalls: stepHasToolCalls,
+                finishReason: 'error',
+                responseMessages: currentStepMessages,
+              },
+              task.project,
+              task,
+            );
+
+            if (effectiveAbortSignal?.aborted) {
+              throw iterationError;
+            }
+
+            if (extensionResult.continue === true) {
+              const requestedModelId = extensionResult.modelId;
+              const wantsSwitch = typeof requestedModelId === 'string' && requestedModelId !== `${provider.id}/${modelName}`;
+              const canContinue = !wantsSwitch || (await applyModelSwitch(requestedModelId, 'error'));
+              if (effectiveAbortSignal?.aborted) {
+                throw iterationError;
+              }
+              if (canContinue) {
+                logger.warn('Model step failed; continuing as requested by extension', {
+                  error: iterationError,
+                  providerId: provider.id,
+                  model: modelName,
+                  switchedModel: wantsSwitch,
+                });
+                if (streamingMessageIds.size > 0) {
+                  this.removeUnfinishedStreamingMessages(task, streamingMessageIds);
+                }
+                retryCount = 0;
+                consecutiveErrorContinues++;
+                retryWithoutAdvancingStep = consecutiveErrorContinues <= 1;
+                needsCompactionCheck = wantsSwitch;
+                continue;
+              }
+            }
+          }
+
+          if (deferredStreamError !== null) {
+            this.logStepError(task, deferredStreamError, promptContext);
+          }
+
+          if (thrownStreamError !== null) {
+            if (isNetworkError(thrownStreamError) && retryCount < MAX_RETRIES) {
+              logger.warn(`Network error during streaming, retrying (${retryCount + 1}/${MAX_RETRIES})...`, { error: thrownStreamError });
+              this.removeUnfinishedStreamingMessages(task, streamingMessageIds);
+              task.addLogMessage('loading', 'Network error occured. Retrying...');
+              retryCount++;
+              continue;
+            } else if (isNetworkError(thrownStreamError)) {
+              const error = thrownStreamError as Error;
+              const underlyingMessage = error.cause instanceof Error ? error.cause.message : error.message;
+              throw new Error(`Network error after ${MAX_RETRIES} retries (check your connection): ${underlyingMessage}`, { cause: thrownStreamError });
+            } else {
+              throw thrownStreamError;
+            }
+          }
+
+          if (generateTextError !== null) {
+            throw generateTextError;
+          }
+
           logger.error('Error during iteration:', iterationError);
           if (isNetworkError(iterationError) && retryCount < MAX_RETRIES) {
             logger.info(`Network error, retrying (${retryCount + 1}/${MAX_RETRIES})...`);
@@ -1486,7 +1584,7 @@ export class Agent {
             iterationError instanceof APICallError &&
             iterationError.isRetryable &&
             retryCount < MAX_RETRIES &&
-            this.modelManager.isRetryable(resolvedProvider, modelName, iterationError)
+            this.modelManager.isRetryable(provider, modelName, iterationError)
           ) {
             // try again
             retryCount++;
@@ -1499,6 +1597,47 @@ export class Agent {
               state: DefaultTaskState.Interrupted,
             });
             break;
+          }
+        }
+
+        consecutiveErrorContinues = 0;
+        let stepContinueOverride: boolean | undefined;
+        let requestedModelId: string | undefined;
+
+        if (completedStepResult && !effectiveAbortSignal?.aborted) {
+          const stepHasOutput = hasOutput || currentStepMessages.some((message) => message.role === 'assistant');
+          const stepHasToolCalls = hasToolCalls || completedStepResult.toolCalls.length > 0 || completedStepResult.toolResults.length > 0;
+          const extensionResult = await this.extensionManager.dispatchEvent(
+            'onAgentStepFinished',
+            {
+              mode,
+              agentProfile: profile,
+              providerId: provider.id,
+              model: modelName,
+              currentResponseId,
+              iterationCount,
+              retryCount,
+              stepResult: completedStepResult,
+              hasOutput: stepHasOutput,
+              hasToolCalls: stepHasToolCalls,
+              finishReason: finishReason ?? 'other',
+              responseMessages: currentStepMessages,
+            },
+            task.project,
+            task,
+          );
+          currentStepMessages = extensionResult.responseMessages;
+          finishReason = extensionResult.finishReason;
+          stepContinueOverride = extensionResult.continue;
+          requestedModelId = extensionResult.modelId;
+
+          currentResponseId = uuidv4();
+          assistantMessage.reset();
+          streamingMessageIds.clear();
+
+          if (currentStepMessages.length > 0) {
+            // Reset retry count when we get a response
+            retryCount = 0;
           }
         }
 
@@ -1523,9 +1662,27 @@ export class Agent {
           break;
         }
 
+        const maybeSwitchModelForNextStep = async () => {
+          if (typeof requestedModelId === 'string' && requestedModelId !== `${provider.id}/${modelName}`) {
+            await applyModelSwitch(requestedModelId, 'step');
+          }
+        };
+
+        if (stepContinueOverride === false) {
+          logger.info('Prompt stopped by extension');
+          break;
+        }
+
+        if (stepContinueOverride === true) {
+          retryCount = 0;
+          await maybeSwitchModelForNextStep();
+          continue;
+        }
+
         if ((finishReason === 'other' || !finishReason) && retryCount < MAX_RETRIES) {
           logger.debug(`Finish reason is "${finishReason}". Retrying...`);
           retryCount++;
+          await maybeSwitchModelForNextStep();
           continue;
         }
 
@@ -1534,6 +1691,7 @@ export class Agent {
           if (retryCount < MAX_RETRIES) {
             logger.warn('Finish reason is "stop" but the step produced no usable output. Retrying...');
             retryCount++;
+            await maybeSwitchModelForNextStep();
             continue;
           }
           logger.warn('Finish reason is "stop" but the step produced no usable output. Max retries reached, stopping.');
@@ -1553,6 +1711,7 @@ export class Agent {
         if (finishReason === 'stop' && lastMessage?.role === 'tool' && retryCount < MAX_RETRIES) {
           logger.debug('Finish reason is "stop" but last message is a tool call. Retrying...');
           retryCount++;
+          await maybeSwitchModelForNextStep();
           continue;
         }
 
@@ -1561,6 +1720,7 @@ export class Agent {
         if (lastMessage?.role === 'user') {
           // if response messages have been modified by other means (e.g. hooks), we need to continue when the last message is a user message
           logger.debug('Last message is a user message. Continuing...');
+          await maybeSwitchModelForNextStep();
           continue;
         }
 
@@ -1577,6 +1737,8 @@ export class Agent {
           logger.info(`Prompt finished. Reason: ${finishReason}`);
           break;
         }
+
+        await maybeSwitchModelForNextStep();
       }
 
       const extensionResult = await this.extensionManager.dispatchEvent(
@@ -1646,6 +1808,157 @@ export class Agent {
     }
 
     return resultMessages;
+  }
+
+  private async createAgentModel(
+    task: Task,
+    provider: ProviderProfile,
+    modelName: string,
+    settings: SettingsData,
+    toolSet: ToolSet,
+    systemPrompt: string | undefined,
+    approvalManager: ApprovalManager,
+    providerMetadata?: unknown,
+  ): Promise<LanguageModel> {
+    logger.debug('Creating LLM model', {
+      providerId: provider.id,
+      providerName: provider.provider.name,
+      modelName,
+    });
+
+    const model = await this.modelManager.createLlm(
+      provider,
+      modelName,
+      settings,
+      task.getProjectDir(),
+      toolSet,
+      systemPrompt,
+      providerMetadata,
+      task.task.id,
+      approvalManager.createProviderToolApprovalHandler(toolSet),
+    );
+    logger.debug('LLM model created successfully', {
+      model: typeof model !== 'string' ? model.modelId : model,
+    });
+
+    return model;
+  }
+
+  private async switchModelRuntime({
+    modelId,
+    profile,
+    provider,
+    modelName,
+    task,
+    mode,
+    settings,
+    systemPrompt,
+    contextMessages,
+    resultMessages,
+    messages,
+    approvalManager,
+    abortSignal,
+    promptContext,
+  }: {
+    modelId: string;
+    profile: AgentProfile;
+    provider: ProviderProfile;
+    modelName: string;
+    task: Task;
+    mode: Mode;
+    settings: SettingsData;
+    systemPrompt: string | undefined;
+    contextMessages: ContextMessage[];
+    resultMessages: ContextMessage[];
+    messages: ModelMessage[];
+    approvalManager: ApprovalManager;
+    abortSignal?: AbortSignal;
+    promptContext?: PromptContext;
+  }): Promise<{
+    profile: AgentProfile;
+    provider: ProviderProfile;
+    modelName: string;
+    toolSet: ToolSet;
+    model: LanguageModel;
+    messages: ModelMessage[];
+  } | null> {
+    const [providerId, replacementName] = extractProviderModel(modelId);
+    if (!replacementName || (providerId === provider.id && replacementName === modelName)) {
+      return null;
+    }
+
+    const replacementProvider = this.modelManager.getProviders().find((candidate) => candidate.id === providerId && !candidate.disabled);
+    if (!replacementProvider || !this.modelManager.getModelSettings(providerId, replacementName)) {
+      logger.warn('Cannot switch agent model: target provider or model is unavailable', {
+        providerId,
+        modelName: replacementName,
+      });
+      return null;
+    }
+
+    const replacementProfile: AgentProfile = {
+      ...profile,
+      provider: providerId,
+      model: replacementName,
+    };
+
+    try {
+      const replacementTools = await this.getAvailableTools(
+        task,
+        mode,
+        replacementProfile,
+        replacementProvider,
+        replacementName,
+        contextMessages,
+        resultMessages,
+        abortSignal,
+        promptContext,
+        approvalManager,
+      );
+      if (abortSignal?.aborted) {
+        return null;
+      }
+
+      const replacementModel = await this.createAgentModel(
+        task,
+        replacementProvider,
+        replacementName,
+        settings,
+        replacementTools,
+        systemPrompt,
+        approvalManager,
+      );
+      if (abortSignal?.aborted) {
+        return null;
+      }
+
+      const replacementMessages = this.modelManager.normalizeMessages(replacementProvider, replacementName, messages);
+      return {
+        profile: replacementProfile,
+        provider: replacementProvider,
+        modelName: replacementName,
+        toolSet: replacementTools,
+        model: replacementModel,
+        messages: replacementMessages,
+      };
+    } catch (error) {
+      logger.warn('Could not initialize the replacement agent model', { error, providerId, modelName: replacementName });
+      return null;
+    }
+  }
+
+  private logStepError(task: Task, error: unknown, promptContext?: PromptContext): void {
+    logger.error('Error during prompt:', { error });
+    if (typeof error === 'string') {
+      task.addLogMessage('error', error, false, promptContext);
+    } else if (APICallError.isInstance(error) || (typeof error === 'object' && error !== null && 'message' in error && 'responseBody' in error)) {
+      const apiError = error as { message: string; responseBody?: unknown };
+      task.addLogMessage('error', `${apiError.message}: ${apiError.responseBody}`, false, promptContext);
+    } else if (error instanceof Error) {
+      task.addLogMessage('error', error.message, false, promptContext);
+    } else {
+      task.addLogMessage('error', JSON.stringify(error), false, promptContext);
+    }
   }
 
   private stepShouldContinue(stepMessages: ContextMessage[]): boolean {
@@ -2281,6 +2594,7 @@ export class Agent {
     model: string,
     promptContext?: PromptContext,
     abortSignal?: AbortSignal,
+    persistProviderMetadata = true,
   ): Promise<ContextMessage[]> {
     logger.info(`Step finished. Reason: ${finishReason} (${rawFinishReason})`, {
       currentResponseId,
@@ -2300,7 +2614,7 @@ export class Agent {
     const messages: ContextMessage[] = [];
     const usageReport: UsageReportData = this.modelManager.getUsageReport(task, provider, model, usage, providerMetadata);
 
-    if (providerMetadata) {
+    if (providerMetadata && persistProviderMetadata) {
       // per-step metadata must not bump updatedAt, otherwise running tasks keep re-sorting in the task list
       await task.updateTask({ lastAgentProviderMetadata: providerMetadata }, false);
     }

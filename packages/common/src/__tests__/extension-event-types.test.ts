@@ -148,13 +148,21 @@ describe('Event Payload Interfaces', () => {
       const event: AgentStepFinishedEvent = {
         mode: 'agent',
         agentProfile: {} as AgentProfile,
+        providerId: 'openai',
+        model: 'gpt-5',
         currentResponseId: 'response-1',
+        iterationCount: 1,
+        retryCount: 0,
         stepResult: {} as any,
         finishReason: 'stop',
         responseMessages: [],
       };
       expect(event).toHaveProperty('agentProfile');
+      expect(event).toHaveProperty('providerId');
+      expect(event).toHaveProperty('model');
       expect(event).toHaveProperty('currentResponseId');
+      expect(event).toHaveProperty('iterationCount');
+      expect(event).toHaveProperty('retryCount');
       expect(event).toHaveProperty('stepResult');
       expect(event).toHaveProperty('finishReason');
       expect(event).toHaveProperty('responseMessages');
@@ -651,7 +659,7 @@ describe('Event Modification Pattern', () => {
 
   it('event handlers can modify tool result in ToolFinishedEvent', async () => {
     const extension: Extension = {
-      async onToolFinished(_event) {
+      async onToolFinished() {
         return { output: 'modified result' };
       },
     };
@@ -805,7 +813,7 @@ describe('Blocking Events', () => {
   describe('FilesAddedEvent', () => {
     it('extension can return empty files array to prevent addition', async () => {
       const extension: Extension = {
-        async onFilesAdded(_event): Promise<void | Partial<FilesAddedEvent>> {
+        async onFilesAdded(): Promise<void | Partial<FilesAddedEvent>> {
           return { files: [] };
         },
       };
@@ -832,7 +840,7 @@ describe('Blocking Events', () => {
   describe('FilesDroppedEvent', () => {
     it('extension can return empty files array to prevent drop', async () => {
       const extension: Extension = {
-        async onFilesDropped(_event): Promise<void | Partial<FilesDroppedEvent>> {
+        async onFilesDropped(): Promise<void | Partial<FilesDroppedEvent>> {
           return { files: [] };
         },
       };

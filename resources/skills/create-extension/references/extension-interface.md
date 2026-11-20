@@ -174,7 +174,7 @@ interface Extension {
   /** Called before each agent step starts. Modify `event.messages` to change messages sent to the LLM. */
   onAgentStepStarted?(event: AgentStepStartedEvent, context: ExtensionContext): Promise<void | Partial<AgentStepStartedEvent>>;
 
-  /** Called after each agent step completes. */
+  /** Called after each agent step completes or fails. Return `continue` and/or `modelId` to control loop continuation or switch models mid-run. */
   onAgentStepFinished?(event: AgentStepFinishedEvent, context: ExtensionContext): Promise<void | Partial<AgentStepFinishedEvent>>;
 
   /** Override default Aider/subagent transformations. Receives originalMessages and transformedMessages; transformations are not reapplied. */
@@ -1358,10 +1358,19 @@ interface AgentStepStartedEvent {
 interface AgentStepFinishedEvent {
   readonly mode: Mode;
   readonly agentProfile: AgentProfile;
+  readonly providerId: string;
+  readonly model: string;
   readonly currentResponseId: string;
-  readonly stepResult: AgentStepResult;
-  finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other';
+  readonly iterationCount: number;
+  readonly retryCount: number;
+  readonly stepResult?: AgentStepResult;
+  readonly error?: unknown;
+  readonly hasOutput?: boolean;
+  readonly hasToolCalls?: boolean;
+  finishReason: 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other' | 'interrupted';
   responseMessages: ContextMessage[];
+  continue?: boolean;
+  modelId?: string;
 }
 
 interface OptimizeMessagesEvent {

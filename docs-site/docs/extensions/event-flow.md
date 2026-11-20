@@ -189,11 +189,11 @@ These events fire during each iteration of the LLM processing:
 - **Can block**: ❌ No
 - **Use for**: Format tool outputs, add metadata
 
-**onAgentStepFinished** - After each LLM step; for streaming providers, after the consumer reaches `finish-step` and preceding chunks have been handled
+**onAgentStepFinished** - After each LLM step completes or fails; for streaming providers, after the consumer reaches `finish-step` and preceding chunks have been handled (or on stream error)
 
-- **Can modify**: `finishReason`, `responseMessages`
+- **Can modify**: Completed steps: `finishReason`, `responseMessages`, `continue`, `modelId`. Error steps: `continue`, `modelId` only (`finishReason` and `responseMessages` are ignored)
 - **Can block**: ❌ No
-- **Use for**: Control iteration behavior
+- **Use for**: Control iteration behavior, error fallback, or mid-run model switching
 
 ### Phase 3: Completion
 

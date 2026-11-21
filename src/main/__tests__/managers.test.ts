@@ -134,6 +134,21 @@ describe('manager cleanup', () => {
     expect(logger.error).not.toHaveBeenCalled();
   });
 
+  it('disposes the extension manager only after project cleanup finishes', async () => {
+    const projectClosed = createDeferred();
+    managers.ProjectManager.close.mockReturnValue(projectClosed.promise);
+    const { cleanup } = await init();
+
+    const pending = cleanup();
+    await vi.waitFor(() => expect(managers.ProjectManager.close).toHaveBeenCalledOnce());
+    expect(managers.ExtensionManager.dispose).not.toHaveBeenCalled();
+
+    projectClosed.resolve();
+    await pending;
+    expect(managers.ExtensionManager.dispose).toHaveBeenCalledOnce();
+    expect(managers.DataManager.close).toHaveBeenCalledOnce();
+  });
+
   it('waits for remaining cleanup after an asynchronous failure and logs its manager and stack', async () => {
     const project = createDeferred();
     const error = new Error('MCP cleanup failed');

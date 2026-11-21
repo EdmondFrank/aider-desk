@@ -157,7 +157,7 @@ describe('Recovery findings deterministic reproductions', () => {
         subagentAbortControllers: {},
         resolutionAbortControllers: {},
         findMessageConnectors: vi.fn(() => []),
-        agent: { interrupt: vi.fn() },
+        agent: { isRunning: vi.fn().mockReturnValue(false), interrupt: vi.fn() },
         promptFinished: vi.fn(),
         cleanupChunkBuffers: vi.fn(),
         resolveAgentRunPromises: vi.fn(),

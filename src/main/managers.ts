@@ -189,7 +189,6 @@ export const initManagers = async (store: Store, windowManager?: WindowManager):
         { manager: 'mcpConfigManager', run: () => mcpConfigManager.dispose() },
         { manager: 'agentProfileManager', run: () => agentProfileManager.dispose() },
         { manager: 'promptsManager', run: () => promptsManager.dispose() },
-        { manager: 'extensionManager', run: () => extensionManager.dispose() },
         { manager: 'gitAskpassManager', run: () => gitAskpassManager.close() },
       ];
       await Promise.allSettled(cleanupActions.map((action) => shutdown.track(action.manager, action.run, { manager: action.manager })));
@@ -197,6 +196,14 @@ export const initManagers = async (store: Store, windowManager?: WindowManager):
       if (shutdown.timedOut) {
         return;
       }
+
+      // Dispose extensions after projects are closed so project/task shutdown events (onProjectStopped, onTaskClosed, onInterrupted)
+      // can still be delivered to extensions; disposing earlier would leave dispatchEvent callers waiting on waitForInit forever.
+      await shutdown.track('extensionManager', () => extensionManager.dispose(), { manager: 'extensionManager' });
+      if (shutdown.timedOut) {
+        return;
+      }
+
       await shutdown.track('telemetryManager', () => telemetryManager.destroy(), { manager: 'telemetryManager' }).catch(() => undefined);
       if (shutdown.timedOut) {
         return;

@@ -937,7 +937,9 @@ export class Task {
     if (clearContext) {
       this.eventManager.sendClearTask(this.project.baseDir, this.taskId, true, true);
     }
-    await track('interruptResponse', () => this.interruptResponse(undefined, true));
+    if (this.isPromptRunning() || this.currentQuestion || this.task.state === DefaultTaskState.InProgress) {
+      await track('interruptResponse', () => this.interruptResponse(undefined, true));
+    }
     if (this.worktreeSetupPromise) {
       await track('worktreeSetup', () => this.worktreeSetupPromise?.catch(() => undefined));
     }

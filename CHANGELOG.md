@@ -20,6 +20,7 @@
 - extended the onAgentStepFinished extension hook with error-step dispatch, step metadata, loop continuation control (continue), and mid-run model switching (modelId)
 - fixed headless npm install crashing at startup with "Cannot find module 'electron'"
 - added app version resolution for headless and docker deployments (telemetry, versions API, OpenCode Go User-Agent, AIDER_DESK_VERSION env override)
+- fixed app shutdown timing out and forcing exit when projects with initialized tasks were open, by disposing extensions after project cleanup and skipping interrupts for idle tasks
 
 ## [0.92.0]
 

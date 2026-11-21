@@ -221,6 +221,7 @@ export class ExtensionManager {
   private globalWatcher: FSWatcher | null = null;
   private projectWatchers: Map<string, FSWatcher> = new Map();
   private initialized = false;
+  private disposed = false;
   private listeners: ExtensionsChangeListener[] = [];
   private extensionMtimes: Map<string, number> = new Map();
   private readonly startedProjects = new Map<string, Project>();
@@ -367,6 +368,7 @@ export class ExtensionManager {
 
   async init(): Promise<void> {
     logger.info('[Extensions] Starting extension system initialization...');
+    this.disposed = false;
 
     try {
       this.registry.clear();
@@ -651,6 +653,9 @@ export class ExtensionManager {
   }
 
   async waitForInit(): Promise<void> {
+    if (this.disposed) {
+      return;
+    }
     while (!this.initialized) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
@@ -715,6 +720,7 @@ export class ExtensionManager {
       return;
     }
 
+    this.disposed = true;
     logger.debug('[Extensions] Disposing extension system...');
 
     await this.stopGlobalWatcher();

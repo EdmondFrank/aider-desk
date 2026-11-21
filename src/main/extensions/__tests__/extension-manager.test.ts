@@ -432,6 +432,30 @@ describe('ExtensionManager', () => {
       await expect(manager.dispose()).resolves.not.toThrow();
       expect(manager.isInitialized()).toBe(false);
     });
+
+    it('resolves dispatchEvent immediately with the unchanged event after dispose', async () => {
+      fsAccessMock.mockRejectedValue(new Error('Directory does not exist'));
+      (mockRegistry as Record<string, unknown>).getExtensions = vi.fn().mockReturnValue([]);
+      (mockRegistry as Record<string, unknown>).setInitialized = vi.fn();
+
+      await manager.init();
+      await manager.dispose();
+
+      const project = { baseDir: '/project' } as unknown as Project;
+      const event = { baseDir: '/project' };
+      await expect(manager.dispatchEvent('onProjectStopped', event, project)).resolves.toBe(event);
+    });
+
+    it('resolves waitForInit immediately once disposed', async () => {
+      fsAccessMock.mockRejectedValue(new Error('Directory does not exist'));
+      (mockRegistry as Record<string, unknown>).getExtensions = vi.fn().mockReturnValue([]);
+      (mockRegistry as Record<string, unknown>).setInitialized = vi.fn();
+
+      await manager.init();
+      await manager.dispose();
+
+      await expect(manager.waitForInit()).resolves.toBeUndefined();
+    });
   });
 
   describe('unloadExtension', () => {

@@ -1628,7 +1628,10 @@
     "contextCompactingThresholdOff": "Disattivato",
     "contextCompactingThresholdTooltip": "Quando il consumo di token supera questa soglia, la conversazione verrà compattata automaticamente per risparmiare spazio.",
     "contextWindowNotSet": "La finestra di contesto non è impostata per questo modello, quindi la compattazione automatica non funzionerà. È possibile impostare manualmente il valore della finestra di contesto nella Libreria dei modelli.",
-    "thresholdTokens": "Token di soglia"
+    "thresholdTokens": "Token di soglia",
+    "compactConversation": "Compatta conversazione",
+    "compact": "Compatta",
+    "smartCompact": "Compattazione intelligente"
   },
   "commandOutput": {
     "command": "Comando"

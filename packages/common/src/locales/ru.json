@@ -1632,7 +1632,10 @@
     "contextCompactingThresholdOff": "Выключено",
     "contextCompactingThresholdTooltip": "Когда использование токенов превышает этот порог, разговор будет автоматически сжат для экономии места.",
     "contextWindowNotSet": "Контекстное окно не задано для этой модели, поэтому авто-компакт не будет работать. Вы можете задать контекстное окно вручную в Библиотеке моделей.",
-    "thresholdTokens": "Пороговые токены"
+    "thresholdTokens": "Пороговые токены",
+    "compactConversation": "Сжать диалог",
+    "compact": "Сжать",
+    "smartCompact": "Умное сжатие"
   },
   "commandOutput": {
     "command": "Команда"

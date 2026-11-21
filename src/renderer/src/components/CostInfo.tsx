@@ -6,6 +6,7 @@ import { MdOutlineRefresh, MdSettingsBackupRestore } from 'react-icons/md';
 
 import { Tooltip } from '@/components/ui/Tooltip';
 import { TokenUsageBar } from '@/components/TokenUsageBar';
+import { CompactMenuButton } from '@/components/CompactMenuButton';
 import { ExtensionComponentWrapper } from '@/components/extensions/ExtensionComponentWrapper';
 
 type Props = {
@@ -115,7 +116,12 @@ export const CostInfo = ({ tokensInfo, aiderTotalCost, clearMessages, refreshRep
           </div>
         </div>
 
-        <TokenUsageBar tokensInfo={tokensInfo} maxInputTokens={maxInputTokens} mode={mode} task={task} updateTask={updateTask} />
+        <div className="flex items-center">
+          <div className="flex-1 min-w-0">
+            <TokenUsageBar tokensInfo={tokensInfo} maxInputTokens={maxInputTokens} mode={mode} task={task} updateTask={updateTask} />
+          </div>
+          <CompactMenuButton task={task} mode={mode} />
+        </div>
         <ExtensionComponentWrapper placement="task-usage-info-bottom" direction="vertical" />
       </div>
     </div>

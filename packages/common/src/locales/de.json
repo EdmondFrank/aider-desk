@@ -1612,7 +1612,10 @@
     "contextCompactingThresholdOff": "Aus",
     "contextCompactingThresholdTooltip": "Wenn die Token-Nutzung diesen Schwellenwert überschreitet, wird die Konversation automatisch komprimiert, um Platz zu sparen.",
     "contextWindowNotSet": "Für dieses Modell ist kein Kontextfenster festgelegt, daher funktioniert die automatische Komprimierung nicht. Sie können den Wert des Kontextfensters manuell in der Modellbibliothek festlegen.",
-    "thresholdTokens": "Schwellenwert-Token"
+    "thresholdTokens": "Schwellenwert-Token",
+    "compactConversation": "Konversation komprimieren",
+    "compact": "Komprimieren",
+    "smartCompact": "Smart-Komprimierung"
   },
   "commandOutput": {
     "command": "Befehl"

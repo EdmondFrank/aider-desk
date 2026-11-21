@@ -1636,7 +1636,10 @@
     "contextCompactingThresholdOff": "Off",
     "contextCompactingThresholdTooltip": "When token usage exceeds this threshold, the conversation will be automatically compacted to save space.",
     "contextWindowNotSet": "Context window is not set for this model, so auto-compaction won't work. You can set the context window value manually in the Model Library.",
-    "thresholdTokens": "Threshold tokens"
+    "thresholdTokens": "Threshold tokens",
+    "compactConversation": "Compact conversation",
+    "compact": "Compact",
+    "smartCompact": "Smart compact"
   },
   "commandOutput": {
     "command": "Command"

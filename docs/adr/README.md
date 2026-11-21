@@ -74,6 +74,7 @@ ADRs are grouped into context directories. **Numbering is global and sequential*
 | [0042](extensions/0042-extension-isolation.md) | Extension Isolation | Accepted | 2026-10-14 |
 | [0042](data-and-state/0042-durable-agent-execution-journals.md) | Application-Local Durable Agent Execution Journals | Accepted | 2026-10-14 |
 | [0043](frontend-ui/0043-pre-react-browser-startup-progress.md) | Pre-React Browser Startup Progress | Accepted | 2026-11-05 |
+| [0044](agent-system/0044-message-preparation-pipeline.md) | Message Preparation Pipeline — Mandatory Transformations and Request-Time Optimization | Accepted | 2026-11-21 |
 
 ## Extension Test Boundary
 

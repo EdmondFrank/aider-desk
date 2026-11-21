@@ -3,7 +3,37 @@ import { AIDER_TOOL_GROUP_NAME, AIDER_TOOL_RUN_PROMPT, SUBAGENTS_TOOL_GROUP_NAME
 
 import { getSubagentFinalText } from './tool-results';
 
-import type { ModelMessage } from 'ai';
+import type { ModelMessage, TextPart, UserModelMessage, UserContent } from 'ai';
+
+const userContentToParts = (content: UserContent): Array<TextPart | Exclude<UserContent, string>[number]> => {
+  if (typeof content === 'string') {
+    return [{ type: 'text', text: content }];
+  }
+  return content;
+};
+
+const mergeUserContent = (first: UserModelMessage['content'], second: UserModelMessage['content']): UserModelMessage['content'] => {
+  if (typeof first === 'string' && typeof second === 'string') {
+    return `${first}\n\n${second}`;
+  }
+  return [...userContentToParts(first), ...userContentToParts(second)];
+};
+
+export const mergeConsecutiveUserMessages = (messages: ModelMessage[]): ModelMessage[] => {
+  const result: ModelMessage[] = [];
+  for (const message of messages) {
+    const previous = result[result.length - 1];
+    if (message.role === 'user' && previous?.role === 'user') {
+      result[result.length - 1] = {
+        role: 'user',
+        content: mergeUserContent(previous.content, message.content),
+      };
+      continue;
+    }
+    result.push(message);
+  }
+  return result;
+};
 
 export const transformMessages = (messages: ModelMessage[]): ModelMessage[] => {
   const transformedMessages = cloneDeep(messages);
@@ -31,5 +61,5 @@ export const transformMessages = (messages: ModelMessage[]): ModelMessage[] => {
       }
     }
   }
-  return transformedMessages;
+  return mergeConsecutiveUserMessages(transformedMessages);
 };

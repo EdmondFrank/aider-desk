@@ -102,6 +102,22 @@ import { ExtensionManager } from '@/extensions/extension-manager';
 
 const MAX_RETRIES = 3;
 
+// Matches the initial user request in prepared messages, tolerating appended
+// compaction notes merged into the same user message.
+const isInitialUserRequest = (message: ModelMessage, firstUserMessage: ContextUserMessage): boolean => {
+  if (message.role !== 'user') {
+    return false;
+  }
+  if (typeof firstUserMessage.content !== 'string') {
+    return message.content === firstUserMessage.content;
+  }
+  if (typeof message.content === 'string') {
+    return message.content === firstUserMessage.content || message.content.startsWith(`${firstUserMessage.content}\n\n`);
+  }
+  const firstTextPart = Array.isArray(message.content) ? message.content.find((part) => part.type === 'text') : undefined;
+  return !!firstTextPart && (firstTextPart as TextPart).text.startsWith(firstUserMessage.content);
+};
+
 export class Agent {
   private readonly wrappedTools = new WeakSet<object>();
   private abortControllers: Map<string, AbortController> = new Map();
@@ -921,7 +937,7 @@ export class Agent {
     const firstUserMessage = contextMessages.find((message) => message.role === 'user');
     let messages = await this.prepareMessages(task, profile, contextMessages, contextFiles);
     const initialUserRequestMessageIndex = firstUserMessage
-      ? messages.findIndex((message) => message.role === 'user' && message.content === firstUserMessage.content)
+      ? messages.findIndex((message) => isInitialUserRequest(message, firstUserMessage))
       : messages.length;
 
     // add user message and skill activation messages (skills right after the
@@ -2263,9 +2279,7 @@ export class Agent {
     const systemPrompt = await this.promptsManager.getSystemPrompt(settings, task, profile);
     const messages = await this.prepareMessages(task, profile, contextMessages, contextFiles);
     const firstUserMessage = contextMessages.find((message) => message.role === 'user');
-    const userIndex = firstUserMessage
-      ? messages.findIndex((message) => message.role === 'user' && message.content === firstUserMessage.content)
-      : messages.length;
+    const userIndex = firstUserMessage ? messages.findIndex((message) => isInitialUserRequest(message, firstUserMessage)) : messages.length;
     messages.push({ role: 'user', content: prompt });
     const toolSet = await this.getAvailableTools(
       task,

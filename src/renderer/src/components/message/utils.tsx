@@ -17,6 +17,7 @@ import {
   ToolMessage,
 } from '@common/types';
 
+import { CompactionEditsNoteBlock } from './CompactionEditsNoteBlock';
 import { CompactionSnippetBlock } from './CompactionSnippetBlock';
 import { CustomCommandBashBlock } from './CustomCommandBashBlock';
 import { ThinkingAnswerBlock } from './ThinkingAnswerBlock';
@@ -271,7 +272,30 @@ export const parseMessageContent = (
         }
       }
 
-      // Check for <file-edited> compaction placeholder tags
+      // Check for <compacted-edits> compaction note blocks
+      if (line.trim() === '<compacted-edits>') {
+        processTextBlock();
+        const filePaths: string[] = [];
+        let endIndex = -1;
+        for (let j = i + 1; j < lines.length; j++) {
+          const blockLine = lines[j].trim();
+          if (blockLine === '</compacted-edits>') {
+            endIndex = j;
+            break;
+          }
+          const match = blockLine.match(/^-\s+(.+)$/);
+          if (match) {
+            filePaths.push(match[1].trim());
+          }
+        }
+        parts.push(<CompactionEditsNoteBlock key={parts.length} filePaths={filePaths} />);
+        if (endIndex !== -1) {
+          i = endIndex;
+        }
+        continue;
+      }
+
+      // Check for <file-edited> compaction placeholder tags (legacy format)
       const fileEditedMatch = line.match(/<file-edited\s+path="([^"]+)">/);
       if (fileEditedMatch) {
         processTextBlock();

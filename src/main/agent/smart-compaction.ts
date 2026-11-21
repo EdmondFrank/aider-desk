@@ -1,4 +1,4 @@
-import { ContextMessage, ContextToolMessage, ContextAssistantMessage, TextPart, ToolResultPart, ToolResultOutput } from '@common/types';
+import { ContextMessage, ContextToolMessage, ContextAssistantMessage, ContextUserMessage, TextPart, ToolResultPart, ToolResultOutput } from '@common/types';
 import {
   POWER_TOOL_GROUP_NAME,
   POWER_TOOL_FILE_EDIT,
@@ -18,6 +18,48 @@ import logger from '@/logger';
 
 const EXTENDED_COMPACT_WINDOW = 50;
 const VERBOSE_TOOL_INPUT_THRESHOLD = 150;
+
+const COMPACTION_NOTE_PREFIX =
+  'Earlier file edits were compacted to save context. Read a file again with the file_read tool before editing it if you need its current content.';
+
+const buildCompactedEditsNote = (filePaths: string[]): string => {
+  return ['<compacted-edits>', COMPACTION_NOTE_PREFIX, ...filePaths.map((filePath) => `- ${filePath}`), '</compacted-edits>'].join('\n');
+};
+
+const extractPathsFromCompactedEditsBlock = (text: string): string[] => {
+  const paths: string[] = [];
+  const lines = text.split('\n');
+  let inBlock = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '<compacted-edits>') {
+      inBlock = true;
+      continue;
+    }
+    if (trimmed === '</compacted-edits>') {
+      inBlock = false;
+      continue;
+    }
+    if (inBlock) {
+      const match = trimmed.match(/^-\s+(.+)$/);
+      if (match) {
+        paths.push(match[1].trim());
+      }
+    }
+  }
+  return paths;
+};
+
+const collectEditedFilePathsFromUserNotes = (messages: ContextMessage[]): string[] => {
+  const paths: string[] = [];
+  for (const msg of messages) {
+    if (msg.role !== 'user' || typeof msg.content !== 'string' || !msg.content.includes('<compacted-edits>')) {
+      continue;
+    }
+    paths.push(...extractPathsFromCompactedEditsBlock(msg.content));
+  }
+  return paths;
+};
 
 export enum CompactionLevel {
   One = 1,
@@ -444,28 +486,28 @@ export const collapseFileEdits = (messages: ContextMessage[], protectedMessageCo
     }
   }
 
-  for (const [filePath, edits] of fileEditGroups) {
-    if (edits.length === 0) {
-      continue;
-    }
+  const filePaths = [...fileEditGroups.keys()].filter((filePath) => fileEditGroups.get(filePath)!.length > 0);
+  if (filePaths.length === 0) {
+    return messages;
+  }
 
+  let insertIndex = 0;
+  for (const [, edits] of fileEditGroups) {
     const lastEdit = edits[edits.length - 1];
-
-    const syntheticMessage: ContextAssistantMessage = {
-      id: uuidv4(),
-      role: 'assistant',
-      content: [
-        {
-          type: 'text',
-          text: `<file-edited path="${filePath}">File was edited. Read the content again if you need to work on it.</file-edited>`,
-        } satisfies TextPart,
-      ],
-    };
-
     const assistantIndex = messages.findIndex((m) => m.id === lastEdit.assistantMessageId);
-    const insertIndex = assistantIndex !== -1 ? assistantIndex + 1 : 0;
-    messages.splice(insertIndex, 0, syntheticMessage);
+    if (assistantIndex !== -1 && assistantIndex + 1 > insertIndex) {
+      insertIndex = assistantIndex + 1;
+    }
+  }
 
+  const syntheticMessage: ContextUserMessage = {
+    id: uuidv4(),
+    role: 'user',
+    content: buildCompactedEditsNote(filePaths),
+  };
+  messages.splice(insertIndex, 0, syntheticMessage);
+
+  for (const [, edits] of fileEditGroups) {
     for (const edit of edits) {
       removeToolCallFromAssistant(messages, edit.toolCallId);
       removeToolResult(messages, edit.toolCallId);
@@ -478,7 +520,7 @@ export const collapseFileEdits = (messages: ContextMessage[], protectedMessageCo
 export const removeStaleFileReads = (messages: ContextMessage[], protectedMessageCount = 10): ContextMessage[] => {
   const protectedStart = getProtectedStartIndex(messages, protectedMessageCount);
 
-  const editedFilePaths = new Set<string>();
+  const editedFilePaths = new Set<string>(collectEditedFilePathsFromUserNotes(messages));
 
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
@@ -665,7 +707,13 @@ export const removeObsoleteSearches = (messages: ContextMessage[], protectedMess
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
 
-    // Check for synthetic <file-edited> messages from collapseFileEdits
+    // Check for synthetic <compacted-edits> user notes from collapseFileEdits
+    if (msg.role === 'user' && typeof msg.content === 'string' && msg.content.includes('<compacted-edits>')) {
+      fileModificationPositions.push(i);
+      continue;
+    }
+
+    // Check for legacy synthetic <file-edited> messages from collapseFileEdits
     if (msg.role === 'assistant' && Array.isArray(msg.content)) {
       for (const part of msg.content) {
         if (part.type === 'text' && part.text.includes('<file-edited')) {

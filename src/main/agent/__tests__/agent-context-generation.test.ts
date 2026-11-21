@@ -103,7 +103,7 @@ describe('context side generation', () => {
     expect(request.toolChoice).toEqual({ type: 'none' });
     expect(request.tools).toEqual([expect.objectContaining({ type: 'function', name: 'read_file', description: 'Read a file' })]);
     expect(request.prompt[0]).toMatchObject({ role: 'system', content: 'Normal agent system prompt' });
-    expect(request.prompt.at(-1)).toMatchObject({ role: 'user', content: [{ type: 'text', text: 'Review the goal' }] });
+    expect(request.prompt.at(-1)).toMatchObject({ role: 'user', content: [{ type: 'text', text: 'Existing evidence\n\nReview the goal' }] });
     expect(request.prompt.some((message) => JSON.stringify(message).includes('Existing evidence'))).toBe(true);
     expect(result.output).toBe('{"verdict":"ok"}');
     expect(result.usage.inputTokenDetails).toEqual({ noCacheTokens: 20, cacheReadTokens: 80, cacheWriteTokens: undefined });

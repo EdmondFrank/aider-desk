@@ -23,6 +23,7 @@
 - fixed app shutdown timing out and forcing exit when projects with initialized tasks were open, by disposing extensions after project cleanup and skipping interrupts for idle tasks
 - added a compact button next to the token usage bar to manually trigger conversation compaction (compact or smart compact)
 - updated the ClinePass model list with newly available models, removed deprecated ones, and refreshed reference pricing
+- improved smart compaction of file edits to use a consolidated user-side note instead of synthetic assistant messages, preventing models from imitating the placeholder instead of calling edit tools
 
 ## [0.92.0]
 

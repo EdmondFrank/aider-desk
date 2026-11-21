@@ -56,6 +56,50 @@ describe('message transformation', () => {
     expect(messages).toEqual([subagentMessage()]);
   });
 
+  it('merges consecutive user messages into one', () => {
+    const messages: ModelMessage[] = [
+      { role: 'user', content: '<compacted-edits>\n- src/foo.ts\n</compacted-edits>' },
+      { role: 'user', content: 'please continue' },
+    ];
+    const transformed = transformMessages(messages);
+    expect(transformed).toHaveLength(1);
+    expect(transformed[0].role).toBe('user');
+    expect(transformed[0].content).toBe('<compacted-edits>\n- src/foo.ts\n</compacted-edits>\n\nplease continue');
+  });
+
+  it('merges consecutive user messages with mixed string and parts content', () => {
+    const messages: ModelMessage[] = [
+      { role: 'user', content: 'compaction note' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'real prompt' },
+          { type: 'image', image: 'data:image/png;base64,abc' },
+        ],
+      },
+    ];
+    const transformed = transformMessages(messages);
+    expect(transformed).toHaveLength(1);
+    expect(transformed[0].role).toBe('user');
+    const content = transformed[0].content as Array<{ type: string; text?: string }>;
+    expect(content).toHaveLength(3);
+    expect(content[0]).toEqual({ type: 'text', text: 'compaction note' });
+    expect(content[1]).toEqual({ type: 'text', text: 'real prompt' });
+    expect(content[2].type).toBe('image');
+  });
+
+  it('keeps user messages separated by other roles untouched', () => {
+    const messages: ModelMessage[] = [
+      { role: 'user', content: 'first' },
+      toolMessage('test', { type: 'text', value: 'result' }),
+      { role: 'user', content: 'second' },
+    ];
+    const transformed = transformMessages(messages);
+    expect(transformed).toHaveLength(3);
+    expect(transformed[0].content).toBe('first');
+    expect(transformed[2].content).toBe('second');
+  });
+
   it('supports current and legacy subagent results and empty histories', () => {
     expect(getSubagentFinalText({ messages: [{ role: 'assistant', content: 'final' }] })).toBe('final');
     expect(getSubagentFinalText([{ role: 'assistant', content: 'legacy' }])).toBe('legacy');

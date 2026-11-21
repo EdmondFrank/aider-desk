@@ -631,20 +631,22 @@ describe('removeErroredTools', () => {
 });
 
 describe('collapseFileEdits', () => {
-  it('collapses multiple edits to the same file into a synthetic message', () => {
+  const getCompactionNotes = (msgs: ContextMessage[]) =>
+    msgs.filter((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('<compacted-edits>'));
+
+  it('collapses multiple edits to the same file into a user compaction note', () => {
     resetCounters();
     const edit1 = fileEditTool('src/foo.ts');
     const edit2 = fileEditTool('src/foo.ts');
     const msgs: ContextMessage[] = [userMsg('edit 1'), edit1.assistant, edit1.result, userMsg('edit 2'), edit2.assistant, edit2.result, userMsg('done')];
     const result = collapseFileEdits(msgs, NO_PROTECTION);
-    const synthMessages = result.filter(
-      (m) => m.role === 'assistant' && Array.isArray(m.content) && m.content.some((p) => p.type === 'text' && p.text.includes('<file-edited')),
-    );
-    expect(synthMessages).toHaveLength(1);
+    const notes = getCompactionNotes(result);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].content).toContain('- src/foo.ts');
     expectInvariants(result);
   });
 
-  it('creates separate synthetic messages for different files', () => {
+  it('creates a single consolidated note for different files', () => {
     resetCounters();
     const editA = fileEditTool('src/a.ts');
     const editB = fileEditTool('src/b.ts');
@@ -661,11 +663,22 @@ describe('collapseFileEdits', () => {
       editC.result,
     ];
     const result = collapseFileEdits(msgs, NO_PROTECTION);
-    const synthMessages = result.filter(
-      (m) => m.role === 'assistant' && Array.isArray(m.content) && m.content.some((p) => p.type === 'text' && p.text.includes('<file-edited')),
-    );
-    // a.ts edits are grouped into one, b.ts is another
-    expect(synthMessages).toHaveLength(2);
+    const notes = getCompactionNotes(result);
+    expect(notes).toHaveLength(1);
+    expect(notes[0].content).toContain('- src/a.ts');
+    expect(notes[0].content).toContain('- src/b.ts');
+    expectInvariants(result);
+  });
+
+  it('inserts the note after the last edit assistant message', () => {
+    resetCounters();
+    const editA = fileEditTool('src/a.ts');
+    const editB = fileEditTool('src/b.ts');
+    const msgs: ContextMessage[] = [userMsg('edit a'), editA.assistant, editA.result, userMsg('edit b'), editB.assistant, editB.result, userMsg('done')];
+    const result = collapseFileEdits(msgs, NO_PROTECTION);
+    const noteIndex = result.findIndex((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('<compacted-edits>'));
+    const editBUserIndex = result.findIndex((m) => m.role === 'user' && m.content === 'edit b');
+    expect(noteIndex).toBe(editBUserIndex + 1);
     expectInvariants(result);
   });
 
@@ -679,15 +692,13 @@ describe('collapseFileEdits', () => {
     expectInvariants(result);
   });
 
-  it('creates synthetic message for single edit too', () => {
+  it('creates compaction note for single edit too', () => {
     resetCounters();
     const edit = fileEditTool('src/foo.ts');
     const msgs: ContextMessage[] = [userMsg('edit'), edit.assistant, edit.result, userMsg('next')];
     const result = collapseFileEdits(msgs, NO_PROTECTION);
-    const synthMessages = result.filter(
-      (m) => m.role === 'assistant' && Array.isArray(m.content) && m.content.some((p) => p.type === 'text' && p.text.includes('<file-edited')),
-    );
-    expect(synthMessages).toHaveLength(1);
+    const notes = result.filter((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('<compacted-edits>'));
+    expect(notes).toHaveLength(1);
     expectInvariants(result);
   });
 });
@@ -711,6 +722,21 @@ describe('removeStaleFileReads', () => {
     const msgs = [userMsg('read'), read.assistant, read.result, userMsg('edit'), edit.assistant, edit.result];
     const collapsed = collapseFileEdits(msgs, NO_PROTECTION);
     const result = removeStaleFileReads(collapsed, NO_PROTECTION);
+    const hasRead = result.some((m) => m.role === 'tool' && m.content.some((p) => p.type === 'tool-result' && p.toolName === 'power---file_read'));
+    expect(hasRead).toBe(false);
+    expectInvariants(result);
+  });
+
+  it('removes stale read when edit is represented as a user compaction note from a previous run', () => {
+    resetCounters();
+    const read = fileReadTool('src/foo.ts');
+    const note: ContextMessage = {
+      id: nextId(),
+      role: 'user',
+      content: ['<compacted-edits>', 'Earlier file edits were compacted.', '- src/foo.ts', '</compacted-edits>'].join('\n'),
+    };
+    const msgs = [userMsg('read'), read.assistant, read.result, note];
+    const result = removeStaleFileReads(msgs, NO_PROTECTION);
     const hasRead = result.some((m) => m.role === 'tool' && m.content.some((p) => p.type === 'tool-result' && p.toolName === 'power---file_read'));
     expect(hasRead).toBe(false);
     expectInvariants(result);
@@ -764,6 +790,21 @@ describe('removeObsoleteSearches', () => {
     const search = globTool('**/*.ts');
     const edit = fileEditTool('src/foo.ts');
     const msgs: ContextMessage[] = [userMsg('search'), search.assistant, search.result, userMsg('edit'), edit.assistant, edit.result];
+    const result = removeObsoleteSearches(msgs, NO_PROTECTION);
+    const hasGlob = result.some((m) => m.role === 'tool' && m.content.some((p) => p.type === 'tool-result' && p.toolName === 'power---glob'));
+    expect(hasGlob).toBe(false);
+    expectInvariants(result);
+  });
+
+  it('removes glob that precedes a user compaction note from a previous run', () => {
+    resetCounters();
+    const search = globTool('**/*.ts');
+    const note: ContextMessage = {
+      id: nextId(),
+      role: 'user',
+      content: ['<compacted-edits>', 'Earlier file edits were compacted.', '- src/foo.ts', '</compacted-edits>'].join('\n'),
+    };
+    const msgs = [userMsg('search'), search.assistant, search.result, note];
     const result = removeObsoleteSearches(msgs, NO_PROTECTION);
     const hasGlob = result.some((m) => m.role === 'tool' && m.content.some((p) => p.type === 'tool-result' && p.toolName === 'power---glob'));
     expect(hasGlob).toBe(false);

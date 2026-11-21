@@ -1,4 +1,5 @@
 import { FaRegUser } from 'react-icons/fa';
+import { RiFileEditLine } from 'react-icons/ri';
 import { clsx } from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
 import { UserMessage } from '@common/types';
@@ -23,6 +24,7 @@ type Props = {
 
 export const UserMessageBlock = ({ baseDir, message, allFiles, renderMarkdown, compact = false, onRemove, onRedo, onEdit, onFork, onRemoveUpTo }: Props) => {
   const baseClasses = 'rounded-md p-3 max-w-full text-xs bg-bg-secondary border border-border-dark-light text-text-primary border-l-4 border-l-border-accent';
+  const isCompactionNote = typeof message.content === 'string' && message.content.includes('<compacted-edits>');
   const parsedContent = useParsedContent(baseDir, message.content, allFiles, renderMarkdown);
 
   const handleEdit = () => {
@@ -42,14 +44,14 @@ export const UserMessageBlock = ({ baseDir, message, allFiles, renderMarkdown, c
       >
         <div className="flex items-start gap-2">
           <div className="mt-[3px]">
-            <FaRegUser className="text-text-tertiary w-3.5 h-3.5" />
+            {isCompactionNote ? <RiFileEditLine className="text-text-tertiary w-3.5 h-3.5" /> : <FaRegUser className="text-text-tertiary w-3.5 h-3.5" />}
           </div>
           <div className="flex-grow-1 w-full overflow-hidden">
             {parsedContent}
             {message.images && message.images.length > 0 && <MessageImages images={message.images} />}
           </div>
         </div>
-        {!compact && (
+        {!compact && !isCompactionNote && (
           <MessageBar
             message={message}
             content={message.content}

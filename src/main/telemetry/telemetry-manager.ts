@@ -8,7 +8,7 @@ import type { ModelManager } from '@/models/model-manager';
 import { Store } from '@/store';
 import logger from '@/logger';
 import { POSTHOG_PUBLIC_API_KEY, POSTHOG_HOST, APP_TYPE, PRODUCT_TELEMETRY_DISTINCT_ID } from '@/constants';
-import { getElectronApp } from '@/app';
+import { getAppVersion } from '@/app';
 
 export class TelemetryManager {
   private readonly store: Store;
@@ -50,7 +50,6 @@ export class TelemetryManager {
         return;
       }
 
-      const app = getElectronApp();
       this.client = new PostHog(POSTHOG_PUBLIC_API_KEY, {
         host: POSTHOG_HOST,
       });
@@ -59,7 +58,7 @@ export class TelemetryManager {
         distinctId: this.distinctId,
         properties: {
           os: process.platform,
-          version: app?.getVersion(),
+          version: getAppVersion(),
           appType: APP_TYPE,
         },
       });
@@ -236,7 +235,7 @@ export class TelemetryManager {
       properties: {
         extensionName,
         os: process.platform,
-        appVersion: getElectronApp()?.getVersion(),
+        appVersion: getAppVersion(),
         appType: APP_TYPE,
       },
     });
@@ -260,7 +259,7 @@ export class TelemetryManager {
       properties: {
         extensionName,
         os: process.platform,
-        appVersion: getElectronApp()?.getVersion(),
+        appVersion: getAppVersion(),
         appType: APP_TYPE,
       },
     });

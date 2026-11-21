@@ -18,6 +18,8 @@
 - fixed tool follow-ups failing on OpenCode Go Luna and Muse models
 - added cross-origin MCP OAuth issuer discovery, separate reopen/start-over sign-in controls, and styled OAuth callback pages
 - extended the onAgentStepFinished extension hook with error-step dispatch, step metadata, loop continuation control (continue), and mid-run model switching (modelId)
+- fixed headless npm install crashing at startup with "Cannot find module 'electron'"
+- added app version resolution for headless and docker deployments (telemetry, versions API, OpenCode Go User-Agent, AIDER_DESK_VERSION env override)
 
 ## [0.92.0]
 

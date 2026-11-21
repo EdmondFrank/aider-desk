@@ -3,7 +3,6 @@ import { isOpenCodeGoProvider, LlmProvider, OpenCodeGoProvider } from '@common/a
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogle } from '@ai-sdk/google';
-import { app } from 'electron';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 
 import { getDefaultModelInfo, getDefaultUsageReport } from './default';
@@ -11,6 +10,7 @@ import { getDefaultModelInfo, getDefaultUsageReport } from './default';
 import type { LanguageModel, ToolSet } from 'ai';
 import type { SharedV4ProviderOptions } from '@ai-sdk/provider';
 
+import { getAppVersion } from '@/app';
 import { AiderModelMapping, LlmProviderStrategy, LoadModelsResponse } from '@/models';
 import { getEffectiveEnvironmentVariable } from '@/utils';
 
@@ -78,7 +78,7 @@ const loadOpencodeGoModels = async (profile: ProviderProfile, settings: Settings
     const response = await fetch(`${ENDPOINT_BASE_URL}/v1/models`, {
       headers: {
         Authorization: `Bearer ${effectiveApiKey}`,
-        'User-Agent': `AiderDesk/${app.getVersion()}`,
+        'User-Agent': `AiderDesk/${getAppVersion()}`,
       },
     });
     if (!response.ok) {
@@ -163,7 +163,7 @@ export const createOpencodeGoLlm = (
   }
 
   const headers: Record<string, string> = {
-    'User-Agent': `AiderDesk/${app.getVersion()}`,
+    'User-Agent': `AiderDesk/${getAppVersion()}`,
     ...profile.headers,
     ...(sessionId ? { 'x-opencode-session': sessionId } : {}),
   };

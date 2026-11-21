@@ -8,7 +8,7 @@ import { getCurrentPythonLibVersion, getLatestPythonLibVersion } from '@/utils';
 import logger from '@/logger';
 import { Store } from '@/store';
 import { EventManager } from '@/events';
-import { getElectronApp, isDev } from '@/app';
+import { getAppVersion, getElectronApp, isDev } from '@/app';
 
 export class VersionsManager {
   private readonly checkInterval = 10 * 60 * 1000; // 10 minutes
@@ -34,6 +34,7 @@ export class VersionsManager {
       logger.info('Electron app not available, returning cached versions info.');
       return {
         ...this.versionsInfo,
+        aiderDeskCurrentVersion: getAppVersion(),
       };
     }
 

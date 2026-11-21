@@ -39,8 +39,11 @@ vi.mock('@ai-sdk/google', () => ({
   },
 }));
 
-vi.mock('electron', () => ({
-  app: { getVersion: () => '1.2.3' },
+vi.mock('@/app', () => ({
+  isElectron: () => false,
+  isDev: () => false,
+  getElectronApp: () => ({ getVersion: () => '1.2.3' }),
+  getAppVersion: () => '1.2.3',
 }));
 
 vi.mock('@/logger');

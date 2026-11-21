@@ -29,7 +29,7 @@ vi.mock('@/constants', () => ({
   APP_TYPE: 'test',
   PRODUCT_TELEMETRY_DISTINCT_ID: 'product',
 }));
-vi.mock('@/app', () => ({ getElectronApp: vi.fn() }));
+vi.mock('@/app', () => ({ getElectronApp: vi.fn(), getAppVersion: vi.fn(() => 'test-version') }));
 vi.mock('@/store', () => ({ Store: vi.fn() }));
 vi.mock('@/logger', () => ({ default: { info: vi.fn(), error: vi.fn() } }));
 

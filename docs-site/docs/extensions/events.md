@@ -317,15 +317,45 @@ interface AgentStepFinishedEvent {
 
 ---
 
-## Message Optimization Events
+## Message Preparation Events
+
+### TransformMessagesEvent
+Dispatched after default context transformations (Aider UI payload stripping, subagent reduction). `originalMessages` includes reminders; transformations are not reapplied.
+
+```typescript
+interface TransformMessagesEvent {
+  readonly originalMessages: ContextMessage[];
+  transformedMessages: ContextMessage[];
+}
+```
 
 ### OptimizeMessagesEvent
-Called when messages are being optimized. Use to modify or filter the optimized messages.
+Dispatched after default optional optimizations. `originalMessages` is the transformation stage's output (not raw stored context); returning it as `optimizedMessages` bypasses default optimizations. Use `onTransformMessages` to customize Aider/subagent representation.
 
 ```typescript
 interface OptimizeMessagesEvent {
   readonly originalMessages: ContextMessage[];
   optimizedMessages: ContextMessage[];
+}
+```
+
+### ApplyCacheControlEvent
+Final message-preparation hook, after provider compatibility and default cache annotation; runs even without a cache policy. Set cache markers in `providerOptions` on messages or content parts; return `originalMessages` as `messages` to disable default annotation.
+
+```typescript
+interface ApplyCacheControlEvent {
+  readonly originalMessages: ContextMessage[];
+  readonly cacheControl?: CacheControl;
+  messages: ContextMessage[];
+}
+```
+
+The `cacheControl` payload uses the extension `CacheControl` type:
+
+```typescript
+interface CacheControl {
+  providerOptions: Record<string, Record<string, JSONValue>>;
+  placement?: 'message' | 'message-part';
 }
 ```
 

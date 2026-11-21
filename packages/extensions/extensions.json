@@ -133,7 +133,7 @@
       "capabilities": [
         "modes"
       ],
-      "installCount": 139
+      "installCount": 140
     },
     {
       "id": "protected-paths",
@@ -191,7 +191,7 @@
       "capabilities": [
         "context"
       ],
-      "installCount": 87
+      "installCount": 88
     },
     {
       "id": "learn",
@@ -228,7 +228,7 @@
       "capabilities": [
         "notifications"
       ],
-      "installCount": 43
+      "installCount": 44
     },
     {
       "id": "sandbox",
@@ -387,7 +387,7 @@
         "ui",
         "workflows"
       ],
-      "installCount": 20
+      "installCount": 21
     },
     {
       "id": "providers-quota-extension",
@@ -411,7 +411,7 @@
       "capabilities": [
         "providers"
       ],
-      "installCount": 43
+      "installCount": 44
     },
     {
       "id": "fff",
@@ -470,7 +470,7 @@
       "capabilities": [
         "metrics"
       ],
-      "installCount": 128
+      "installCount": 129
     },
     {
       "id": "verifier",
@@ -509,7 +509,7 @@
         "providers",
         "agent-loop"
       ],
-      "installCount": 32
+      "installCount": 33
     },
     {
       "id": "auggie-sdk",
@@ -585,7 +585,7 @@
         "tools",
         "search"
       ],
-      "installCount": 97
+      "installCount": 98
     },
     {
       "id": "kanban",
@@ -672,7 +672,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 189
+      "installCount": 190
     },
     {
       "id": "task-scheduler",
@@ -698,7 +698,7 @@
       "capabilities": [
         "ui"
       ],
-      "installCount": 172
+      "installCount": 173
     },
     {
       "id": "dbx",

@@ -6,6 +6,10 @@ FROM node:24.22.1-slim AS builder
 ARG TARGETARCH=amd64
 ARG POSTHOG_PUBLIC_API_KEY=''
 
+# Skip the onnxruntime-node CUDA EP download (embeddings run on CPU; see scripts/before-pack.js).
+# Belt-and-braces with .npmrc, which npm may stop exporting to scripts in future versions.
+ENV ONNXRUNTIME_NODE_INSTALL_CUDA=skip
+
 # Install Python and build tools for native module compilation (node-pty)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -42,6 +46,18 @@ RUN node scripts/download-probe.mjs
 
 # Build the server (includes resources copy) - prebuild:server builds renderer
 RUN POSTHOG_PUBLIC_API_KEY=${POSTHOG_PUBLIC_API_KEY} npm run build:server
+
+# Remove native binaries that cannot be used in this container: other platforms/arches of
+# onnxruntime and the musl LanceDB build (Debian is glibc), mirroring scripts/before-pack.js
+RUN NAPI_ARCH=$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo "$TARGETARCH") && \
+    OTHER_ARCH=$([ "$NAPI_ARCH" = "x64" ] && echo arm64 || echo x64) && \
+    rm -rf node_modules/onnxruntime-node/bin/napi-v3/darwin \
+           node_modules/onnxruntime-node/bin/napi-v3/win32 \
+           node_modules/onnxruntime-node/bin/napi-v3/linux/${OTHER_ARCH} \
+           node_modules/@lancedb/lancedb-darwin-* \
+           node_modules/@lancedb/lancedb-win32-* \
+           node_modules/@lancedb/lancedb-linux-*-musl \
+           node_modules/@lancedb/lancedb-linux-${OTHER_ARCH}-gnu
 
 # Production stage
 FROM node:24.22.1-slim

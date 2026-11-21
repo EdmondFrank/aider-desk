@@ -3,6 +3,11 @@ name: Release Full
 on:
   workflow_dispatch: # Manual trigger
 
+# Skip the onnxruntime-node CUDA EP download at install time (embeddings run on CPU,
+# and the upstream release asset may be unavailable - see scripts/before-pack.js)
+env:
+  ONNXRUNTIME_NODE_INSTALL_CUDA: skip
+
 jobs:
   release-linux:
     name: Release Linux packages

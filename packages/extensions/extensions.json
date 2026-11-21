@@ -509,7 +509,7 @@
         "providers",
         "agent-loop"
       ],
-      "installCount": 31
+      "installCount": 32
     },
     {
       "id": "auggie-sdk",

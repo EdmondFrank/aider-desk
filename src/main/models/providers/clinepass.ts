@@ -22,60 +22,90 @@ interface ClinePassModelMetadata {
 
 const CLINEPASS_MODELS: ClinePassModelMetadata[] = [
   {
-    id: 'glm-5.2',
-    maxInputTokens: 200000,
+    id: 'deepseek-v4.1-flash-1017',
+    maxInputTokens: 1048576,
+    inputCostPerToken: 0.0000003, // $0.30 per 1M (peak)
+    outputCostPerToken: 0.0000012, // $1.20 per 1M (peak)
+    cacheReadInputTokenCost: 0.000000006, // $0.006 per 1M (peak)
+  },
+  {
+    id: 'deepseek-v4.1-flash',
+    maxInputTokens: 1048576,
+    inputCostPerToken: 0.0000003, // $0.30 per 1M (peak)
+    outputCostPerToken: 0.0000012, // $1.20 per 1M (peak)
+    cacheReadInputTokenCost: 0.000000006, // $0.006 per 1M (peak)
+  },
+  {
+    id: 'deepseek-v4-pro',
+    maxInputTokens: 1000000,
+    inputCostPerToken: 0.00000132, // $1.32 per 1M (peak)
+    outputCostPerToken: 0.00000396, // $3.96 per 1M (peak)
+    cacheReadInputTokenCost: 0.000000044, // $0.044 per 1M (peak)
+  },
+  {
+    id: 'glm-5.3-flash',
+    maxInputTokens: 1048576,
+    inputCostPerToken: 0.00000015, // $0.15 per 1M
+    outputCostPerToken: 0.0000005, // $0.50 per 1M
+    cacheReadInputTokenCost: 0.00000003, // $0.03 per 1M
+  },
+  {
+    id: 'glm-5.3',
+    maxInputTokens: 1000000,
     inputCostPerToken: 0.0000014, // $1.40 per 1M
     outputCostPerToken: 0.0000044, // $4.40 per 1M
     cacheReadInputTokenCost: 0.00000026, // $0.26 per 1M
   },
   {
-    id: 'kimi-k2.7-code',
-    maxInputTokens: 262144,
-    inputCostPerToken: 0.00000095, // $0.95 per 1M
-    outputCostPerToken: 0.000004, // $4.00 per 1M
-    cacheReadInputTokenCost: 0.00000019, // $0.19 per 1M
+    id: 'kimi-k3.1-pro',
+    maxInputTokens: 1048576,
+    inputCostPerToken: 0.000002, // $2.00 per 1M
+    outputCostPerToken: 0.00001, // $10.00 per 1M
+    cacheReadInputTokenCost: 0.0000002, // $0.20 per 1M
+    cacheWriteInputTokenCost: 0.000002, // $2.00 per 1M (5min TTL)
   },
   {
-    id: 'kimi-k2.6',
-    maxInputTokens: 262144,
-    inputCostPerToken: 0.00000095, // $0.95 per 1M
-    outputCostPerToken: 0.000004, // $4.00 per 1M
-    cacheReadInputTokenCost: 0.00000016, // $0.16 per 1M
+    id: 'kimi-k3',
+    maxInputTokens: 1048576,
+    inputCostPerToken: 0.000003, // $3.00 per 1M
+    outputCostPerToken: 0.000015, // $15.00 per 1M
+    cacheReadInputTokenCost: 0.0000003, // $0.30 per 1M
+    cacheWriteInputTokenCost: 0.000003, // $3.00 per 1M (5min TTL)
   },
   {
-    id: 'deepseek-v4-pro',
+    id: 'muse-spark-1.3-contributor',
+    maxInputTokens: 1048576,
+    inputCostPerToken: 0.0000001, // $0.10 per 1M
+    outputCostPerToken: 0.0000002, // $0.20 per 1M
+    cacheReadInputTokenCost: 0.000000002, // $0.002 per 1M
+  },
+  {
+    id: 'minimax-m3.1-flash',
     maxInputTokens: 1000000,
-    inputCostPerToken: 0.00000174, // $1.74 per 1M
-    outputCostPerToken: 0.00000348, // $3.48 per 1M
-    cacheReadInputTokenCost: 0.0000000145, // $0.0145 per 1M
-  },
-  {
-    id: 'deepseek-v4-flash',
-    maxInputTokens: 1000000,
-    inputCostPerToken: 0.00000014, // $0.14 per 1M
-    outputCostPerToken: 0.00000028, // $0.28 per 1M
-    cacheReadInputTokenCost: 0.0000000028, // $0.0028 per 1M
-  },
-  {
-    id: 'mimo-v2.5',
-    maxInputTokens: 262144,
-    inputCostPerToken: 0.00000014, // $0.14 per 1M
-    outputCostPerToken: 0.00000028, // $0.28 per 1M
-    cacheReadInputTokenCost: 0.0000000028, // $0.0028 per 1M
-  },
-  {
-    id: 'mimo-v2.5-pro',
-    maxInputTokens: 262144,
-    inputCostPerToken: 0.00000174, // $1.74 per 1M
-    outputCostPerToken: 0.00000348, // $3.48 per 1M
-    cacheReadInputTokenCost: 0.0000000145, // $0.0145 per 1M
+    inputCostPerToken: 0.00000015, // $0.15 per 1M
+    outputCostPerToken: 0.0000006, // $0.60 per 1M
+    cacheReadInputTokenCost: 0.000000015, // $0.015 per 1M
   },
   {
     id: 'minimax-m3',
     maxInputTokens: 1000000,
-    inputCostPerToken: 0.0000003, // $0.30 per 1M
-    outputCostPerToken: 0.0000012, // $1.20 per 1M
-    cacheReadInputTokenCost: 0.00000006, // $0.06 per 1M
+    inputCostPerToken: 0.0000003, // $0.30 per 1M (≤ 512K tier)
+    outputCostPerToken: 0.0000012, // $1.20 per 1M (≤ 512K tier)
+    cacheReadInputTokenCost: 0.00000006, // $0.06 per 1M (≤ 512K tier)
+  },
+  {
+    id: 'mimo-v2.6-pro',
+    maxInputTokens: 1048576,
+    inputCostPerToken: 0.000000435, // $0.435 per 1M
+    outputCostPerToken: 0.00000087, // $0.87 per 1M
+    cacheReadInputTokenCost: 0.0000000036, // $0.0036 per 1M
+  },
+  {
+    id: 'mimo-v2.6-flash',
+    maxInputTokens: 1048576,
+    inputCostPerToken: 0.00000014, // $0.14 per 1M
+    outputCostPerToken: 0.00000028, // $0.28 per 1M
+    cacheReadInputTokenCost: 0.0000000028, // $0.0028 per 1M
   },
   {
     id: 'qwen3.7-max',
@@ -92,6 +122,14 @@ const CLINEPASS_MODELS: ClinePassModelMetadata[] = [
     outputCostPerToken: 0.0000016, // $1.60 per 1M (≤ 256K tier)
     cacheReadInputTokenCost: 0.00000004, // $0.04 per 1M (≤ 256K tier)
     cacheWriteInputTokenCost: 0.0000005, // $0.50 per 1M (≤ 256K tier)
+  },
+  {
+    id: 'qwen3.8-max',
+    maxInputTokens: 991808,
+    inputCostPerToken: 0.000002, // $2.00 per 1M
+    outputCostPerToken: 0.000006, // $6.00 per 1M
+    cacheReadInputTokenCost: 0.00000017, // $0.17 per 1M
+    cacheWriteInputTokenCost: 0.0000025, // $2.50 per 1M
   },
 ];
 

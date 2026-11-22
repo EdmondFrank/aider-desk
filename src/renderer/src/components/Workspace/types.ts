@@ -12,6 +12,8 @@ export interface TreeItem {
 
 export type SectionType = 'updated' | 'project' | 'context' | 'rules' | 'skills';
 
+export type WorkspaceSectionId = SectionType | (string & {});
+
 export type GroupTree = {
   group: DiffModalGroup;
   treeData: Record<string, TreeItem>;

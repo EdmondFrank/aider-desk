@@ -11,14 +11,16 @@ import { MdDone } from 'react-icons/md';
 import { AnimatePresence } from 'framer-motion';
 
 import { ContextFilesSection } from './ContextFilesSection';
+import { ExtensionWorkspaceSection } from './ExtensionWorkspaceSection';
 import { UpdatedFilesSection } from './UpdatedFilesSection';
 import { ProjectFilesSection } from './ProjectFilesSection';
 import { RulesSection } from './RulesSection';
 import { SkillsSection } from './SkillsSection';
 import { normalizePath } from './types';
 
-import type { SectionType, TreeItem } from './types';
+import type { SectionType, TreeItem, WorkspaceSectionId } from './types';
 
+import { useExtensionComponentsWrapper } from '@/components/extensions/useExtensionComponentsWrapper';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useOS } from '@/hooks/useOS';
 import { useApi } from '@/contexts/ApiContext';
@@ -29,7 +31,7 @@ import './Workspace.css';
 const ALL_SECTIONS: SectionType[] = ['context', 'updated', 'project', 'rules', 'skills'];
 
 type SortableSectionWrapperProps = {
-  id: SectionType;
+  id: WorkspaceSectionId;
   editMode: boolean;
   isHidden: boolean;
   children: ReactNode;
@@ -96,26 +98,35 @@ export const Workspace = ({
   const api = useApi();
   const { projectSettings, saveProjectSettings } = useProjectSettings();
 
-  const [activeSection, setActiveSection] = useLocalStorage<SectionType>(`workspace-active-section-${baseDir}`, 'context');
-  const [visitedSections, setVisitedSections] = useState<Set<SectionType>>(new Set(['context']));
+  const [activeSection, setActiveSection] = useLocalStorage<WorkspaceSectionId>(`workspace-active-section-${baseDir}`, 'context');
+  const [visitedSections, setVisitedSections] = useState<Set<string>>(new Set(['context']));
   const [isDragging, setIsDragging] = useState(false);
   const [editMode, setEditMode] = useState(false);
+
+  const extensionComponentsWrapper = useExtensionComponentsWrapper({ placement: 'workspace-section' });
 
   const sectionsOrder = useMemo(() => projectSettings?.contextSidebarSectionsOrder ?? [], [projectSettings?.contextSidebarSectionsOrder]);
   const sectionsHidden = useMemo(() => new Set(projectSettings?.contextSidebarSectionsHidden ?? []), [projectSettings?.contextSidebarSectionsHidden]);
 
+  const extensionSectionIds = useMemo(
+    () => (extensionComponentsWrapper.components ?? []).map((comp) => `${comp.extensionId}:${comp.componentId}`),
+    [extensionComponentsWrapper.components],
+  );
+
+  const allSectionIds = useMemo(() => [...ALL_SECTIONS, ...extensionSectionIds], [extensionSectionIds]);
+
   const orderedSections = useMemo(() => {
     if (sectionsOrder.length === 0) {
-      return ALL_SECTIONS;
+      return allSectionIds;
     }
-    const ordered = [...sectionsOrder].filter((s) => ALL_SECTIONS.includes(s as SectionType)) as SectionType[];
-    for (const s of ALL_SECTIONS) {
+    const ordered = [...sectionsOrder].filter((s) => allSectionIds.includes(s));
+    for (const s of allSectionIds) {
       if (!ordered.includes(s)) {
         ordered.push(s);
       }
     }
     return ordered;
-  }, [sectionsOrder]);
+  }, [sectionsOrder, allSectionIds]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor));
 
@@ -231,21 +242,21 @@ export const Workspace = ({
       if (!over || active.id === over.id) {
         return;
       }
-      const oldIndex = orderedSections.indexOf(active.id as SectionType);
-      const newIndex = orderedSections.indexOf(over.id as SectionType);
+      const oldIndex = orderedSections.indexOf(String(active.id));
+      const newIndex = orderedSections.indexOf(String(over.id));
       if (oldIndex === -1 || newIndex === -1) {
         return;
       }
       const reordered = [...orderedSections];
       reordered.splice(oldIndex, 1);
-      reordered.splice(newIndex, 0, active.id as SectionType);
+      reordered.splice(newIndex, 0, String(active.id));
       void saveProjectSettings({ contextSidebarSectionsOrder: reordered });
     },
     [orderedSections, saveProjectSettings],
   );
 
   const handleToggleSectionHidden = useCallback(
-    (section: SectionType) => {
+    (section: WorkspaceSectionId) => {
       const newHidden = new Set(sectionsHidden);
       if (newHidden.has(section)) {
         newHidden.delete(section);
@@ -282,13 +293,52 @@ export const Workspace = ({
   const sectionProps = useMemo(
     () => ({
       editMode,
-      isHidden: (section: SectionType) => sectionsHidden.has(section),
+      isHidden: (section: WorkspaceSectionId) => sectionsHidden.has(section),
       onToggleHidden: handleToggleSectionHidden,
     }),
     [editMode, sectionsHidden, handleToggleSectionHidden],
   );
 
-  const renderSection = (section: SectionType) => {
+  const handleToggleExtensionSection = useCallback(
+    (section: WorkspaceSectionId) => () => {
+      setActiveSection(section);
+    },
+    [setActiveSection],
+  );
+
+  const handleToggleExtensionSectionHidden = useCallback(
+    (section: WorkspaceSectionId) => () => {
+      handleToggleSectionHidden(section);
+    },
+    [handleToggleSectionHidden],
+  );
+
+  const renderExtensionSection = (section: WorkspaceSectionId) => {
+    const component = extensionComponentsWrapper.components?.find((comp) => `${comp.extensionId}:${comp.componentId}` === section);
+    if (!component) {
+      return null;
+    }
+    return (
+      <ExtensionWorkspaceSection
+        component={component}
+        componentProps={extensionComponentsWrapper.componentProps}
+        libraries={extensionComponentsWrapper.componentLibraries}
+        api={extensionComponentsWrapper.api}
+        currentProjectDir={extensionComponentsWrapper.currentProjectDir}
+        currentTaskId={extensionComponentsWrapper.currentTaskId}
+        currentActionProjectDir={extensionComponentsWrapper.currentActionProjectDir}
+        currentActionTaskId={extensionComponentsWrapper.currentActionTaskId}
+        isOpen={activeSection === section && !editMode}
+        onToggle={handleToggleExtensionSection(section)}
+        editMode={editMode}
+        isHidden={sectionsHidden.has(section)}
+        onToggleHidden={handleToggleExtensionSectionHidden(section)}
+        showBorderTop={section !== orderedSections[0]}
+      />
+    );
+  };
+
+  const renderSection = (section: WorkspaceSectionId) => {
     switch (section) {
       case 'context':
         return (
@@ -385,6 +435,8 @@ export const Workspace = ({
             showBorderTop={section !== orderedSections[0]}
           />
         );
+      default:
+        return renderExtensionSection(section);
     }
   };
 

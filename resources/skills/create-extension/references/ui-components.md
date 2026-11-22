@@ -157,6 +157,14 @@ UI components can be placed in various locations throughout the AiderDesk interf
   - *Props*: Receives `task` (the TaskData for this specific sidebar item) and `taskId`
   - *Important*: Unlike most placements, this renders **once per task** in the sidebar, not just for the active task. Use `loadData: true` and `noDataCache: true` so each item fetches its own data. Call `context.triggerUIDataRefresh(componentId, taskId)` to refresh a specific task's badge.
 
+### Workspace Placements
+
+- **workspace-section**: A full collapsible section (panel) in the workspace sidebar (files/context panel)
+  - *Use for*: Custom workspace panels with their own content (e.g. notes, checklists, tool status)
+  - *Layout*: Renders as a full section with a header — participates in the section edit mode: can be reordered by dragging and hidden/shown with the eye toggle. The open/closed state follows the sidebar accordion (one section open at a time)
+  - *Metadata*: The `name` field of the component definition is used as the section title
+  - *Props*: Receives `task` and `projectDir` like other task-level placements; use `loadData: true` to provide content data via `getUIExtensionData`
+
 ### Global Placements
 
 - **header-left**: Left side of the main application header

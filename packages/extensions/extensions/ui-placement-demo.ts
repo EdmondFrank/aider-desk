@@ -47,6 +47,7 @@ const TOGGLABLE_PLACEMENTS: UIComponentPlacement[] = [
 const TASK_FLOATING_COMPONENT_ID = 'placement-demo-task-floating';
 const PROJECT_FLOATING_COMPONENT_ID = 'placement-demo-project-floating';
 const APP_FLOATING_COMPONENT_ID = 'placement-demo-app-floating';
+const WORKSPACE_SECTION_COMPONENT_ID = 'placement-demo-workspace-section';
 
 // Shared styles for all placement chips
 const CHIP_STYLES = `
@@ -228,6 +229,26 @@ const APP_FLOATING_PANEL_JSX = `
   }
 `;
 
+// JSX for the workspace-section placement — rendered as a collapsible section in the workspace sidebar
+const WORKSPACE_SECTION_JSX = `
+  (props) => {
+    const data = props.data || {};
+
+    return (
+      <div className="p-2 space-y-2">
+        <div className="rounded-md border border-dashed p-2 text-xs" style={{ borderColor: 'currentColor' }}>
+          <div className="flex items-center gap-1 mb-1">
+            <span className="opacity-60">📍</span>
+            <span className="font-medium">workspace-section</span>
+          </div>
+          <p className="opacity-70">Reorderable and hideable via the section edit mode</p>
+        </div>
+        {data.info && <p className="text-2xs text-text-muted">{data.info}</p>}
+      </div>
+    );
+  }
+`;
+
 export default class UIPlacementDemoExtension implements Extension {
   static metadata = {
     name: 'UI Placement Demo',
@@ -301,12 +322,23 @@ export default class UIPlacementDemoExtension implements Extension {
       jsx: APP_FLOATING_PANEL_JSX,
     };
 
-    return [...alwaysOn, ...togglable, taskFloating, projectFloating, appFloating];
+    const workspaceSection: UIComponentDefinition = {
+      id: WORKSPACE_SECTION_COMPONENT_ID,
+      placement: 'workspace-section',
+      name: 'Placement Demo (Workspace)',
+      loadData: true,
+      jsx: WORKSPACE_SECTION_JSX,
+    };
+
+    return [...alwaysOn, ...togglable, taskFloating, projectFloating, appFloating, workspaceSection];
   }
 
   async getUIExtensionData(componentId: string, _context: ExtensionContext): Promise<unknown> {
     if (componentId === APP_FLOATING_COMPONENT_ID || componentId === PROJECT_FLOATING_COMPONENT_ID) {
       return { enabledPlacements: this.enabledPlacements };
+    }
+    if (componentId === WORKSPACE_SECTION_COMPONENT_ID) {
+      return { info: 'Data provided by the UI Placement Demo extension' };
     }
     return null;
   }

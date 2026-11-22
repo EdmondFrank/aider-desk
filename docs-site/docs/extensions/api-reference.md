@@ -479,7 +479,7 @@ const myComponent: UIComponentDefinition = {
 
 ## UIComponentPlacement
 
-Available placement locations for UI components (28 total).
+Available placement locations for UI components (29 total).
 
 ```typescript
 type UIComponentPlacement =
@@ -518,6 +518,9 @@ type UIComponentPlacement =
   | 'tasks-sidebar-actions-right'       // Right side of tasks sidebar action area
   | 'tasks-sidebar-bottom'              // Bottom of tasks sidebar
   | 'task-sidebar-item-badges'          // Badges within each task sidebar item (per-task)
+
+  // Workspace
+  | 'workspace-section'           // Collapsible section in the workspace sidebar (reorderable and hideable via section edit mode)
 
   // Header
   | 'header-left'                 // Left side of main header

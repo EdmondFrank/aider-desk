@@ -242,7 +242,7 @@ Extensions can render custom React components in various locations throughout th
 
 #### Available Placements
 
-UI components can be placed in 21 different locations throughout the interface:
+UI components can be placed in various locations throughout the interface (see the [API reference](./api-reference.md#uicomponentplacement) for the full list):
 
 | Placement | Location | Description |
 |-----------|----------|-------------|
@@ -264,6 +264,7 @@ UI components can be placed in 21 different locations throughout the interface:
 | `task-state-actions-all` | State actions | Action buttons visible in all states |
 | `tasks-sidebar-header` | Sidebar | Header of the tasks sidebar |
 | `tasks-sidebar-bottom` | Sidebar | Bottom of the tasks sidebar |
+| `workspace-section` | Workspace sidebar | Collapsible section (reorderable and hideable via section edit mode) |
 | `header-left` | Header bar | Left side of the main header |
 | `header-right` | Header bar | Right side of the main header |
 | `welcome-page` | Welcome screen | Full welcome page (when no task is open) |

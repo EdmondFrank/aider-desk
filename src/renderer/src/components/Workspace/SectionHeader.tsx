@@ -4,15 +4,13 @@ import { clsx } from 'clsx';
 import { MdDragIndicator } from 'react-icons/md';
 import { RiEyeLine, RiEyeOffLine } from 'react-icons/ri';
 
-import type { SectionType } from './types';
-
 type Props = {
-  section: SectionType;
+  section: string;
   title: string;
-  count: number;
+  count?: number;
   totalCount?: number;
   isOpen: boolean;
-  totalStats: { additions: number; deletions: number };
+  totalStats?: { additions: number; deletions: number };
   actions?: React.ReactNode;
   onToggle: () => void;
   editMode?: boolean;
@@ -45,14 +43,14 @@ export const SectionHeader = ({ section, title, count, totalCount, isOpen, total
 
       <span className="text-xs font-semibold uppercase flex-grow text-text-secondary">{title}</span>
 
-      {!editMode && section === 'updated' ? (
+      {!editMode && section === 'updated' && totalStats ? (
         <span className="text-2xs mr-2 bg-bg-secondary-light px-1.5 rounded-full">
           <span className="text-success">+{totalStats.additions}</span>
           <span className="ml-0.5 text-error">-{totalStats.deletions}</span>
         </span>
       ) : null}
 
-      {!editMode && section !== 'updated' && !isOpen && (
+      {!editMode && section !== 'updated' && !isOpen && count != null && (
         <span className="text-2xs text-text-tertiary mr-2 bg-bg-secondary-light px-1.5 rounded-full">
           {totalCount != null && totalCount !== count ? `${count}/${totalCount}` : count}
         </span>

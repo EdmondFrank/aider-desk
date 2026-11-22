@@ -1752,7 +1752,10 @@ export class ProjectApi extends BaseApi {
         }
 
         const { projectDir, ...settings } = parsed;
-        const updatedSettings = await this.eventsHandler.patchProjectSettings(projectDir, settings);
+        // Only apply keys explicitly provided in the request body - Zod's .partial() still
+        // applies defaults for missing keys, which would reset unrelated stored settings
+        const providedSettings = Object.fromEntries(Object.entries(settings).filter(([key]) => Object.prototype.hasOwnProperty.call(req.body, key)));
+        const updatedSettings = await this.eventsHandler.patchProjectSettings(projectDir, providedSettings);
         res.status(200).json(updatedSettings);
       }),
     );

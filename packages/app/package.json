@@ -35,6 +35,9 @@
     "url": "https://github.com/magiksoft/aider-desk/issues"
   },
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@agentclientprotocol/sdk": "1.1.0",
     "@ai-sdk/alibaba": "2.0.92",

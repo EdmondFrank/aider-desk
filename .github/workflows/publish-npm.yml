@@ -13,9 +13,10 @@ on:
         default: minor
 
 # Idempotency model: the npm registry is the source of truth.
-# - Job 1 stages @aiderdesk/extensions (npm staged publishing): a human approves it on npmjs.com.
-# - Job 2 waits for the approved version to appear on the registry, then builds & publishes @aiderdesk/aiderdesk.
-# - Version bumps are committed only after BOTH packages are published, so any failure leaves the repo untouched.
+# - Both packages go through npm staged publishing (npm stage publish): a human approves them on npmjs.com.
+# - Job 1 stages @aiderdesk/extensions. Job 2 waits for it to go live, builds @aiderdesk/aiderdesk and stages it.
+# - Version bumps are committed once both packages are staged (extensions live, app awaiting approval);
+#   a failed stage leaves the repo untouched.
 # - Re-runs detect already-published/staged versions and reuse them instead of bumping again.
 
 permissions:
@@ -124,7 +125,7 @@ jobs:
           npm stage publish
 
   app:
-    name: Publish @aiderdesk/aiderdesk
+    name: Stage @aiderdesk/aiderdesk
     needs: extensions
     runs-on: ubuntu-latest
     timeout-minutes: 200
@@ -156,7 +157,6 @@ jobs:
           fi
 
       - name: Apply versions (extensions target + app = root version)
-        if: steps.app-check.outputs.exists == 'false'
         env:
           EXT_VERSION: ${{ needs.extensions.outputs.version }}
           APP_VERSION: ${{ steps.app-check.outputs.version }}
@@ -194,26 +194,34 @@ jobs:
         if: steps.app-check.outputs.exists == 'false'
         env:
           POSTHOG_PUBLIC_API_KEY: ${{ secrets.POSTHOG_PUBLIC_API_KEY }}
-        run: bash packages/app/build.sh
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PWD/packages/app/node_modules/.bin:$PATH"
+          bash packages/app/build.sh
 
-      - name: Publish app package
+      - name: Stage app package
         if: steps.app-check.outputs.exists == 'false'
         working-directory: packages/app
-        run: npm publish --access public
+        env:
+          APP_VERSION: ${{ steps.app-check.outputs.version }}
+        run: |
+          if npm stage list "@aiderdesk/aiderdesk" 2>/dev/null | grep -qF "$APP_VERSION"; then
+            echo "@aiderdesk/aiderdesk@$APP_VERSION is already staged, skipping"
+          else
+            npm stage publish
+          fi
 
       - name: Commit version bumps
-        if: steps.app-check.outputs.exists == 'false'
         env:
           EXT_VERSION: ${{ needs.extensions.outputs.version }}
           APP_VERSION: ${{ steps.app-check.outputs.version }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin "${{ github.ref_name }}"
+          git pull --rebase --autostash origin "${{ github.ref_name }}"
           git add packages/extensions/package.json packages/app/package.json package-lock.json
           if git diff --cached --quiet; then
             echo "No version changes to commit"
           else
-            git commit -m "chore(release): @aiderdesk/extensions@$EXT_VERSION, @aiderdesk/aiderdesk@$APP_VERSION"
+            git commit --no-verify -m "chore: updated @aiderdesk/extensions to $EXT_VERSION and @aiderdesk/aiderdesk to $APP_VERSION"
             git push origin "HEAD:${{ github.ref_name }}"
           fi

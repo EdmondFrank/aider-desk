@@ -503,6 +503,7 @@ export const ExtensionsSettings = ({ settings, setSettings, openProjects = [], s
             <ExtensionRow
               key={extension.filePath}
               extension={extension}
+              latestVersion={available?.version}
               source={source}
               repoLabel={repoLabel}
               showSourceBadge={source !== undefined}

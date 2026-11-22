@@ -716,8 +716,6 @@
       },
       "by": "от",
       "enabled": "Включено",
-      "active": "Активно",
-      "disabled": "Отключено",
       "projectSpecific": "Проектное",
       "totalInstalls": "Всего установок",
       "hasDependencies": "Имеет зависимости",

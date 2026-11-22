@@ -715,8 +715,6 @@
       },
       "by": "作者",
       "enabled": "启用",
-      "active": "激活",
-      "disabled": "已禁用",
       "projectSpecific": "项目",
       "totalInstalls": "总安装量",
       "hasDependencies": "有依赖",

@@ -711,8 +711,6 @@
       },
       "by": "di",
       "enabled": "Abilitate",
-      "active": "Attivo",
-      "disabled": "Disabilitato",
       "projectSpecific": "Progetto",
       "totalInstalls": "Installazioni totali",
       "hasDependencies": "Presenza di dipendenze",

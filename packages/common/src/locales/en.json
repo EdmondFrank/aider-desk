@@ -716,8 +716,6 @@
       },
       "by": "by",
       "enabled": "Enabled",
-      "active": "Active",
-      "disabled": "Disabled",
       "projectSpecific": "Project",
       "totalInstalls": "Total installs",
       "hasDependencies": "Has dependencies",

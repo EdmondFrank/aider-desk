@@ -27,6 +27,7 @@ const getRowData = (extension: InstalledExtension | AvailableExtension) => {
 
 type Props = {
   extension: InstalledExtension | AvailableExtension;
+  latestVersion?: string;
   source?: ExtensionSource;
   repoLabel?: string;
   showSourceBadge?: boolean;
@@ -49,6 +50,7 @@ type Props = {
 
 export const ExtensionRow = ({
   extension,
+  latestVersion,
   source,
   repoLabel,
   showSourceBadge = false,
@@ -89,20 +91,16 @@ export const ExtensionRow = ({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={clsx('text-sm font-semibold truncate', isDisabled ? 'text-text-muted' : 'text-text-primary')}>{data.name}</span>
-          <span className="text-3xs text-text-muted-light">{`v${data.version}`}</span>
+          <span className="text-3xs px-1.5 py-0.5 rounded bg-bg-tertiary text-text-tertiary font-medium">
+            {latestVersion && latestVersion !== data.version ? `v${data.version} → v${latestVersion}` : `v${data.version}`}
+          </span>
           {data.installCount !== undefined && (
             <Tooltip content={t('settings.extensions.totalInstalls')}>
-              <span className="text-3xs text-text-muted-light inline-flex items-center gap-1">
+              <span className="text-3xs px-1.5 py-0.5 rounded bg-bg-tertiary text-text-tertiary font-medium inline-flex items-center gap-1">
                 <FaDownload className="w-2 h-2" />
                 {data.installCount.toLocaleString()}
               </span>
             </Tooltip>
-          )}
-          {isInstalled && !isDisabled && (
-            <span className="text-3xs px-1.5 py-0.5 rounded bg-success-subtle text-success font-semibold">{t('settings.extensions.active')}</span>
-          )}
-          {isInstalled && isDisabled && (
-            <span className="text-3xs px-1.5 py-0.5 rounded bg-bg-tertiary text-text-muted font-semibold">{t('settings.extensions.disabled')}</span>
           )}
           {data.projectDir && (
             <span className="text-3xs px-1.5 py-0.5 rounded bg-info-subtle text-info font-semibold">{t('settings.extensions.projectSpecific')}</span>

@@ -436,24 +436,34 @@ describe('ExtensionsSettings', () => {
       );
     });
 
-    it('should display disabled status badge', async () => {
-      const extension = createMockLoadedExtension();
+  });
 
-      mockSettings = {
-        ...mockSettings,
-        extensions: {
-          customRepositories: [],
-          disabled: [extension.filePath],
-        },
-      } as unknown as SettingsData;
+  describe('Version Display', () => {
+    it('should show the latest version in the version chip when an update is available', async () => {
+      const installed = createMockLoadedExtension();
+      const available = createMockAvailableExtension({ version: '2.0.0' });
 
-      mockApi.getInstalledExtensions.mockResolvedValue([extension]);
-      mockApi.getAvailableExtensions.mockResolvedValue([]);
+      mockApi.getInstalledExtensions.mockResolvedValue([installed]);
+      mockApi.getAvailableExtensions.mockResolvedValue([available]);
 
       render(<ExtensionsSettings settings={mockSettings} setSettings={mockSetSettings} />);
 
       await waitFor(() => {
-        expect(screen.getByText('settings.extensions.disabled')).toBeInTheDocument();
+        expect(screen.getByText('v1.0.0 → v2.0.0')).toBeInTheDocument();
+      });
+    });
+
+    it('should show only the installed version when no update is available', async () => {
+      const installed = createMockLoadedExtension();
+      const available = createMockAvailableExtension();
+
+      mockApi.getInstalledExtensions.mockResolvedValue([installed]);
+      mockApi.getAvailableExtensions.mockResolvedValue([available]);
+
+      render(<ExtensionsSettings settings={mockSettings} setSettings={mockSetSettings} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('v1.0.0')).toBeInTheDocument();
       });
     });
   });

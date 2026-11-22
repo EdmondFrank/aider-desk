@@ -715,8 +715,6 @@
       },
       "by": "제작자",
       "enabled": "사용",
-      "active": "활성",
-      "disabled": "비활성",
       "projectSpecific": "프로젝트",
       "totalInstalls": "총 설치 수",
       "hasDependencies": "종속성 있음",

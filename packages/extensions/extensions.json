@@ -1,6 +1,20 @@
 {
   "extensions": [
     {
+      "id": "a2ui",
+      "name": "A2UI",
+      "description": "Generative UI cards in task chat via the A2UI protocol — the agent composes interactive interfaces from a locked component catalog",
+      "folder": "a2ui",
+      "type": "folder",
+      "hasDependencies": true,
+      "capabilities": [
+        "tools",
+        "ui",
+        "commands"
+      ],
+      "installCount": 0
+    },
+    {
       "id": "custom-task-statuses",
       "name": "Custom Task Statuses",
       "description": "Manage custom task states, colors, and ordering alongside read-only built-in states",

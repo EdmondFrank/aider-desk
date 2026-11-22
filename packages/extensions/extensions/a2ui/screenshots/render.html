@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<!--
+  Renders the README screenshots with the same pipeline as the extension renderer
+  (pinned esm.sh web_core bundle, basic catalog elements, theme token mapping).
+
+  To regenerate the README images, serve or open this file and capture the card
+  elements:
+
+    agent-browser open "file://<repo>/packages/extensions/extensions/a2ui/screenshots/render.html"
+    agent-browser screenshot "#card1" screenshots/files-card.png
+    agent-browser screenshot "#card2" screenshots/deploy-form.png
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>a2ui README renders</title>
+<style>
+  body { background: #2b2d31; margin: 0; padding: 24px; font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, 'SF Mono', Menlo, monospace; }
+  .wrap { margin: 0 0 32px 0; }
+  .shot { background: #2b2d31; padding: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="card1"></div>
+<div class="wrap" id="card2"></div>
+<script type="module">
+  const BASIC = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+  const wc = await import('https://esm.sh/@a2ui/web_core@0.15.0/es2022/v1_0.bundle.mjs');
+  const md = await import('https://esm.sh/@a2ui/markdown-it@0.2.2/es2022/markdown-it.bundle.mjs');
+
+  const registeredTags = new Set();
+  for (const c of wc.basicCatalog.components.values()) {
+    if (c.tagName && !registeredTags.has(c.tagName) && !customElements.get(c.tagName)) {
+      wc.registerUniversalElement(c);
+      registeredTags.add(c.tagName);
+    }
+  }
+  if (typeof wc.injectBasicCatalogStyles === 'function') wc.injectBasicCatalogStyles();
+  if (md.renderMarkdown) wc.setMarkdownRenderer(md.renderMarkdown);
+
+  const THEME = {
+    '--a2ui-color-background': '#2b2d31',
+    '--a2ui-color-on-background': '#e8e9eb',
+    '--a2ui-color-surface': '#34363b',
+    '--a2ui-color-on-surface': '#e8e9eb',
+    '--a2ui-color-surface-variant': '#3a3c42',
+    '--a2ui-color-primary': '#d9b95c',
+    '--a2ui-color-on-primary': '#1e2026',
+    '--a2ui-color-primary-hover': '#e2c471',
+    '--a2ui-color-secondary': '#3a3c42',
+    '--a2ui-color-on-secondary': '#e8e9eb',
+    '--a2ui-color-secondary-hover': '#45474e',
+    '--a2ui-color-border': '#4a4d53',
+    '--a2ui-color-input': '#3a3c42',
+    '--a2ui-color-on-input': '#e8e9eb',
+    '--a2ui-color-error': '#e06c60',
+    '--a2ui-color-on-error': '#ffffff',
+    '--a2ui-border-radius': '8px',
+    '--a2ui-font-size': '13px',
+    '--a2ui-font-size-m': 'var(--a2ui-font-size)',
+    '--a2ui-font-size-s': 'calc(var(--a2ui-font-size) / 1.2)',
+    '--a2ui-font-size-xs': 'calc(var(--a2ui-font-size) / 1.44)',
+    '--a2ui-font-size-l': 'calc(var(--a2ui-font-size) * 1.2)',
+    '--a2ui-font-size-xl': 'calc(var(--a2ui-font-size) * 1.44)',
+    '--a2ui-font-size-2xl': 'calc(var(--a2ui-font-size) * 1.728)',
+  };
+
+  async function renderCard(containerId, messages) {
+    const host = document.getElementById(containerId);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'shot';
+    Object.entries(THEME).forEach(([k, v]) => wrapper.style.setProperty(k, v));
+    host.appendChild(wrapper);
+
+    const processor = new wc.MessageProcessor([wc.basicCatalog], async () => {});
+    processor.processMessages(messages);
+    const resolver = new wc.NodeResolver(processor.getSurface(messages[0].createSurface.surfaceId));
+    const rootNode = wc.getValue(resolver.rootNode);
+    const el = document.createElement(rootNode.impl.tagName);
+    el.node = rootNode;
+    el.style.width = '860px';
+    wrapper.appendChild(el);
+    await new Promise((r) => setTimeout(r, 600));
+  }
+
+  const filesCard = [
+    {
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'files',
+        catalogId: BASIC,
+        components: [
+          { id: 'root', component: 'Column', children: ['title', 'filesRow', 'div1', 'question', 'actions'] },
+          { id: 'title', component: 'Text', text: '### Two largest files in `src/`' },
+          { id: 'filesRow', component: 'Row', justify: 'center', children: ['fc1', 'fc2'] },
+          { id: 'fc1', component: 'Card', child: 'fc1col' },
+          { id: 'fc1col', component: 'Column', children: ['c1name', 'c1count', 'c1desc'] },
+          { id: 'c1name', component: 'Text', text: { '@path': '/files/task/name' } },
+          { id: 'c1count', component: 'Text', text: { '@call': 'formatNumber', args: { value: { '@path': '/files/task/lines' } } } },
+          { id: 'c1desc', component: 'Text', variant: 'caption', text: { '@path': '/files/task/desc' } },
+          { id: 'fc2', component: 'Card', child: 'fc2col' },
+          { id: 'fc2col', component: 'Column', children: ['c2name', 'c2count', 'c2desc'] },
+          { id: 'c2name', component: 'Text', text: { '@path': '/files/git/name' } },
+          { id: 'c2count', component: 'Text', text: { '@call': 'formatNumber', args: { value: { '@path': '/files/git/lines' } } } },
+          { id: 'c2desc', component: 'Text', variant: 'caption', text: { '@path': '/files/git/desc' } },
+          { id: 'div1', component: 'Divider' },
+          { id: 'question', component: 'Text', text: 'Which one should be split up first?' },
+          { id: 'actions', component: 'Row', children: ['btn1', 'btn2'] },
+          { id: 'btn1', component: 'Button', child: 'btn1t', variant: 'primary', action: { event: { name: 'split_file', context: { file: 'task' }, userMessage: 'Split src/main/task/task.ts first' } } },
+          { id: 'btn1t', component: 'Text', text: 'Split task.ts first' },
+          { id: 'btn2', component: 'Button', child: 'btn2t', action: { event: { name: 'split_file', context: { file: 'git' }, userMessage: 'Split src/main/git/git-manager.ts first' } } },
+          { id: 'btn2t', component: 'Text', text: 'Split git-manager.ts first' },
+        ],
+      },
+    },
+    {
+      version: '1.0',
+      updateDataModel: {
+        surfaceId: 'files',
+        path: '/',
+        value: {
+          files: {
+            task: { name: 'src/main/task/task.ts', lines: 6152, desc: 'Agent task orchestration' },
+            git: { name: 'src/main/git/git-manager.ts', lines: 4047, desc: 'Git operations facade' },
+          },
+        },
+      },
+    },
+  ];
+
+  const deployCard = [
+    {
+      version: '1.0',
+      createSurface: {
+        surfaceId: 'deploy',
+        catalogId: BASIC,
+        components: [
+          { id: 'root', component: 'Column', children: ['dtitle', 'dversion', 'denv', 'dinstances', 'dsmoke', 'dactions'] },
+          { id: 'dtitle', component: 'Text', text: '### Deploy checklist' },
+          { id: 'dversion', component: 'TextField', label: 'Release version', placeholder: 'e.g. v2.4.0', value: { '@path': '/version' } },
+          { id: 'denv', component: 'ChoicePicker', label: 'Environment', displayStyle: 'chips', options: [{ label: 'Staging', value: 'staging' }, { label: 'Production', value: 'production' }], value: { '@path': '/env' } },
+          { id: 'dinstances', component: 'Slider', label: 'Instances', min: 1, max: 10, value: { '@path': '/instances' } },
+          { id: 'dsmoke', component: 'CheckBox', label: 'Run smoke tests before deploy', value: { '@path': '/smoke' } },
+          { id: 'dactions', component: 'Row', children: ['dbtn'] },
+          { id: 'dbtn', component: 'Button', child: 'dbtnt', variant: 'primary', action: { event: { name: 'deploy', userMessage: 'Deploy now' } } },
+          { id: 'dbtnt', component: 'Text', text: 'Deploy now' },
+        ],
+      },
+    },
+    {
+      version: '1.0',
+      updateDataModel: { surfaceId: 'deploy', path: '/', value: { version: 'v2.4.0', env: 'production', instances: 3, smoke: true } },
+    },
+  ];
+
+  await renderCard('card1', filesCard);
+  await renderCard('card2', deployCard);
+  window.__a2uiReady = true;
+</script>
+</body>
+</html>

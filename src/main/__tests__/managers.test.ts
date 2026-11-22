@@ -73,7 +73,7 @@ describe('manager cleanup', () => {
         ),
       );
     }
-    vi.doMock('http', () => ({ createServer: () => ({ listen: vi.fn() }) }));
+    vi.doMock('http', () => ({ createServer: () => ({ listen: vi.fn(), on: vi.fn() }) }));
     vi.doMock('@/logger', () => ({ default: logger, initEventLogging: vi.fn() }));
   });
 

@@ -57,6 +57,8 @@ export class ReadonlyBrowserApi implements ExtensionDisplayAPI {
       autoConnect: true,
       forceNew: true,
       reconnection: true,
+      transports: ['websocket', 'polling'],
+      tryAllTransports: true,
     });
     this.socket.on('connect', () => {
       this.socket.emit('message', {

@@ -134,6 +134,13 @@ export const initManagers = async (store: Store, windowManager?: WindowManager):
   // Create HTTP server
   const httpServer = createServer();
 
+  // Keep idle browser sockets longer than the common 60s proxy idle window: the
+  // runtime default is 5s, so an idle UI reconnects for nearly every request.
+  // Long-running responses get their own per-route timeout in request-timeout.ts.
+  httpServer.keepAliveTimeout = 65_000;
+  httpServer.headersTimeout = 66_000;
+  httpServer.on('connection', (socket) => socket.setNoDelay(true));
+
   // Initialize Cloudflare tunnel manager
   const cloudflareTunnelManager = new CloudflareTunnelManager();
 

@@ -280,6 +280,7 @@ export class PromptApi extends BaseApi {
     const listenerId = `sse-${uuidv4()}`;
 
     let closed = false;
+    let keepAlive: ReturnType<typeof setInterval> | undefined;
 
     const listener = (event: { type: string; data: unknown }) => {
       if (closed) {
@@ -314,6 +315,10 @@ export class PromptApi extends BaseApi {
         return;
       }
       closed = true;
+      if (keepAlive) {
+        clearInterval(keepAlive);
+        keepAlive = undefined;
+      }
       eventManager.unsubscribeSSE(listenerId, listener);
       try {
         res.end();
@@ -323,6 +328,19 @@ export class PromptApi extends BaseApi {
     };
 
     eventManager.subscribeSSE(listenerId, listener, false);
+
+    // A completion can be silent for minutes between tool calls; proxies and
+    // tunnels reap an idle SSE body. A comment frame is ignored by clients.
+    keepAlive = setInterval(() => {
+      if (closed) {
+        return;
+      }
+      try {
+        res.write(': ping\n\n');
+      } catch {
+        cleanup();
+      }
+    }, 15_000);
 
     res.on('close', () => {
       if (!closed) {

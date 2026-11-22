@@ -52,6 +52,7 @@ Bun is the only supported runtime: the fork has no Node entry point.
 | `scripts/zlib-zstd-shim.cjs` | Stubs `zlib.createZstdDecompress` for runtimes that lack it — `undici` 8.12+ calls `.bind()` on it at import, which otherwise kills every process that loads it. Loaded as a vitest setup file and as a Bun preload before the lite entry. |
 | `vite.config.renderer.ts` | Standalone renderer build (replaces `electron-vite`) so the SPA can be served without any Electron tooling. Mirrors the 0.91.0 `renderer` config: startup-loader plugin, `progress.html` entry, esbuild minify and the `/api` + `/socket.io` dev proxy, plus the `__LITE_FORK__` define. |
 | `dist-lite/` | Reproducible distribution: `build.sh` compiles `out/server/runner-lite.js` into a standalone executable with Bun embedded, `package.sh` stages assets + tarball + sha256, `install.sh` installs it. See `dist-lite/README.md`. |
+| `src/main/fork/bun-fetch.ts` | Bun-native `fetch` wrapper: per-request proxy/TLS, 120 s stream watchdog, leak-free cancellation. Inert outside Bun. |
 | `docs/lite-fork.md` | This document. |
 
 ### Modified files (small, isolated — review on upstream merge)
@@ -74,6 +75,13 @@ Bun is the only supported runtime: the fork has no Node entry point.
 | `.husky/pre-commit` | Runs `bun x lint-staged && bun run typecheck && bun run test` — Bun is the profile's runtime, so the hooks go through Bun. |
 | `src/renderer/src/components/Workspace/DiffFilesSidebar.tsx`, `UpdatedFilesDiffModal.tsx`, `src/renderer/src/components/common/DiffViewer/PierreDiffViewer.tsx`, `packages/common/src/locales/*.json` | Collapsible file list with a mobile drawer and unified diff on phones (fork feature, carried from the 0.90.0 branch). |
 | `packages/extensions/extensions/code-mode-lua/` | UI extension rendering `mcp-hub` `code_mode` tool messages with Lua highlighting (fork feature). |
+| `src/main/network-manager.ts` | Installs the Bun-native fetch wrapper ahead of everything else in the lite profile; the undici dispatcher path stays for Node/Electron. |
+| `src/main/managers.ts` | HTTP server `keepAliveTimeout`/`headersTimeout` raised and `TCP_NODELAY` enabled. |
+| `src/main/server/server-controller.ts` | gzip for `/api` JSON responses (SSE is skipped by `compression`). |
+| `src/main/connector/connector-manager.ts` | Socket.IO `pingInterval`/`pingTimeout` and `perMessageDeflate` (1 KiB threshold). |
+| `src/main/server/rest-api/prompt-api.ts` | 15 s `: ping` keep-alive on the `run-prompt` SSE stream. |
+| `src/main/models/model-manager.ts` | Conditional GET (`If-None-Match` / `If-Modified-Since`) for `models.dev`; compact cache writes. |
+| `src/renderer/src/api/browser-api.ts`, `readonly-browser-api.ts` | Socket.IO connects over WebSocket first, with polling as fallback. |
 
 **No upstream files are deleted.**
 
@@ -106,6 +114,48 @@ src/main/fork/runner-lite.ts (this fork) ─┘                          out/ser
 | socket.io event bridge | Cloudflare tunnel (`cloudflared` is not installed; the tunnel API is browser-unsupported) |
 | Terminal (native module lazily loaded) | `node-pty` at startup |
 | Agent mode — search tools degrade with a clear error | `probe` binary (semantic code / task search) |
+
+---
+
+## Network behavior
+
+The lite profile runs on Bun, whose native `fetch` ignores `undici`'s global
+dispatcher. `NetworkManager` therefore installs a Bun-specific wrapper
+(`src/main/fork/bun-fetch.ts`) that applies:
+
+- the configured proxy (`proxy` / `NO_PROXY`) per request; loopback is always
+  bypassed, so the MCP hub and local LLM gateway on `127.0.0.1:9069` never go
+  through a proxy;
+- per-origin TLS rules (`sslVerify`, custom CA) registered by providers;
+- a 120 s inactivity watchdog per response body, so a stalled completion fails
+  instead of hanging (MCP notification streams are silent by design and are
+  exempt); and
+- deterministic cancellation: aborting the caller signal or cancelling the
+  consumer closes the upstream body immediately.
+
+This mirrors the connection discipline of the Exhub proxy client (dedicated
+pool, inter-chunk `recv_timeout`, leak-free stream close). Bun already reuses
+keep-alive connections and does not starve short calls behind long streams, so
+the pool split itself is unnecessary here.
+
+Inbound, the server keeps idle browser sockets for 65 s (instead of the 5 s
+runtime default), compresses API responses above 1 KiB, opens Socket.IO over
+WebSocket first (polling remains a fallback), and writes a `: ping` comment
+every 15 s on the `run-prompt` SSE stream so proxies do not reap a quiet
+completion. Per-message deflate is enabled for runtimes whose WebSocket stack
+negotiates it (Node/Electron); Bun's current `ws` bridge ignores the offer, so
+the lite profile relies on HTTP gzip for large payloads.
+
+`models.dev/api.json` (~7 MB) is revalidated with its ETag; an unchanged payload
+answers `304` and is not re-downloaded or rewritten.
+
+### Using Exhub's MCP hub
+
+Instead of enabling every Exhub MCP endpoint (`desktop`, `brain`, `look`, …),
+a profile may enable only `mcp-hub`. That is a single MCP session with
+`retrieve_tools` / `call_tools`, and Exhub handles upstream health checks,
+auto-reconnect and fan-out. The trade-off is that tools are discovered at run
+time rather than being listed directly in the toolset.
 
 ---
 

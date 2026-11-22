@@ -4,14 +4,34 @@
   const webCore = libraries?.a2uiWebCore;
   const markdownLib = libraries?.a2uiMarkdown;
   const parsedMessages = React.useMemo(() => {
+    const normalize = (messages) => {
+      const normalized = JSON.parse(JSON.stringify(messages));
+      const createIndex = normalized.findIndex((m) => m && m.createSurface);
+      if (createIndex === -1) {
+        return normalized;
+      }
+      const createSurface = normalized[createIndex].createSurface;
+      if (!createSurface.catalogId) {
+        createSurface.catalogId = 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
+      }
+      if (createSurface.dataModel !== undefined) {
+        const dataModel = createSurface.dataModel;
+        delete createSurface.dataModel;
+        normalized.splice(createIndex + 1, 0, {
+          version: '1.0',
+          updateDataModel: { surfaceId: createSurface.surfaceId, path: '/', value: dataModel },
+        });
+      }
+      return normalized;
+    };
     const raw = message?.args?.messages;
     if (Array.isArray(raw)) {
-      return raw;
+      return normalize(raw);
     }
     if (typeof raw === 'string') {
       try {
         const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : null;
+        return Array.isArray(parsed) ? normalize(parsed) : null;
       } catch (e) {
         return null;
       }

@@ -1,0 +1,219 @@
+name: Publish npm packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Extensions version bump (applied only when the committed version was already published or staged)
+        type: choice
+        options:
+          - minor
+          - patch
+          - major
+        default: minor
+
+# Idempotency model: the npm registry is the source of truth.
+# - Job 1 stages @aiderdesk/extensions (npm staged publishing): a human approves it on npmjs.com.
+# - Job 2 waits for the approved version to appear on the registry, then builds & publishes @aiderdesk/aiderdesk.
+# - Version bumps are committed only after BOTH packages are published, so any failure leaves the repo untouched.
+# - Re-runs detect already-published/staged versions and reuse them instead of bumping again.
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
+# Skip the onnxruntime-node CUDA EP download at install time (embeddings run on CPU,
+# and the upstream release asset may be unavailable - see scripts/before-pack.js)
+env:
+  ONNXRUNTIME_NODE_INSTALL_CUDA: skip
+
+jobs:
+  extensions:
+    name: Stage @aiderdesk/extensions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade npm (staged publishing needs >= 11.15.0)
+        run: npm install -g npm@11
+
+      - name: Compute target version
+        id: compute
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          PKG="@aiderdesk/extensions"
+          E=$(node -p "require('./packages/extensions/package.json').version")
+          R=$(node -p "require('./package.json').version.split('-')[0]")
+
+          APP_UP_TO_DATE=0
+          if npm view "@aiderdesk/aiderdesk@$R" version >/dev/null 2>&1; then
+            APP_UP_TO_DATE=1
+          fi
+
+          PUBLISHED=0
+          if npm view "$PKG@$E" version >/dev/null 2>&1; then
+            PUBLISHED=1
+          fi
+
+          STAGED_LIST=$(npm stage list "$PKG" 2>/dev/null || true)
+          STAGED=0
+          if echo "$STAGED_LIST" | grep -qF "$E"; then
+            STAGED=1
+          fi
+
+          if [ "$APP_UP_TO_DATE" -eq 1 ]; then
+            E_TARGET=$E
+            STATUS=app-up-to-date
+          elif [ "$PUBLISHED" -eq 1 ] || [ "$STAGED" -eq 1 ]; then
+            E_TARGET=$(BUMP="$BUMP" E="$E" node -e '
+              const bump = process.env.BUMP || "minor";
+              const [maj, min, pat] = process.env.E.split(".").map(Number);
+              const next = {
+                major: [maj + 1, 0, 0],
+                minor: [maj, min + 1, 0],
+                patch: [maj, min, pat + 1],
+              }[bump];
+              console.log(next.join("."));
+            ')
+          else
+            E_TARGET=$E
+          fi
+
+          STATUS=new
+          if [ "$APP_UP_TO_DATE" -eq 1 ]; then
+            STATUS=app-up-to-date
+          elif npm view "$PKG@$E_TARGET" version >/dev/null 2>&1; then
+            STATUS=reused
+          elif echo "$STAGED_LIST" | grep -qF "$E_TARGET"; then
+            STATUS=staged
+          fi
+
+          echo "version=$E_TARGET" >> "$GITHUB_OUTPUT"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "Committed: $E (published=$PUBLISHED, staged=$STAGED) | app@$R up-to-date=$APP_UP_TO_DATE | target: $E_TARGET ($STATUS)"
+
+      - name: Bump version, build and stage publish
+        if: steps.compute.outputs.status == 'new'
+        env:
+          VERSION: ${{ steps.compute.outputs.version }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = "packages/extensions/package.json";
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            pkg.version = process.env.VERSION;
+            fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          '
+          npm install
+          npm run build:extensions
+          cd packages/extensions
+          npm stage publish
+
+  app:
+    name: Publish @aiderdesk/aiderdesk
+    needs: extensions
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade npm
+        run: npm install -g npm@11
+
+      - name: Check if app version is already published
+        id: app-check
+        run: |
+          R=$(node -p "require('./package.json').version.split('-')[0]")
+          echo "version=$R" >> "$GITHUB_OUTPUT"
+          if npm view "@aiderdesk/aiderdesk@$R" version >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::@aiderdesk/aiderdesk@$R is already published, nothing to do"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply versions (extensions target + app = root version)
+        if: steps.app-check.outputs.exists == 'false'
+        env:
+          EXT_VERSION: ${{ needs.extensions.outputs.version }}
+          APP_VERSION: ${{ steps.app-check.outputs.version }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            for (const [path, version] of [
+              ["packages/extensions/package.json", process.env.EXT_VERSION],
+              ["packages/app/package.json", process.env.APP_VERSION],
+            ]) {
+              const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+              pkg.version = version;
+              fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+            }
+          '
+          npm install
+
+      - name: Wait for staged extensions version to be approved and live
+        if: steps.app-check.outputs.exists == 'false'
+        env:
+          EXT_VERSION: ${{ needs.extensions.outputs.version }}
+        run: |
+          for i in $(seq 1 240); do
+            if npm view "@aiderdesk/extensions@$EXT_VERSION" version >/dev/null 2>&1; then
+              echo "@aiderdesk/extensions@$EXT_VERSION is live on the registry"
+              exit 0
+            fi
+            echo "Waiting for approval of @aiderdesk/extensions@$EXT_VERSION ($i/240)..."
+            sleep 30
+          done
+          echo "Timed out waiting for @aiderdesk/extensions@$EXT_VERSION to be approved on npmjs.com" >&2
+          exit 1
+
+      - name: Build app package
+        if: steps.app-check.outputs.exists == 'false'
+        env:
+          POSTHOG_PUBLIC_API_KEY: ${{ secrets.POSTHOG_PUBLIC_API_KEY }}
+        run: bash packages/app/build.sh
+
+      - name: Publish app package
+        if: steps.app-check.outputs.exists == 'false'
+        working-directory: packages/app
+        run: npm publish --access public
+
+      - name: Commit version bumps
+        if: steps.app-check.outputs.exists == 'false'
+        env:
+          EXT_VERSION: ${{ needs.extensions.outputs.version }}
+          APP_VERSION: ${{ steps.app-check.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin "${{ github.ref_name }}"
+          git add packages/extensions/package.json packages/app/package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No version changes to commit"
+          else
+            git commit -m "chore(release): @aiderdesk/extensions@$EXT_VERSION, @aiderdesk/aiderdesk@$APP_VERSION"
+            git push origin "HEAD:${{ github.ref_name }}"
+          fi

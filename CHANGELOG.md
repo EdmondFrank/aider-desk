@@ -1,6 +1,6 @@
 # Changelog
 
-## [UNRELEASED]
+## [0.93.0]
 
 - added workspace-section UI component placement for extensions, rendered as a reorderable and hideable section in the workspace sidebar
 - added skill activation to the extension TaskContext API for external agent integrations

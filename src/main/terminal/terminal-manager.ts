@@ -13,7 +13,10 @@ type PtyModule = typeof import('@homebridge/node-pty-prebuilt-multiarch');
 let ptyModulePromise: Promise<PtyModule> | null = null;
 
 const loadPty = (): Promise<PtyModule> => {
-  ptyModulePromise ??= import('@homebridge/node-pty-prebuilt-multiarch');
+  // The dist build (bun --compile) cannot resolve native modules from inside the
+  // executable, so the launcher points at an absolute copy next to the binary.
+  const ptyPath = process.env.AIDER_DESK_NODE_PTY_PATH;
+  ptyModulePromise ??= (ptyPath ? import(/* @vite-ignore */ ptyPath) : import('@homebridge/node-pty-prebuilt-multiarch')) as Promise<PtyModule>;
   return ptyModulePromise;
 };
 

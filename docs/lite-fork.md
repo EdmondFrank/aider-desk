@@ -51,6 +51,7 @@ Bun is the only supported runtime: the fork has no Node entry point.
 | `src/main/fork/node-sqlite.cjs` | Runtime shim exposing the `node:sqlite` `DatabaseSync` API over `bun:sqlite` (Bun has no `node:sqlite` builtin). Aliased in the server vite config. |
 | `scripts/zlib-zstd-shim.cjs` | Stubs `zlib.createZstdDecompress` for runtimes that lack it — `undici` 8.12+ calls `.bind()` on it at import, which otherwise kills every process that loads it. Loaded as a vitest setup file and as a Bun preload before the lite entry. |
 | `vite.config.renderer.ts` | Standalone renderer build (replaces `electron-vite`) so the SPA can be served without any Electron tooling. Mirrors the 0.91.0 `renderer` config: startup-loader plugin, `progress.html` entry, esbuild minify and the `/api` + `/socket.io` dev proxy, plus the `__LITE_FORK__` define. |
+| `dist-lite/` | Reproducible distribution: `build.sh` compiles `out/server/runner-lite.js` into a standalone executable with Bun embedded, `package.sh` stages assets + tarball + sha256, `install.sh` installs it. See `dist-lite/README.md`. |
 | `docs/lite-fork.md` | This document. |
 
 ### Modified files (small, isolated — review on upstream merge)
@@ -61,7 +62,8 @@ Bun is the only supported runtime: the fork has no Node entry point.
 | `vitest.config.node.ts`, `vitest.config.web.ts` | Preload `scripts/zlib-zstd-shim.cjs` so `undici` imports do not crash the test runner on runtimes without zstd. |
 | `vite.config.server.ts` | Aliases `node:sqlite` to the shim, marks `/^bun:/` external, emits **two** entries (`runner` and `runner-lite`), and injects a per-entry `banner` that defaults the lite server's port to `23456` (it must be baked in before the shared chunk computes `SERVER_PORT`). |
 | `src/main/telemetry/telemetry-manager.ts` | In the lite profile only, skips loading the heavy OpenTelemetry module when no PostHog key and no tracing exporter (`LANGFUSE_*` / `POSTHOG_API_KEY` env) is configured. Tracing still initializes and flushes on shutdown, as 0.91.0 expects. |
-| `src/main/terminal/terminal-manager.ts` | `@homebridge/node-pty-prebuilt-multiarch` is now lazily imported on first terminal use, so the native module is never loaded when unused. |
+| `src/main/terminal/terminal-manager.ts` | `@homebridge/node-pty-prebuilt-multiarch` is now lazily imported on first terminal use, so the native module is never loaded when unused. The import honours `AIDER_DESK_NODE_PTY_PATH`: a compiled executable cannot resolve native modules, so the dist launcher points at an absolute copy next to the binary. |
+| `src/main/extensions/extension-loader.ts` | jiti's `zod` / `@aiderdesk/extensions` aliases resolve from `AIDER_DESK_RUNTIME_MODULES_DIR` when set — `require.resolve()` is baked to build-machine paths inside a compiled executable. The resolver is a thunk so the specifier stays literal for bundling. |
 | `src/main/utils/probe.ts` | Throws a clear error when the `probe` binary is absent instead of an opaque shell `ENOENT`. |
 | `src/main/server/cloudflare-tunnel-manager.ts` | Imports `cloudflared` lazily at `start()` (with a local type) and throws a clear error when the package is missing, so the dependency can be optional. |
 | `src/main/store/store.ts` | Aider-backed modes (`code`/`ask`/`architect`/`context`) are mapped to `agent` **when read** while `AIDER_DESK_LITE=true`. Nothing is written, so the same data dir opened with the full build still shows the user's own choice. |
@@ -186,6 +188,24 @@ cp "$HOME/Library/Application Support/aider-desk/"{config.json,models.json,aider
 | `npm run start:server` | (Upstream) run `out/server/runner.js` — still tries to bootstrap Python/Aider. |
 
 ---
+
+## Distributable build
+
+`dist-lite/` turns this profile into a single executable with the Bun runtime and every
+JavaScript dependency embedded — no Node/Bun/Python on the target:
+
+```bash
+cd dist-lite
+./build.sh                    # -> out/aiderdesk-lite-<slug> (~135 MB) + smoke test
+./package.sh                  # -> release/aiderdesk-lite-<version>-<slug>.tar.gz + .sha256
+./install.sh                  # from the unpacked tarball -> ~/.local/{bin,lib}/aiderdesk-lite
+```
+
+Assets travel next to the binary (`renderer/`, `resources/{prompts,skills,<os>/probe}`) and
+`run.sh` points the executable at them via `AIDER_DESK_RENDERER_DIR`,
+`AIDER_DESK_RESOURCES_DIR`, `AIDER_DESK_NODE_PTY_PATH` and `AIDER_DESK_RUNTIME_MODULES_DIR`.
+Memory embeddings (`@huggingface/transformers`, `@lancedb/lancedb`) are not shipped; see
+`dist-lite/README.md` for the full layout and limitations.
 
 ## Measured results (macOS arm64)
 

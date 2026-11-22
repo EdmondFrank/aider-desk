@@ -34,6 +34,7 @@ Every Extension interface method dispatches a specific event type. All handlers 
 | `onInterrupted` | `InterruptedEvent` | ✅ Yes |
 | `onToolApproval` | `ToolApprovalEvent` | ✅ Yes |
 | `onToolCalled` | `ToolCalledEvent` | — |
+| `onBashExecution` | `BashExecutionEvent` | ✅ Yes (by throwing: a handler error prevents the command from running) |
 | `onToolFinished` | `ToolFinishedEvent` | — |
 | `onToolsetCreated` | `ToolsetCreatedEvent` | — |
 | `onFilesAdded` | `FilesAddedEvent` | — |
@@ -394,6 +395,34 @@ interface ToolFinishedEvent {
   output: unknown;
 }
 ```
+
+### BashExecutionEvent (Fails Closed)
+
+Dispatched by the Power `bash` tool for a single approved command — after approval, right before the process spawns. Ephemeral by design: the event and any handler-provided values are never persisted into tool history. Return a partial to configure the execution:
+
+```typescript
+interface BashExecutionEvent {
+  readonly toolCallId: string;
+  readonly command: string;
+  readonly cwd: string;
+  readonly shell: string;
+  readonly abortSignal?: AbortSignal;
+  /** Trusted shell setup run after shell initialization, never added to persisted command arguments. */
+  commandPrefix?: string;
+  env: Record<string, string | undefined>;
+  /** Register cleanup before allocating resources; runs on completion, failure, cancellation or timeout. */
+  readonly addCleanup: (cleanup: () => void | Promise<void>) => void;
+}
+```
+
+Key behaviors:
+
+- **The only hook for per-execution bash setup.** Set environment variables (e.g. credentials) or a trusted `commandPrefix` without leaking them into persisted history. Unlike `onToolCalled`, the command itself is never rewritten — anything injected into the command there is persisted into tool history.
+- **Fails closed**: if the handler throws, the command does not run (`Bash execution setup failed.`). Every other event logs handler errors and continues.
+- `addCleanup(fn)` registers teardown that runs on completion, failure, cancellation, or timeout.
+- Dispatched only by the Power bash tool — not for other tools or provider-native bash execution.
+
+Reference implementation: the built-in `sudo` extension (`packages/extensions/extensions/sudo/index.ts`) injects a per-execution askpass shim via `commandPrefix`/`env` and collects the password with `context.requestInput` — see the *Secrets and Private Input* pattern in [Common Patterns](#common-patterns).
 
 ---
 
@@ -767,3 +796,40 @@ async onPromptTemplate(
   return {};
 }
 ```
+
+### Secrets and Private Input
+
+Inject a secret environment variable for bash commands without leaking it into the conversation or persisted tool history. Use `onBashExecution` (not `onToolCalled` — anything written into the command there is persisted), ask for the value with `context.requestInput`, and fail closed by throwing when the secret is required:
+
+```typescript
+async onBashExecution(
+  event: BashExecutionEvent,
+  context: ExtensionContext
+): Promise<Partial<BashExecutionEvent>> {
+  if (!event.command.startsWith('deploy')) return {}; // configure only relevant commands
+
+  // Shown outside conversation history; value is null on cancel, abort, or 180s timeout.
+  const response = await context.requestInput(
+    {
+      title: 'Deploy token',
+      message: 'A deploy token is required for this command.',
+      type: 'password',
+      allowRememberSession: true,
+    },
+    event.abortSignal,
+  );
+  if (response.value === null) {
+    throw new Error('Deploy commands require a token.'); // fails closed — the command will not run
+  }
+
+  return {
+    env: { ...event.env, DEPLOY_TOKEN: response.value },
+  };
+}
+```
+
+Notes:
+
+- `type: 'password'` masks the input; `allowRememberSession: true` offers a "remember for this session" choice — `rememberSession` in the response tells you whether the user opted in.
+- If the handler allocates resources (temp dirs, servers, sockets), register teardown with `event.addCleanup(...)` — cleanup runs on completion, failure, cancellation, and timeout.
+- See the built-in `sudo` extension (`packages/extensions/extensions/sudo/index.ts`) for a complete real-world example.

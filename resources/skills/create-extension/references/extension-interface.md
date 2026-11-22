@@ -210,6 +210,10 @@ interface Extension {
   /** Called when a tool is about to be executed. */
   onToolCalled?(event: ToolCalledEvent, context: ExtensionContext): Promise<void | Partial<ToolCalledEvent>>;
 
+  /** Configure a single approved Power bash execution (set commandPrefix/env, register addCleanup).
+   *  Ephemeral — never persisted in tool history. Handler errors prevent execution. */
+  onBashExecution?(event: BashExecutionEvent, context: ExtensionContext): Promise<void | Partial<BashExecutionEvent>>;
+
   /** Called after tool execution completes. */
   onToolFinished?(event: ToolFinishedEvent, context: ExtensionContext): Promise<void | Partial<ToolFinishedEvent>>;
 }
@@ -334,6 +338,14 @@ interface ExtensionContext {
 
   /** Log a message prefixed with the extension name. Type defaults to 'info'. */
   log(message: string, type?: 'info' | 'error' | 'warn' | 'debug'): void;
+
+  /** Request masked or plain input from the user outside conversation history (e.g. passwords).
+   *  The prompt is an InputPromptData without id; supports type ('password' | 'text' | 'confirmation'),
+   *  title, message with {{param}} placeholders via messageParams, and an optional remember-session choice.
+   *  Resolves to { value, rememberSession }; value is null when the user cancels, the signal aborts,
+   *  or the 180s timeout elapses. rememberSession is only true together with a value.
+   *  Throws 'Input prompts are unavailable.' when no event manager is attached. */
+  requestInput(prompt: Omit<InputPromptData, 'id'>, signal?: AbortSignal): Promise<ExtensionInputResponse>;
 
   /** Get the current project directory path. Returns empty string when no project is available. */
   getProjectDir(): string;
@@ -667,6 +679,10 @@ interface TaskContext {
    * Run deterministic (rule-based) smart compaction on the task context.
    * Passes: erroredTools, fileEdits, staleFileReads, fileReads, searches, semanticSearches,
    * bash, fetch, otherTools, verboseToolCalls, reasoning. Omitted flags default to true.
+   * Explicitly selecting verboseToolCalls or reasoning (true or false) shrinks that pass's
+   * protection window from max(protectedMessageCount, 50) to protectedMessageCount; an
+   * explicit true additionally runs it at the max compaction level. Omit them to keep
+   * the extended window and the current level.
    * @param options.protectedMessageCount - Number of most-recent messages protected from compaction (default: 10)
    * @param options.compactionLevel - Compaction level 1 (mild) to 5 (max). Omit to keep the automatic level.
    * @param options.passes - Which compaction passes to run. Omitted = all passes enabled.

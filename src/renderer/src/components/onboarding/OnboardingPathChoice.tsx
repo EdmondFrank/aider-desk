@@ -3,6 +3,8 @@ import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 
+import { isLiteFork } from '@/utils/lite-fork';
+
 export type OnboardingPath = 'agent' | 'aider';
 
 type PathOption = {
@@ -44,13 +46,17 @@ export const OnboardingPathChoice = ({ selectedPath, onSelectPath }: Props) => {
     },
   ];
 
+  // The lite fork has no Python/Aider connector, so the Aider path is not offered.
+  const liteFork = isLiteFork();
+  const visibleOptions = liteFork ? options.filter((option) => option.path === 'agent') : options;
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-bold text-text-primary uppercase">{t('onboarding.choice.title')}</h2>
       <p className="text-text-tertiary text-sm">{t('onboarding.choice.description')}</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-        {options.map((option) => {
+      <div className={clsx('grid grid-cols-1 gap-4 pt-2', !liteFork && 'md:grid-cols-2')}>
+        {visibleOptions.map((option) => {
           const isSelected = selectedPath === option.path;
           return (
             <button

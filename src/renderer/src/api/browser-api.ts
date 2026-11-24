@@ -183,6 +183,10 @@ export class BrowserApi implements ApplicationAPI {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
+      // Open the WebSocket directly instead of polling first and upgrading.
+      // Polling stays as a fallback for proxies that block WebSockets.
+      transports: ['websocket', 'polling'],
+      tryAllTransports: true,
     });
     this.listeners = {
       'settings-updated': new Map(),

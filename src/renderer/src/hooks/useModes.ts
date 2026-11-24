@@ -6,10 +6,11 @@ import { FiLayers } from 'react-icons/fi';
 import { RiRobot2Line } from 'react-icons/ri';
 import { GoProjectRoadmap } from 'react-icons/go';
 import { TbTargetArrow } from 'react-icons/tb';
-import { Mode } from '@common/types';
+import { AIDER_MODES, Mode } from '@common/types';
 
 import { useReactIcons, type ReactIconsMap } from '@/utils/extension-icons';
 import { useCustomModes } from '@/hooks/useCustomModes';
+import { isLiteFork } from '@/utils/lite-fork';
 import { ItemConfig } from '@/components/common/ItemSelector';
 
 export const MODE_ICONS: Record<string, ElementType> = {
@@ -84,6 +85,8 @@ export const useModes = (baseDir?: string): ItemConfig<Mode>[] => {
       labelKey: mode.label,
       tooltipKey: mode.description,
     }));
-    return [...BUILT_IN_MODES, ...customModeItems] as ItemConfig<Mode>[];
+    // The lite fork cannot run the Aider (Python connector) modes, so they are not offered.
+    const builtInModes = isLiteFork() ? BUILT_IN_MODES.filter((mode) => !AIDER_MODES.includes(mode.value)) : BUILT_IN_MODES;
+    return [...builtInModes, ...customModeItems] as ItemConfig<Mode>[];
   }, [customModes, iconPacks]);
 };

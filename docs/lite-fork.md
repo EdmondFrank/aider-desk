@@ -1,0 +1,347 @@
+# AiderDesk Lite Fork
+
+This fork turns AiderDesk into a **lean, headless web server** that runs directly on
+[Bun](https://bun.sh) — no Electron, no Node entry point, no Python/Aider bootstrap, and a
+much smaller memory/CPU footprint with near-instant startup.
+
+It is based on upstream **0.93.0** and targeted at the Bun runtime only.
+
+It is designed to keep **upstream sync cheap**: almost everything new lives in
+`src/main/fork/`, and the changes to shared upstream files are small and isolated.
+
+---
+
+## Quick start
+
+```bash
+# Prerequisite: Bun >= 1.3 available as `bun` (see Requirements)
+npm run install:lite                           # bun install: skips the ~200MB Electron binary + optional deps
+npm run build:lite                             # builds renderer + server bundles
+npm run start:lite                             # -> http://localhost:23456
+```
+
+`install:lite` is `ELECTRON_SKIP_BINARY_DOWNLOAD=1 bun install --omit=optional`. The only
+optional dependency is `cloudflared` (the Electron tunnel; never used here, and its
+postinstall downloads a ~40 MB binary). A plain `bun install` still works — it just installs
+`cloudflared` too. Keep in mind that `--omit=optional` also skips optional dependencies added
+upstream later; install those explicitly if one ever becomes mandatory.
+
+Open <http://localhost:23456> in a browser.
+
+Bun is the only supported runtime: the fork has no Node entry point.
+
+---
+
+## Requirements
+
+| Requirement | Why |
+| --- | --- |
+| **Bun ≥ 1.3** | Bun 1.2.0 (e.g. some Homebrew builds) **segfaults** on this bundle. Check with `bun --version`; the official installer (`~/.bun/bin/bun`) is fine. Homebrew installs into `/opt/homebrew/bin`, which can precede `~/.bun/bin` on `PATH`, so `which -a bun` may still show 1.2.0 — put `$HOME/.bun/bin` first. |
+| `--conditions=module-sync` | Bun cannot `require()` ESM-only packages that only export a `module-sync` condition (e.g. `file-type`). Already baked into `start:lite`. |
+
+---
+
+## What changed
+
+### New files (no upstream conflict)
+
+| File | Purpose |
+| --- | --- |
+| `src/main/fork/runner-lite.ts` | The lean server entry point. Identical to upstream `src/main/server/runner.ts` except it **never bootstraps Python/Aider** and disables the memory/embeddings subsystem. |
+| `src/main/fork/node-sqlite.cjs` | Runtime shim exposing the `node:sqlite` `DatabaseSync` API over `bun:sqlite` (Bun has no `node:sqlite` builtin). Aliased in the server vite config. |
+| `scripts/zlib-zstd-shim.cjs` | Stubs `zlib.createZstdDecompress` for runtimes that lack it — `undici` 8.12+ calls `.bind()` on it at import, which otherwise kills every process that loads it. Loaded as a vitest setup file and as a Bun preload before the lite entry. |
+| `src/renderer/src/components/common/DiffViewer/LazyPierreDiffViewer.tsx` | Defers `@pierre/diffs` + shiki + the diff worker behind a `React.lazy` boundary, so the diff viewer only loads when a diff is rendered. |
+| `vite.config.renderer.ts` | Standalone renderer build (replaces `electron-vite`) so the SPA can be served without any Electron tooling. Mirrors the 0.93.0 `renderer` config: startup-loader plugin, `progress.html` entry, esbuild minify and the `/api` + `/socket.io` dev proxy, plus the `__LITE_FORK__` define. |
+| `dist-lite/` | Reproducible distribution: `build.sh` compiles `out/server/runner-lite.js` into a standalone executable with Bun embedded, `package.sh` stages assets + tarball + sha256, `install.sh` installs it. See `dist-lite/README.md`. |
+| `src/main/fork/bun-fetch.ts` | Bun-native `fetch` wrapper: per-request proxy/TLS, 120 s stream watchdog, leak-free cancellation. Inert outside Bun. |
+| `docs/lite-fork.md` | This document. |
+
+### Modified files (small, isolated — review on upstream merge)
+
+| File | Change |
+| --- | --- |
+| `package.json` | Added `install:lite`, `build:renderer`, `build:lite`, `start:lite`, `download:probe`; `prebuild:server` now runs the standalone renderer build instead of `electron-vite build`; `postinstall` drops the Electron-only steps **and the `probe` download** (the lite profile has no `probe` dependency — run `npm run download:probe` to opt back in); `build:extensions` uses `cd packages/extensions && npm run build` because Bun rewrites `npm` → `bun` in scripts and ignores npm's `--workspace` flag; `cloudflared` moved from `dependencies` to `optionalDependencies` so `install:lite` can skip its ~40 MB postinstall while the lazy import keeps the build working without it; `build:renderer` sets `AIDER_DESK_LITE=true`, the renderer's single source of truth; `build:lite` inlines the renderer + server steps instead of delegating to `build:server`, so the Electron-only `postbuild:server` (`npm rebuild`) stays out of the lite build. |
+| `vitest.config.node.ts`, `vitest.config.web.ts` | Preload `scripts/zlib-zstd-shim.cjs` so `undici` imports do not crash the test runner on runtimes without zstd. |
+| `vite.config.server.ts` | Aliases `node:sqlite` to the shim, marks `/^bun:/` external, emits **two** entries (`runner` and `runner-lite`), and injects a per-entry `banner` that defaults the lite server's port to `23456` (it must be baked in before the shared chunk computes `SERVER_PORT`). |
+| `src/main/telemetry/telemetry-manager.ts` | In the lite profile only, skips loading the heavy OpenTelemetry module when no PostHog key and no tracing exporter (`LANGFUSE_*` / `POSTHOG_API_KEY` env) is configured. Tracing still initializes and flushes on shutdown, as upstream expects. |
+| `src/main/terminal/terminal-manager.ts` | `@homebridge/node-pty-prebuilt-multiarch` is now lazily imported on first terminal use, so the native module is never loaded when unused. The import honours `AIDER_DESK_NODE_PTY_PATH`: a compiled executable cannot resolve native modules, so the dist launcher points at an absolute copy next to the binary. |
+| `src/main/extensions/extension-loader.ts` | jiti's `zod` / `@aiderdesk/extensions` aliases resolve from `AIDER_DESK_RUNTIME_MODULES_DIR` when set — `require.resolve()` is baked to build-machine paths inside a compiled executable. The resolver is a thunk so the specifier stays literal for bundling. |
+| `src/main/utils/probe.ts` | Throws a clear error when the `probe` binary is absent instead of an opaque shell `ENOENT`. |
+| `src/main/server/cloudflare-tunnel-manager.ts` | Imports `cloudflared` lazily at `start()` (with a local type) and throws a clear error when the package is missing, so the dependency can be optional. |
+| `src/main/store/store.ts` | Aider-backed modes (`code`/`ask`/`architect`/`context`) are mapped to `agent` **when read** while `AIDER_DESK_LITE=true`. Nothing is written, so the same data dir opened with the full build still shows the user's own choice. |
+| `src/main/task/task.ts` | `shouldStartAider()` refuses to spawn the connector in the lite profile and explains why once per project (warning level) instead of failing later; `getCurrentMode()` reads a task persisted in an aider mode as `agent` (read-time only, nothing written); `restartAiderConnector()` stays inert with a log message; the aider spawn in `updateTask()`'s mode-change path is skipped. |
+| `src/main/agent/mcp-manager.ts` | `${projectDir}` / `${taskDir}` are also substituted in `command`, `url` and `headers`, not just `env` / `args`, so a scoped server no longer receives the literal placeholder. 0.93.0 moved interpolation into a private `interpolateServerConfig` method; the fork only extends that method (upstream still resolves `env` / `args` alone), so the merge stays shallow. Building the toolset also waits at most `AIDER_DESK_MCP_INIT_TIMEOUT_MS` (20 s) per connector and evicts a connector that failed or timed out instead of caching its rejected promise for the rest of the session, and reports the missing servers to the task log. Both are generic upstream-worthy fixes inside `createToolset` / `initMcpConnectors`. |
+| `vite.config.renderer.ts`, `src/renderer/src/utils/lite-fork.ts` | `__LITE_FORK__` is defined from `process.env.AIDER_DESK_LITE === 'true'`; the UI then hides aider modes, hides the Aider onboarding path and pre-selects the agent path. |
+| `.gitignore` | Also ignores top-level `resources/probe-*` archives (upstream only ignored `resources/*/probe*`). |
+| `.husky/pre-commit` | Runs `bun x lint-staged && bun run typecheck && bun run test` — Bun is the profile's runtime, so the hooks go through Bun. |
+| `packages/extensions/extensions/code-mode-lua/` | UI extension rendering `mcp-hub` `code_mode` tool messages with Lua highlighting (fork feature). |
+| `src/main/network-manager.ts` | Installs the Bun-native fetch wrapper ahead of everything else in the lite profile; the undici dispatcher path stays for Node/Electron. |
+| `src/main/managers.ts` | HTTP server `keepAliveTimeout`/`headersTimeout` raised and `TCP_NODELAY` enabled. |
+| `src/main/server/server-controller.ts` | gzip for `/api` JSON responses (SSE is skipped by `compression`). |
+| `src/main/connector/connector-manager.ts` | Socket.IO `pingInterval`/`pingTimeout` and `perMessageDeflate` (1 KiB threshold). |
+| `src/main/server/rest-api/prompt-api.ts` | 15 s `: ping` keep-alive on the `run-prompt` SSE stream. |
+| `src/main/models/model-manager.ts` | Conditional GET (`If-None-Match` / `If-Modified-Since`) for `models.dev`; compact cache writes. |
+| `src/renderer/src/api/browser-api.ts`, `readonly-browser-api.ts` | Socket.IO connects over WebSocket first, with polling as fallback. |
+| `src/main/models/providers/vertex-ai.ts` | `@google-cloud/aiplatform` and `google-auth-library` (together ~430 ms / ~150 MB when required) are imported dynamically inside `loadVertexAIModels` instead of at module load. The module is only needed for Vertex model discovery. |
+| `src/main/models/providers/bedrock.ts` | `@aws-sdk/client-bedrock` and `@aws-sdk/credential-providers` are imported dynamically inside `loadBedrockModels` / `createBedrockLlm`; `createBedrockLlm` is now async (the `createLlm` contract already allows a promise). ~100 ms / ~35 MB less at startup. |
+| `src/renderer/src/components/common/DiffViewer/PierreDiffViewer.tsx`, `DiffViewer/index.tsx`, `src/renderer/src/App.tsx` | The worker-pool provider moved from the app root into `PierreDiffViewer`, and the barrel exports the lazy wrapper. `@pierre/diffs`/shiki leaves the entry chunk. `PierreDiffViewer` also forces the unified style on phones (upstream's modal already does this; kept as a safety net for other callers). |
+| `src/renderer/src/components/project/TaskView.tsx` | `TerminalView`/`ghostty-web` are `React.lazy`-loaded, so the terminal module loads with the task view instead of the entry chunk. |
+| `src/renderer/src/components/message/utils.tsx` | `MermaidDiagram`/`pele` are `React.lazy`-loaded, so the diagram renderer loads only when a mermaid block is shown. |
+
+### Superseded by upstream
+
+The 0.90.0 branch added a collapsible file list to the updated-files diff dialog (collapsing sidebar on desktop, drawer on mobile). Upstream 0.93.0 shipped the same feature — a collapsing desktop sidebar, slide-in file and change-request drawers on portrait mobile, and unified diffs at phone width — so on the 0.93.0 port `DiffFilesSidebar.tsx` and `UpdatedFilesDiffModal.tsx` were reset to upstream and the fork's `UpdatedFilesDiffModal.fileList.test.tsx` (and its locale keys) were dropped.
+
+**No upstream files are deleted.**
+
+---
+
+## Architecture
+
+```
+src/main/server/runner.ts   (upstream)  ─┐
+                                          ├─ vite.config.server.ts ─▶ out/server/runner.js
+src/main/fork/runner-lite.ts (this fork) ─┘                          out/server/runner-lite.js
+```
+
+- Both entries call the same `initManagers(store)` and share the whole app.
+- `runner-lite` skips `performStartUp()` (the uv/venv/`pip install aider-chat` bootstrap)
+  and forces `settings.memory.enabled = false`.
+- The HTTP layer is unchanged: `ServerController` serves the built SPA, REST API
+  (`/api/*`) and the socket.io event bridge that the browser UI relies on
+  (`ConnectorManager`). That bridge is kept even though the Python *Aider connector*
+  is gone — it is the web UI's real-time channel.
+
+### Enabled vs disabled in the lite profile
+
+| Enabled (kept) | Disabled / avoided |
+| --- | --- |
+| Agent mode (the default task mode) | Python / `aider-chat` + connector bootstrap |
+| MCP servers | Memory embeddings (LanceDB + ONNX) |
+| Extensions | OpenTelemetry / PostHog telemetry |
+| Git integration, worktrees | Electron auto-updater / version polling |
+| socket.io event bridge | Cloudflare tunnel (`cloudflared` is not installed; the tunnel API is browser-unsupported) |
+| Terminal (native module lazily loaded) | `node-pty` at startup |
+| Agent mode — search tools degrade with a clear error | `probe` binary (semantic code / task search) |
+
+---
+
+## Network behavior
+
+The lite profile runs on Bun, whose native `fetch` ignores `undici`'s global
+dispatcher. `NetworkManager` therefore installs a Bun-specific wrapper
+(`src/main/fork/bun-fetch.ts`) that applies:
+
+- the configured proxy (`proxy` / `NO_PROXY`) per request; loopback is always
+  bypassed, so the MCP hub and local LLM gateway on `127.0.0.1:9069` never go
+  through a proxy;
+- per-origin TLS rules (`sslVerify`, custom CA) registered by providers;
+- a 120 s inactivity watchdog per response body, so a stalled completion fails
+  instead of hanging (MCP notification streams are silent by design and are
+  exempt); and
+- deterministic cancellation: aborting the caller signal or cancelling the
+  consumer closes the upstream body immediately.
+
+This mirrors the connection discipline of the Exhub proxy client (dedicated
+pool, inter-chunk `recv_timeout`, leak-free stream close). Bun already reuses
+keep-alive connections and does not starve short calls behind long streams, so
+the pool split itself is unnecessary here.
+
+Inbound, the server keeps idle browser sockets for 65 s (instead of the 5 s
+runtime default), compresses API responses above 1 KiB, opens Socket.IO over
+WebSocket first (polling remains a fallback), and writes a `: ping` comment
+every 15 s on the `run-prompt` SSE stream so proxies do not reap a quiet
+completion. Per-message deflate is enabled for runtimes whose WebSocket stack
+negotiates it (Node/Electron); Bun's current `ws` bridge ignores the offer, so
+the lite profile relies on HTTP gzip for large payloads.
+
+`models.dev/api.json` (~7 MB) is revalidated with its ETag; an unchanged payload
+answers `304` and is not re-downloaded or rewritten.
+
+### Using Exhub's MCP hub
+
+Instead of enabling every Exhub MCP endpoint (`desktop`, `brain`, `look`, …),
+a profile may enable only `mcp-hub`. That is a single MCP session with
+`retrieve_tools` / `call_tools`, and Exhub handles upstream health checks,
+auto-reconnect and fan-out. The trade-off is that tools are discovered at run
+time rather than being listed directly in the toolset.
+
+---
+
+## Configuration
+
+| Env var | Default | Description |
+| --- | --- | --- |
+| `AIDER_DESK_PORT` | `23456` (lite; upstream is `24337`) | HTTP port. |
+| `AIDER_DESK_DATA_DIR` | `~/Library/Application Support/aider-desk-dev-nodejs` (non-Electron) | Where settings, DBs and logs live. See *Migrating from the Electron release*. |
+| `AIDER_DESK_PROJECTS` | – | Comma-separated project paths to open at startup. |
+| `AIDER_DESK_MEMORY_ENABLED` | `false` (lite) | Set to `true` to re-enable memory embeddings. |
+| `AIDER_DESK_MCP_INIT_TIMEOUT_MS` | `20000` | Per-connector budget for the MCP handshake + `tools/list` while a prompt starts. A connector that misses it is left out of that run and retried on the next prompt instead of stalling the turn for the 10 minute tool timeout. `0` disables the bound. |
+| `AIDER_DESK_LITE` | `true` in the lite build | Set by the lite entry point and by `build:renderer`. Baked into the renderer bundle as `__LITE_FORK__` (hides aider modes) and read at runtime to map saved aider modes to `agent`. |
+| `AIDER_DESK_USERNAME` / `AIDER_DESK_PASSWORD` | – | Enable HTTP Basic Auth. |
+| `AIDER_DESK_READONLY` | `false` | Read-only mode (requires `AIDER_DESK_PROJECTS`). |
+
+`AIDER_DESK_HEADLESS=true` is forced by the lite entry.
+
+---
+
+## Migrating from the Electron release
+
+The Electron release and the lite server keep their machine-wide data in **different
+directories**, so a fresh lite server starts with no providers, projects or settings:
+
+| Build | Data dir |
+| --- | --- |
+| Electron release (`~/aider-desk.app`) | `~/Library/Application Support/aider-desk` |
+| Lite server, non-Electron (`NODE_ENV != production`) | `~/Library/Application Support/aider-desk-dev-nodejs` |
+| Lite server, `NODE_ENV=production` | `~/Library/Application Support/aider-desk-nodejs` |
+
+The non-Electron path resolves through `env-paths`, which appends its default `-nodejs`
+suffix — so `NODE_ENV=production` alone does **not** land in the Electron directory. To
+reuse an existing install, point `AIDER_DESK_DATA_DIR` at it explicitly:
+
+```bash
+AIDER_DESK_DATA_DIR="$HOME/Library/Application Support/aider-desk" npm run start:lite
+```
+
+Caveats when sharing a directory the Electron app also uses:
+
+- The lite entry calls `disableMemory()` and **writes `config.json`**, so memory gets
+  turned off for the Electron app too. Set `AIDER_DESK_MEMORY_ENABLED=true` to keep it
+  enabled, or copy `config.json` into a separate directory instead (below).
+- Task/project modes are **not** rewritten: an `aider`-backed mode saved by the full build is
+  mapped to `agent` when read, so switching back to the Electron app keeps your choice.
+- Do not run both builds against the same directory at the same time — `config.json`
+  is last-writer-wins.
+
+Nothing else needs migrating:
+
+| Data | Where | Action |
+| --- | --- | --- |
+| Global config — agents, skills, commands, hooks, extensions, `mcp-servers.json`, prompts, rules | `~/.aider-desk` (`AIDER_DESK_HOME_DIR`) | none — already shared by every build |
+| Projects, tasks, sessions, per-project extensions | `<project>/.aider-desk/` | none — travels with the project |
+| `openProjects` / `recentProjects`, settings, providers | `<data dir>/config.json` | comes along with the data dir |
+| Usage/cost history (`messages` table) | `<data dir>/aider-desk.db` | comes along with the data dir |
+| `python-venv/`, `aider-connector/`, `mcp-server/`, `memory.db/`, `logs/` | Electron data dir | unused by the lite profile |
+| Electron caches (`Cache/`, `GPUCache/`, `Cookies`, …) | Electron data dir | unused — the lite profile's own `cache/` collides with Electron's `Cache/` on a case-insensitive filesystem |
+
+To leave the release untouched, copy the portable files into a separate directory and
+point `AIDER_DESK_DATA_DIR` at the copy:
+
+```bash
+LITE="$HOME/Library/Application Support/aider-desk-lite"
+mkdir -p "$LITE"
+cp "$HOME/Library/Application Support/aider-desk/"{config.json,models.json,aider-desk.db} "$LITE/"
+```
+
+---
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run build:renderer` | Build the SPA into `out/renderer`. |
+| `npm run build:server` | Build `out/server/runner.js` + `out/server/runner-lite.js` and copy `resources/` (its `prebuild:server` hook runs `build:renderer` first). |
+| `npm run build:lite` | `build:renderer` then the server bundle + `resources/` copy. Bypasses the `build:server` hooks, so the Electron-only `postbuild:server` (`npm rebuild`, ~90 s here) never runs. |
+| `npm run start:lite` | Run the lite server with Bun. |
+| `npm run start:server` | (Upstream) run `out/server/runner.js` — still tries to bootstrap Python/Aider. |
+
+Build cost on an M-series Mac (`bun 1.3`): renderer ~35 s, server bundle ~1.5 s, `bun build
+--compile` ~1.6 s. The renderer dominates — it is Vite/Rollup with the React Compiler babel pass
+(~9 s of the total). Every job Bun can take is already Bun: dependencies (`install:lite`),
+the final executable (`dist-lite/scripts/build-lite-dist.ts`). Bun's bundler cannot replace Vite
+for the SPA (no React Compiler babel plugin, no PostCSS/Tailwind config, no plugin API/HMR).
+
+---
+
+## Distributable build
+
+`dist-lite/` turns this profile into a single executable with the Bun runtime and every
+JavaScript dependency embedded — no Node/Bun/Python on the target:
+
+```bash
+cd dist-lite
+./build.sh                    # -> out/aiderdesk-lite-<slug> (~135 MB) + smoke test
+./package.sh                  # -> release/aiderdesk-lite-<version>-<slug>.tar.gz + .sha256
+./install.sh                  # from the unpacked tarball -> ~/.local/{bin,lib}/aiderdesk-lite
+```
+
+Assets travel next to the binary (`renderer/`, `resources/{prompts,skills,<os>/probe}`) and
+`run.sh` points the executable at them via `AIDER_DESK_RENDERER_DIR`,
+`AIDER_DESK_RESOURCES_DIR`, `AIDER_DESK_NODE_PTY_PATH` and `AIDER_DESK_RUNTIME_MODULES_DIR`.
+Memory embeddings (`@huggingface/transformers`, `@lancedb/lancedb`) are not shipped; see
+`dist-lite/README.md` for the full layout and limitations.
+
+## Measured results (macOS arm64)
+
+| Metric | Value |
+| --- | --- |
+| Process start → HTTP ready | ~1.0–1.7 s |
+| App bring-up after entry runs | **~88 ms** |
+| Memory footprint — Bun | **~333 MB** |
+| Server bundle `require()` (module eval) | ~1.09 s, 341 MB RSS (was ~1.24 s, 395 MB) |
+| Renderer entry chunk | 18.83 MB (was 20.92 MB) |
+| Idle CPU | ~0.2% |
+| Bare Bun baseline | ~22 MB |
+
+Most of the residual memory is the eagerly-loaded AI-provider SDK graph (~135 MB by
+itself). See *Optional next steps*.
+
+---
+
+## Upstream sync guide
+
+1. Work on a dedicated branch and keep `git config rerere.enabled true` so repeated
+   conflict resolutions are remembered.
+2. Merge `origin/main` periodically. Conflicts are expected only in the files
+   listed under *Modified files* above — everything else is additive.
+3. Reinstall after every upstream bump — `npm run install:lite`. Pinned versions move with
+   upstream, and a `node_modules` left over from the previous version fails `typecheck` on the
+   SDK types (see *Troubleshooting*).
+4. Generated/ignored artefacts are already in `.gitignore`
+   (`out/`, `node_modules/`, `resources/probe-*`, `resources/*/probe*`, `packages/extensions/extensions.d.ts`) —
+   do not commit them.
+5. To temporarily remove the fork behaviour, build/run upstream instead:
+   `npm run build:server && npm run start:server`.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `Cannot find package 'file-type'` | Run with `--conditions=module-sync` (use `npm run start:lite`). |
+| Bun crashes with a segmentation fault right after startup | Bun is 1.2.0 — upgrade to ≥ 1.3. |
+| `Unable to load a SQLite implementation` | Bun has no `node:sqlite` and the `bun:sqlite` fallback failed; check `bun --version` (≥ 1.3). |
+| `Failed to load extension …: No such built-in module: node:sqlite` | Extensions are executed by `jiti` outside the bundled server, so the `node:sqlite` alias does not reach them. Extensions that import `node:sqlite` (e.g. via `@aiderdesk/tree-sitter-utils`) cannot run on Bun yet; disable them or open that project in the full build. |
+| `Failed to start server. Is port 23456 in use?` | Another instance is running; set `AIDER_DESK_PORT`. |
+| `[NetworkManager] Failed to clear proxy` | Harmless under Bun (undici global-dispatcher difference); only matters if you use a proxy. |
+| Agent code search fails | The lite profile does not install `probe` (removed from `postinstall`). Run `npm run download:probe` to fetch it into `resources/<platform>/probe`; the tools return a clear "binary not found" message until then. |
+| Install fails with `CACError: Unknown option `--workspace`` (or spawns the Electron build) | Bun rewrites `npm` → `bun` inside scripts and ignores npm's `--workspace`. `build:extensions` uses `cd packages/extensions && npm run build`; use Bun ≥ 1.3. |
+| `patch-package` fails: `Failed to apply patch for package …` | A stale `node_modules` from a previous install already has the patch applied. Run `rm -rf node_modules && bun install`. |
+| `typecheck` fails with SDK type drift (e.g. a value of type `interrupted` not assignable to `FinishReason \| null`) | `node_modules` is left over from the previous version. Run `npm run install:lite` after every upstream bump — 0.93.0 pins `ai` 7.0.176, and a `node_modules` left from 0.91.0 (7.0.157) keeps the older `FinishReason` union and extension event types. |
+
+---
+
+## Optional next steps
+
+- **Stop forcing full `react-icons` packs into the entry chunk** (biggest remaining
+  renderer win, ~13.8 MB of the 18.8 MB entry). `utils/extension-icons.ts` dynamically
+  imports 22 packs (`import('react-icons/md')`, …) to resolve extension icon names at
+  runtime. Because the same packs are also statically imported by app components, Rollup
+  must put the *entire* pack (all 4000+ icons) into the entry chunk; without the dynamic
+  namespace imports, tree-shaking keeps only the used icons (~12 KB each in an isolated
+  esbuild check). Fixing this needs a design decision — e.g. a separately built,
+  lazily-fetched icon pack bundle, or resolving extension icons from a curated registry —
+  and then also deferring `useReactIcons()` in `ExtensionsContext` so the packs load on
+  demand rather than at startup.
+- **Lazy-load AI providers** — `model-manager.ts` statically imports all ~28 provider
+  strategies, pulling in every `@ai-sdk/*` SDK at startup. The heavy cloud SDKs
+  (Vertex, Bedrock) are already deferred per provider; deferring the remaining
+  `@ai-sdk/*` strategies would save a further ~180 ms / ~40 MB, at the cost of touching
+  ~29 shared files (higher merge conflict).
+- **Remove Electron entirely** — delete `src/main/index.ts`, `ipc-handlers.ts`,
+  `window-manager.ts`, `progress-window.ts`, `src/preload/`, `electron.vite.config.ts`,
+  `electron-builder.yml` and the Electron dev dependencies.
+- **Shrink the renderer bundle** — the main SPA chunk is ~20 MB; code-splitting heavy
+  viewers (diff/mermaid/shiki) would improve browser load time.

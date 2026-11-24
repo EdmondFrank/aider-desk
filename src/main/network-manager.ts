@@ -5,6 +5,7 @@ import { bootstrap } from 'global-agent';
 
 import type { ProviderProfile, SettingsData, TlsPolicyOptions, TlsPolicyRegistrar } from '@common/types';
 
+import { installBunFetch, isBunRuntime } from '@/fork/bun-fetch';
 import logger from '@/logger';
 
 const PROXY_ENV_VAR_NAMES = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy'] as const;
@@ -82,6 +83,7 @@ export const getNetworkEnvVars = (settings: SettingsData, providers: ProviderPro
 });
 
 export class NetworkManager implements TlsPolicyRegistrar {
+  private readonly bunRuntime = isBunRuntime();
   private currentUrl: string | null = null;
   private currentNoProxy: string | undefined;
   private readonly tlsRules = new Map<string, string>();
@@ -97,6 +99,11 @@ export class NetworkManager implements TlsPolicyRegistrar {
    * Initialize network settings from settings. Called once during app startup (first in managers init).
    */
   init(settings: SettingsData): void {
+    if (this.bunRuntime) {
+      this.initBunNetwork(settings);
+      return;
+    }
+
     bootstrap();
 
     if (settings.proxy?.enabled && settings.proxy?.url) {
@@ -106,6 +113,22 @@ export class NetworkManager implements TlsPolicyRegistrar {
     }
   }
 
+  private initBunNetwork(settings: SettingsData): void {
+    installBunFetch({
+      getProxy: () => (this.currentUrl ? { url: this.currentUrl, noProxy: this.currentNoProxy } : null),
+      getTlsPolicy: (origin) => this.resolveTlsConnectOptions(origin),
+    });
+
+    const proxy = settings.proxy;
+    this.currentUrl = proxy?.enabled && proxy.url ? proxy.url : null;
+    this.currentNoProxy = this.currentUrl ? proxy?.noProxy : undefined;
+
+    logger.info('[NetworkManager] Bun-native fetch layer installed', {
+      proxy: this.currentUrl ?? 'none',
+      tlsRules: this.tlsRules.size,
+    });
+  }
+
   /**
    * React to settings changes. Called on every saveSettings().
    * Re-initializes the proxy if the proxy config changed.
@@ -113,6 +136,21 @@ export class NetworkManager implements TlsPolicyRegistrar {
   settingsChanged(oldSettings: SettingsData, newSettings: SettingsData): void {
     const oldProxy = oldSettings.proxy;
     const newProxy = newSettings.proxy;
+
+    if (this.bunRuntime) {
+      if (oldProxy?.enabled !== newProxy?.enabled || oldProxy?.url !== newProxy?.url || oldProxy?.noProxy !== newProxy?.noProxy) {
+        if (newProxy?.enabled && newProxy?.url) {
+          this.currentUrl = newProxy.url;
+          this.currentNoProxy = newProxy.noProxy;
+          logger.info(`[NetworkManager] Bun fetch proxy updated: ${newProxy.url}`);
+        } else {
+          this.currentUrl = null;
+          this.currentNoProxy = undefined;
+          logger.info('[NetworkManager] Bun fetch proxy cleared');
+        }
+      }
+      return;
+    }
 
     if (oldProxy?.enabled !== newProxy?.enabled || oldProxy?.url !== newProxy?.url || oldProxy?.noProxy !== newProxy?.noProxy) {
       if (newProxy?.enabled && newProxy?.url) {
@@ -151,7 +189,9 @@ export class NetworkManager implements TlsPolicyRegistrar {
 
     if (!this.tlsPolicies.has(policyKey)) {
       this.tlsPolicies.set(policyKey, connectOptions);
-      this.policyDispatchers.set(policyKey, this.buildDispatcher(connectOptions));
+      if (!this.bunRuntime) {
+        this.policyDispatchers.set(policyKey, this.buildDispatcher(connectOptions));
+      }
     }
     if (this.tlsRules.get(origin) !== policyKey) {
       this.tlsRules.set(origin, policyKey);
@@ -178,6 +218,11 @@ export class NetworkManager implements TlsPolicyRegistrar {
         void dispatcher.close();
       }
     }
+  }
+
+  private resolveTlsConnectOptions(origin: string): TlsConnectOptions | undefined {
+    const policyKey = this.tlsRules.get(origin);
+    return policyKey ? this.tlsPolicies.get(policyKey) : undefined;
   }
 
   private resolveDispatcher(origin: string | undefined): Dispatcher {

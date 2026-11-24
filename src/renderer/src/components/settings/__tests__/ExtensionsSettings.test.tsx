@@ -435,7 +435,6 @@ describe('ExtensionsSettings', () => {
         }),
       );
     });
-
   });
 
   describe('Version Display', () => {

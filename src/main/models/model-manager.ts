@@ -66,6 +66,7 @@ import { AiderModelMapping, CacheControl, LoadModelsResponse, LlmProviderRegistr
 
 const MODEL_LOAD_TIMEOUT_MS = 30_000;
 const MODELS_META_URL = 'https://models.dev/api.json';
+const MODELS_META_VALIDATORS_FILE = path.join(AIDER_DESK_CACHE_DIR, 'models-meta.validators.json');
 const MODELS_FILE = path.join(AIDER_DESK_DATA_DIR, 'models.json');
 const PROVIDER_MODELS_CACHE_FILE = path.join(AIDER_DESK_CACHE_DIR, 'provider-models.json');
 const PROVIDER_MODELS_CACHE_VERSION = 6;
@@ -74,6 +75,11 @@ type ProviderModelsCache = {
   version: number;
   providerModels: Record<string, Model[]>;
   providerErrors: Record<string, string>;
+};
+
+type ModelsMetaValidators = {
+  etag?: string;
+  lastModified?: string;
 };
 
 type ModelsMetaResponse = Record<
@@ -190,13 +196,23 @@ export class ModelManager {
   private async loadModelsInfo(): Promise<void> {
     const cacheFile = path.join(AIDER_DESK_CACHE_DIR, 'models-meta.json');
     let cacheLoaded = false;
+    let validators: ModelsMetaValidators = {};
 
     // Try to load from cache first
     try {
-      await fs.access(cacheFile);
-      const cachedData = await fs.readFile(cacheFile, 'utf-8');
+      const [cachedData, cachedValidators] = await Promise.all([
+        fs.readFile(cacheFile, 'utf-8'),
+        fs.readFile(MODELS_META_VALIDATORS_FILE, 'utf-8').catch(() => null),
+      ]);
       const cachedJson = JSON.parse(cachedData) as ModelsMetaResponse;
       this.processModelsMeta(cachedJson);
+      if (cachedValidators) {
+        try {
+          validators = JSON.parse(cachedValidators) as ModelsMetaValidators;
+        } catch {
+          validators = {};
+        }
+      }
       logger.info('Loaded models info from cache');
       cacheLoaded = true;
     } catch {
@@ -205,7 +221,24 @@ export class ModelManager {
     }
 
     const fetchFreshDataAndCache = async (cacheFile: string): Promise<void> => {
-      const response = await fetch(MODELS_META_URL);
+      const headers: Record<string, string> = {};
+      if (cacheLoaded) {
+        if (validators.etag) {
+          headers['If-None-Match'] = validators.etag;
+        }
+        if (validators.lastModified) {
+          headers['If-Modified-Since'] = validators.lastModified;
+        }
+      }
+
+      // models.dev serves an ETag: revalidate instead of downloading ~7 MB on every start.
+      const response = await fetch(MODELS_META_URL, Object.keys(headers).length > 0 ? { headers } : undefined);
+
+      if (response.status === 304 && cacheLoaded) {
+        logger.info('Models info unchanged since last fetch (304)');
+        return;
+      }
+
       if (!response.ok) {
         logger.error('Failed to fetch model info:', {
           status: response.status,
@@ -216,10 +249,16 @@ export class ModelManager {
       const data = (await response.json()) as ModelsMetaResponse;
       this.processModelsMeta(data);
 
+      const etag = response.headers?.get('etag') ?? undefined;
+      const lastModified = response.headers?.get('last-modified') ?? undefined;
+
       // Save the fresh data to cache
       try {
         await fs.mkdir(AIDER_DESK_CACHE_DIR, { recursive: true });
-        await fs.writeFile(cacheFile, JSON.stringify(data, null, 2));
+        await fs.writeFile(cacheFile, JSON.stringify(data));
+        if (etag || lastModified) {
+          await fs.writeFile(MODELS_META_VALIDATORS_FILE, JSON.stringify({ etag, lastModified } satisfies ModelsMetaValidators));
+        }
         logger.info('Saved models info to cache');
       } catch (error) {
         logger.error('Failed to save models info to cache:', error);

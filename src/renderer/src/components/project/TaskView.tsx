@@ -17,7 +17,9 @@ import {
 } from '@common/types';
 import {
   forwardRef,
+  lazy,
   startTransition,
+  Suspense,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -39,6 +41,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { useSidebarWidth } from './useSidebarWidth';
 
+import type { TerminalViewRef } from '@/components/terminal/TerminalView';
+
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Messages, MessagesRef } from '@/components/message/Messages';
 import { VirtualizedMessages, VirtualizedMessagesRef } from '@/components/message/VirtualizedMessages';
@@ -52,7 +56,6 @@ import { PromptField, PromptFieldRef } from '@/components/PromptField';
 import { ExtensionComponentWrapper } from '@/components/extensions/ExtensionComponentWrapper';
 import { Button } from '@/components/common/Button';
 import { TodoWindow } from '@/components/project/TodoWindow';
-import { TerminalView, TerminalViewRef } from '@/components/terminal/TerminalView';
 import { MobileSidebar } from '@/components/project/MobileSidebar';
 import { FilesContextInfoContent } from '@/components/project/FilesContextInfoContent';
 import { WelcomeMessage } from '@/components/project/WelcomeMessage';
@@ -72,6 +75,8 @@ import { TaskStateActions } from '@/components/message/TaskStateActions';
 import { TaskInfoPanel } from '@/components/message/TaskInfoPanel';
 import { registerAction, unregisterAction } from '@/stores/actionsStore';
 import { getSessionKey, useTerminalVisible, toggleTerminalVisible, setTerminalVisible } from '@/stores/terminalStore';
+
+const TerminalView = lazy(() => import('@/components/terminal/TerminalView').then((module) => ({ default: module.TerminalView })));
 
 type AddFileDialogOptions = {
   readOnly: boolean;
@@ -931,15 +936,17 @@ export const TaskView = forwardRef<TaskViewRef, Props>(
               maxConstraints={[Infinity, isMobile ? window.innerHeight / 3 : window.innerHeight / 2]}
               onResize={handleTerminalViewResize}
             >
-              <TerminalView
-                ref={terminalViewRef}
-                baseDir={projectDir}
-                taskId={task.id}
-                visible={terminalVisible}
-                className="border-t border-border-dark-light flex-grow"
-                onClose={() => setTerminalVisible(terminalSessionKey, false)}
-                onCopyOutput={handleCopyTerminalOutput}
-              />
+              <Suspense fallback={null}>
+                <TerminalView
+                  ref={terminalViewRef}
+                  baseDir={projectDir}
+                  taskId={task.id}
+                  visible={terminalVisible}
+                  className="border-t border-border-dark-light flex-grow"
+                  onClose={() => setTerminalVisible(terminalSessionKey, false)}
+                  onCopyOutput={handleCopyTerminalOutput}
+                />
+              </Suspense>
             </ResizableBox>
           </div>
           <div className={clsx('relative w-full flex-shrink-0 flex flex-col border-t border-border-dark-light', editingMessageIndex !== null && 'pt-1')}>

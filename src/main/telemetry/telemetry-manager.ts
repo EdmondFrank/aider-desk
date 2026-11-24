@@ -42,8 +42,14 @@ export class TelemetryManager {
 
   async init(): Promise<void> {
     try {
-      this.openTelemetry = import('./open-telemetry');
-      await this.openTelemetry;
+      // The lite profile skips loading the heavy OpenTelemetry module when nothing uses it, but
+      // tracing (Langfuse/PostHog exporters, configured through the environment) must still be
+      // initialized: 0.91.0 flushes traces on shutdown independently of product analytics.
+      const tracingConfigured = Boolean(process.env.LANGFUSE_PUBLIC_KEY && process.env.LANGFUSE_SECRET_KEY) || Boolean(process.env.POSTHOG_API_KEY);
+      if (process.env.AIDER_DESK_LITE !== 'true' || POSTHOG_PUBLIC_API_KEY || tracingConfigured) {
+        this.openTelemetry = import('./open-telemetry');
+        await this.openTelemetry;
+      }
 
       if (!POSTHOG_PUBLIC_API_KEY) {
         logger.info('TelemetryManager skipped: POSTHOG_PUBLIC_API_KEY not configured.');

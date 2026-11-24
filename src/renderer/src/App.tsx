@@ -23,7 +23,6 @@ import { ModalOverlayUrlViewer } from '@/components/common/ModalOverlayUrlViewer
 import { InputPromptDialog } from '@/components/common/InputPromptDialog';
 import { UpdatedFilesDiff } from '@/pages/UpdatedFilesDiff';
 import { ExtensionsProvider } from '@/contexts/ExtensionsContext';
-import { DiffsWorkerPoolProvider } from '@/contexts/DiffsWorkerPoolContext';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { ReadonlyApp } from '@/pages/ReadonlyApp';
 import { loadBrowserBootstrap } from '@/api/readonly-browser-api';
@@ -156,14 +155,12 @@ const AppContent = () => {
                 <McpServersProvider>
                   <ContextMenuProvider>
                     <ExtensionsProvider>
-                      <DiffsWorkerPoolProvider>
-                        <ThemeAndFontManager />
-                        <AnimatedRoutes />
-                        <ToastContainer />
-                        <ModalOverlayUrlHandler />
-                        <InputPromptDialog />
-                        <CommandPalette />
-                      </DiffsWorkerPoolProvider>
+                      <ThemeAndFontManager />
+                      <AnimatedRoutes />
+                      <ToastContainer />
+                      <ModalOverlayUrlHandler />
+                      <InputPromptDialog />
+                      <CommandPalette />
                     </ExtensionsProvider>
                   </ContextMenuProvider>
                 </McpServersProvider>

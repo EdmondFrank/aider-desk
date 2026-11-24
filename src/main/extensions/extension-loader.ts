@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import path from 'path';
 
 import { createJiti, type JitiOptions } from 'jiti';
@@ -14,13 +15,31 @@ interface ExtensionModule {
   };
 }
 
+// In the dist build (bun --compile) require.resolve() is baked to the build
+// machine's absolute paths, so extensions resolve their shared runtimes from a
+// directory shipped next to the binary when one is configured.
+const RUNTIME_MODULES_DIR = process.env.AIDER_DESK_RUNTIME_MODULES_DIR;
+
+// The resolver is a thunk so the bundled call keeps a literal specifier and
+// can be resolved at build time (a variable specifier would become a runtime
+// require.resolve() that fails inside a compiled executable).
+const resolveExtensionRuntime = (entry: string, resolve: () => string): string => {
+  if (RUNTIME_MODULES_DIR) {
+    const candidate = path.join(RUNTIME_MODULES_DIR, entry);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return resolve();
+};
+
 // Base jiti options shared across all instances
 const baseJitiOptions: JitiOptions = {
   fsCache: AIDER_DESK_EXTENSION_JITI_CACHE_DIR,
   moduleCache: false,
   alias: {
-    zod: require.resolve('zod'),
-    '@aiderdesk/extensions': require.resolve('@aiderdesk/extensions'),
+    zod: resolveExtensionRuntime('zod/index.cjs', () => require.resolve('zod')),
+    '@aiderdesk/extensions': resolveExtensionRuntime('@aiderdesk/extensions/dist/index.js', () => require.resolve('@aiderdesk/extensions')),
   },
 };
 

@@ -1,9 +1,8 @@
-import { v1beta1 } from '@google-cloud/aiplatform';
-import { GoogleAuth } from 'google-auth-library';
 import { Model, ModelInfo, ProviderProfile, Reasoning, SettingsData, UsageReportData } from '@common/types';
 import { isVertexAiProvider, LlmProvider, VertexAiProvider } from '@common/agent';
 import { createVertex } from '@ai-sdk/google-vertex';
 
+import type { GoogleAuth as GoogleAuthType } from 'google-auth-library';
 import type { LanguageModel, LanguageModelUsage } from 'ai';
 import type { SharedV4ProviderOptions } from '@ai-sdk/provider';
 
@@ -39,7 +38,9 @@ export const loadVertexAIModels = async (profile: ProviderProfile, settings: Set
   }
 
   try {
-    let auth: GoogleAuth;
+    const [{ GoogleAuth }, { v1beta1 }] = await Promise.all([import('google-auth-library'), import('@google-cloud/aiplatform')]);
+
+    let auth: GoogleAuthType;
     if (googleCloudCredentialsJson) {
       // Use provided credentials JSON
       auth = new GoogleAuth({

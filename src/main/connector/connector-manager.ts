@@ -81,7 +81,12 @@ export class ConnectorManager {
         origin: createCorsOriginValidator(this.store),
         methods: ['GET', 'POST'],
       },
-      pingTimeout: 600_000, // 10 minutes
+      // A dead client is detected in a minute instead of ten. Deflate is
+      // negotiable on Node/Electron; Bun's `ws` bridge currently ignores the
+      // offer, so it is a no-op in the lite profile.
+      pingInterval: 25_000,
+      pingTimeout: 60_000,
+      perMessageDeflate: { threshold: 1024 },
       maxHttpBufferSize: 1e8, // Increase payload size to 100 MB
     });
 

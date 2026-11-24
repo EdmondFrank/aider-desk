@@ -13,7 +13,7 @@ export default defineConfig({
     },
     include: ['src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['node_modules', 'dist', 'out'],
-    setupFiles: ['./src/renderer/src/__tests__/setup.ts'],
+    setupFiles: ['./src/renderer/src/__tests__/setup.ts', './scripts/zlib-zstd-shim.cjs'],
   },
   plugins: [
     react(),

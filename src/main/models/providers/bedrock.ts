@@ -1,15 +1,8 @@
-import {
-  BedrockClient,
-  GetFoundationModelAvailabilityCommand,
-  type InferenceProfileSummary,
-  ListInferenceProfilesCommand,
-  ResourceNotFoundException,
-} from '@aws-sdk/client-bedrock';
-import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { Model, ModelInfo, ProviderProfile, SettingsData } from '@common/types';
 import { BedrockProvider, isBedrockProvider } from '@common/agent';
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 
+import type { InferenceProfileSummary } from '@aws-sdk/client-bedrock';
 import type { LanguageModel } from 'ai';
 
 import { AiderModelMapping, LlmProviderStrategy } from '@/models';
@@ -54,6 +47,9 @@ export const loadBedrockModels = async (profile: ProviderProfile, settings: Sett
   }
 
   try {
+    const { BedrockClient, GetFoundationModelAvailabilityCommand, ListInferenceProfilesCommand, ResourceNotFoundException } =
+      await import('@aws-sdk/client-bedrock');
+
     const client = new BedrockClient({
       region,
       ...(accessKeyId &&
@@ -186,7 +182,7 @@ export const getBedrockAiderMapping = (provider: ProviderProfile, modelId: strin
 };
 
 // === LLM Creation Functions ===
-export const createBedrockLlm = (profile: ProviderProfile, model: Model, settings: SettingsData, projectDir: string): LanguageModel => {
+export const createBedrockLlm = async (profile: ProviderProfile, model: Model, settings: SettingsData, projectDir: string): Promise<LanguageModel> => {
   const provider = profile.provider as BedrockProvider;
   let region = provider.region;
   let accessKeyId = provider.accessKeyId;
@@ -237,6 +233,8 @@ export const createBedrockLlm = (profile: ProviderProfile, model: Model, setting
     );
   }
 
+  const credentialProvider = !accessKeyId && !secretAccessKey ? (await import('@aws-sdk/credential-providers')).fromNodeProviderChain() : undefined;
+
   const bedrockProviderInstance = createAmazonBedrock({
     region,
     headers: profile.headers,
@@ -246,7 +244,7 @@ export const createBedrockLlm = (profile: ProviderProfile, model: Model, setting
         secretAccessKey,
         sessionToken,
       }),
-    credentialProvider: !accessKeyId && !secretAccessKey ? fromNodeProviderChain() : undefined,
+    credentialProvider,
   });
   return bedrockProviderInstance(model.id);
 };

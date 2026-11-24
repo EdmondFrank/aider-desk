@@ -5,6 +5,9 @@ import { MultiFileDiff, type MultiFileDiffProps, PatchDiff } from '@pierre/diffs
 
 import type { DiffLineAnnotation, OnDiffLineClickProps, SelectedLineRange } from '@pierre/diffs';
 
+import { useResponsive } from '@/hooks/useResponsive';
+import { DiffsWorkerPoolProvider } from '@/contexts/DiffsWorkerPoolContext';
+
 import './PierreDiffViewer.scss';
 
 export type PierreLineClickInfo = {
@@ -36,7 +39,9 @@ type Props = {
   expandContext?: boolean;
 };
 
-export const PierreDiffViewer = ({
+export type PierreDiffViewerProps = Props;
+
+const PierreDiffViewerContent = ({
   oldValue,
   newValue,
   udiff,
@@ -51,6 +56,8 @@ export const PierreDiffViewer = ({
   contents,
   expandContext = false,
 }: Props) => {
+  const { isMobile } = useResponsive();
+
   const handleLineClick = useCallback(
     (props: OnDiffLineClickProps) => {
       if (!onLineClick || props.annotationSide !== 'additions') {
@@ -116,13 +123,15 @@ export const PierreDiffViewer = ({
         disableFileHeader: !showFilename,
         diffIndicators: 'bars',
         enableGutterUtility: true,
-        diffStyle: (viewMode === DiffViewMode.SideBySide ? 'split' : 'unified') as 'split' | 'unified',
+        // A split diff needs room for two panes; on a phone each half would be
+        // only a few characters wide, so fall back to a single unified column.
+        diffStyle: (isMobile || viewMode !== DiffViewMode.SideBySide ? 'unified' : 'split') as 'split' | 'unified',
         disableLineNumbers: !udiff,
         overflow: 'wrap',
         ...(expandContext ? { expansionLineCount: 30 } : {}),
         ...(onLineClick ? { onLineClick: handleLineClick } : {}),
       }) as MultiFileDiffProps<unknown, undefined>['options'],
-    [showFilename, udiff, viewMode, onLineClick, handleLineClick, expandContext],
+    [showFilename, udiff, viewMode, isMobile, onLineClick, handleLineClick, expandContext],
   );
 
   const selectedLines = useMemo<SelectedLineRange | null>(
@@ -170,3 +179,9 @@ export const PierreDiffViewer = ({
 
   return null;
 };
+
+export const PierreDiffViewer = (props: Props) => (
+  <DiffsWorkerPoolProvider>
+    <PierreDiffViewerContent {...props} />
+  </DiffsWorkerPoolProvider>
+);

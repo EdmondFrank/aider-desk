@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.93.0-lite.1]
+
+- ported the Bun Lite profile to upstream 0.93.0, which also brings in 0.92.0
+- replaced the fork's collapsible file list in the updated-files diff dialog with upstream's slide-in file and change-request drawers, which cover the same mobile case
+- re-applied the MCP placeholder fix (`${projectDir}`/`${taskDir}` in `command`, `url` and `headers`) on top of the reworked per-scope connector pool
+- re-applied the per-connector `AIDER_DESK_MCP_INIT_TIMEOUT_MS` bound with failed-server reporting and retry on top of upstream's `createToolset`
+- kept the lite-only guards (no Python/Aider bootstrap, aider modes read as `agent`, optional `cloudflared`/`probe`/`node-pty`) against the 0.92/0.93 task, shutdown and MCP scope changes
+
 ## [0.93.0]
 
 - added workspace-section UI component placement for extensions, rendered as a reorderable and hideable section in the workspace sidebar
@@ -57,7 +65,15 @@
 - fixed failed and inactive tasks resuming after restarts, cleaned up stale recovery journals, and ensured redo interrupted the current run
 - added cancellation support to the onToolFinished extension hook
 - added severity-colored log message markers with previews and navigation to the message map
+## [0.91.0-lite.1]
 
+- added the Bun Lite profile: a headless `runner-lite` entry point that skips the Python/Aider bootstrap and memory embeddings, plus a `bun:sqlite` shim behind the `node:sqlite` API so the server bundle runs on Bun
+- added Bun-only `install:lite`, `build:lite` and `start:lite` scripts and a standalone renderer build, so the web UI can be served without any Electron tooling
+- made `cloudflared`, `@homebridge/node-pty-prebuilt-multiarch` and the `probe` binary optional, with a clear error instead of an opaque `ENOENT` when one is missing
+- mapped aider-backed task modes to `agent` when read under the lite profile, so a data dir shared with the full build keeps the user's own mode choice
+- fixed MCP server configs sending literal `${projectDir}`/`${taskDir}` placeholders in commands, URLs and headers instead of the resolved paths
+- fixed a failed MCP server being cached for the rest of the session, which silently removed its tools until the app was restarted, and bounded toolset setup per connector with `AIDER_DESK_MCP_INIT_TIMEOUT_MS` instead of the 10 minute tool timeout, reporting the servers left out of the run
+- added a collapsible file list to the updated-files diff dialog, opening it as a drawer on mobile and rendering diffs unified on small screens so the code keeps the full width
 ## [0.91.0]
 
 - fixed OS command injection via commit messages and file paths in git operations

@@ -23,6 +23,9 @@ resources/probe-*
 
 dev-app-update.yml
 
+# lite dist artifacts (dist-lite/out and dist-lite/release)
+dist-lite/release
+
 # release scripts
 release-win.sh
 release-linux.sh

@@ -40,7 +40,7 @@
     "start:lite": "bun --conditions=module-sync out/server/runner-lite.js",
     "install:lite": "ELECTRON_SKIP_BINARY_DOWNLOAD=1 bun install --omit=optional",
     "build:renderer": "AIDER_DESK_LITE=true vite build --config vite.config.renderer.ts",
-    "build:lite": "npm run build:server",
+    "build:lite": "npm run build:renderer && vite build --config vite.config.server.ts && mkdir -p out/resources && cp -r resources/* out/resources",
     "test": "npm run test:node && npm run test:web",
     "test:node": "NODE_ENV=test vitest run --config vitest.config.node.ts",
     "test:web": "NODE_ENV=test vitest run --config vitest.config.web.ts",

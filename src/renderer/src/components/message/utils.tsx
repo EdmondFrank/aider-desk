@@ -1,4 +1,4 @@
-import { Fragment, ReactNode } from 'react';
+import { Fragment, lazy, ReactNode, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -24,8 +24,9 @@ import { MarkdownLink } from './MarkdownLink';
 import { messageUrlTransform } from './markdown-url';
 
 import { CodeBlock } from '@/components/common/CodeBlock';
-import { MermaidDiagram } from '@/components/common/MermaidDiagram';
 import { CodeInline } from '@/components/common/CodeInline';
+
+const MermaidDiagram = lazy(() => import('@/components/common/MermaidDiagram').then((module) => ({ default: module.MermaidDiagram })));
 
 export const formatName = (name: string): string => {
   return name
@@ -73,7 +74,11 @@ export const MARKDOWN_COMPONENTS: Components = {
     // Check if this is a mermaid code block (className includes 'language-mermaid')
     const language = className?.replace(/language-/, '') || '';
     if (language === 'mermaid' && typeof children === 'string') {
-      return <MermaidDiagram code={children} />;
+      return (
+        <Suspense fallback={null}>
+          <MermaidDiagram code={children} />
+        </Suspense>
+      );
     }
 
     // Use CodeInline for inline code elements

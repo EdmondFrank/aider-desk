@@ -50,6 +50,7 @@ Bun is the only supported runtime: the fork has no Node entry point.
 | `src/main/fork/runner-lite.ts` | The lean server entry point. Identical to upstream `src/main/server/runner.ts` except it **never bootstraps Python/Aider** and disables the memory/embeddings subsystem. |
 | `src/main/fork/node-sqlite.cjs` | Runtime shim exposing the `node:sqlite` `DatabaseSync` API over `bun:sqlite` (Bun has no `node:sqlite` builtin). Aliased in the server vite config. |
 | `scripts/zlib-zstd-shim.cjs` | Stubs `zlib.createZstdDecompress` for runtimes that lack it — `undici` 8.12+ calls `.bind()` on it at import, which otherwise kills every process that loads it. Loaded as a vitest setup file and as a Bun preload before the lite entry. |
+| `src/renderer/src/components/common/DiffViewer/LazyPierreDiffViewer.tsx` | Defers `@pierre/diffs` + shiki + the diff worker behind a `React.lazy` boundary, so the diff viewer only loads when a diff is rendered. |
 | `vite.config.renderer.ts` | Standalone renderer build (replaces `electron-vite`) so the SPA can be served without any Electron tooling. Mirrors the 0.91.0 `renderer` config: startup-loader plugin, `progress.html` entry, esbuild minify and the `/api` + `/socket.io` dev proxy, plus the `__LITE_FORK__` define. |
 | `dist-lite/` | Reproducible distribution: `build.sh` compiles `out/server/runner-lite.js` into a standalone executable with Bun embedded, `package.sh` stages assets + tarball + sha256, `install.sh` installs it. See `dist-lite/README.md`. |
 | `src/main/fork/bun-fetch.ts` | Bun-native `fetch` wrapper: per-request proxy/TLS, 120 s stream watchdog, leak-free cancellation. Inert outside Bun. |
@@ -59,7 +60,7 @@ Bun is the only supported runtime: the fork has no Node entry point.
 
 | File | Change |
 | --- | --- |
-| `package.json` | Added `install:lite`, `build:renderer`, `build:lite`, `start:lite`, `download:probe`; `prebuild:server` now runs the standalone renderer build instead of `electron-vite build`; `postinstall` drops the Electron-only steps **and the `probe` download** (the lite profile has no `probe` dependency — run `npm run download:probe` to opt back in); `build:extensions` uses `cd packages/extensions && npm run build` because Bun rewrites `npm` → `bun` in scripts and ignores npm's `--workspace` flag; `cloudflared` moved from `dependencies` to `optionalDependencies` so `install:lite` can skip its ~40 MB postinstall while the lazy import keeps the build working without it; `build:renderer` sets `AIDER_DESK_LITE=true`, the renderer's single source of truth. |
+| `package.json` | Added `install:lite`, `build:renderer`, `build:lite`, `start:lite`, `download:probe`; `prebuild:server` now runs the standalone renderer build instead of `electron-vite build`; `postinstall` drops the Electron-only steps **and the `probe` download** (the lite profile has no `probe` dependency — run `npm run download:probe` to opt back in); `build:extensions` uses `cd packages/extensions && npm run build` because Bun rewrites `npm` → `bun` in scripts and ignores npm's `--workspace` flag; `cloudflared` moved from `dependencies` to `optionalDependencies` so `install:lite` can skip its ~40 MB postinstall while the lazy import keeps the build working without it; `build:renderer` sets `AIDER_DESK_LITE=true`, the renderer's single source of truth; `build:lite` inlines the renderer + server steps instead of delegating to `build:server`, so the Electron-only `postbuild:server` (`npm rebuild`) stays out of the lite build. |
 | `vitest.config.node.ts`, `vitest.config.web.ts` | Preload `scripts/zlib-zstd-shim.cjs` so `undici` imports do not crash the test runner on runtimes without zstd. |
 | `vite.config.server.ts` | Aliases `node:sqlite` to the shim, marks `/^bun:/` external, emits **two** entries (`runner` and `runner-lite`), and injects a per-entry `banner` that defaults the lite server's port to `23456` (it must be baked in before the shared chunk computes `SERVER_PORT`). |
 | `src/main/telemetry/telemetry-manager.ts` | In the lite profile only, skips loading the heavy OpenTelemetry module when no PostHog key and no tracing exporter (`LANGFUSE_*` / `POSTHOG_API_KEY` env) is configured. Tracing still initializes and flushes on shutdown, as 0.91.0 expects. |
@@ -82,6 +83,11 @@ Bun is the only supported runtime: the fork has no Node entry point.
 | `src/main/server/rest-api/prompt-api.ts` | 15 s `: ping` keep-alive on the `run-prompt` SSE stream. |
 | `src/main/models/model-manager.ts` | Conditional GET (`If-None-Match` / `If-Modified-Since`) for `models.dev`; compact cache writes. |
 | `src/renderer/src/api/browser-api.ts`, `readonly-browser-api.ts` | Socket.IO connects over WebSocket first, with polling as fallback. |
+| `src/main/models/providers/vertex-ai.ts` | `@google-cloud/aiplatform` and `google-auth-library` (together ~430 ms / ~150 MB when required) are imported dynamically inside `loadVertexAIModels` instead of at module load. The module is only needed for Vertex model discovery. |
+| `src/main/models/providers/bedrock.ts` | `@aws-sdk/client-bedrock` and `@aws-sdk/credential-providers` are imported dynamically inside `loadBedrockModels` / `createBedrockLlm`; `createBedrockLlm` is now async (the `createLlm` contract already allows a promise). ~100 ms / ~35 MB less at startup. |
+| `src/renderer/src/components/common/DiffViewer/PierreDiffViewer.tsx`, `DiffViewer/index.tsx`, `src/renderer/src/App.tsx` | The worker-pool provider moved from the app root into `PierreDiffViewer`, and the barrel exports the lazy wrapper. `@pierre/diffs`/shiki leaves the entry chunk. |
+| `src/renderer/src/components/project/TaskView.tsx` | `TerminalView`/`ghostty-web` are `React.lazy`-loaded, so the terminal module loads with the task view instead of the entry chunk. |
+| `src/renderer/src/components/message/utils.tsx` | `MermaidDiagram`/`pele` are `React.lazy`-loaded, so the diagram renderer loads only when a mermaid block is shown. |
 
 **No upstream files are deleted.**
 
@@ -233,9 +239,15 @@ cp "$HOME/Library/Application Support/aider-desk/"{config.json,models.json,aider
 | --- | --- |
 | `npm run build:renderer` | Build the SPA into `out/renderer`. |
 | `npm run build:server` | Build `out/server/runner.js` + `out/server/runner-lite.js` and copy `resources/` (its `prebuild:server` hook runs `build:renderer` first). |
-| `npm run build:lite` | `build:renderer` + `build:server`. |
+| `npm run build:lite` | `build:renderer` then the server bundle + `resources/` copy. Bypasses the `build:server` hooks, so the Electron-only `postbuild:server` (`npm rebuild`, ~90 s here) never runs. |
 | `npm run start:lite` | Run the lite server with Bun. |
 | `npm run start:server` | (Upstream) run `out/server/runner.js` — still tries to bootstrap Python/Aider. |
+
+Build cost on an M-series Mac (`bun 1.3`): renderer ~35 s, server bundle ~1.5 s, `bun build
+--compile` ~1.6 s. The renderer dominates — it is Vite/Rollup with the React Compiler babel pass
+(~9 s of the total). Every job Bun can take is already Bun: dependencies (`install:lite`),
+the final executable (`dist-lite/scripts/build-lite-dist.ts`). Bun's bundler cannot replace Vite
+for the SPA (no React Compiler babel plugin, no PostCSS/Tailwind config, no plugin API/HMR).
 
 ---
 
@@ -261,9 +273,11 @@ Memory embeddings (`@huggingface/transformers`, `@lancedb/lancedb`) are not ship
 
 | Metric | Value |
 | --- | --- |
-| Process start → HTTP ready | ~1.2–1.5 s |
+| Process start → HTTP ready | ~1.0–1.7 s |
 | App bring-up after entry runs | **~88 ms** |
-| Memory footprint — Bun | **~407 MB** |
+| Memory footprint — Bun | **~333 MB** |
+| Server bundle `require()` (module eval) | ~1.09 s, 341 MB RSS (was ~1.24 s, 395 MB) |
+| Renderer entry chunk | 18.83 MB (was 20.92 MB) |
 | Idle CPU | ~0.2% |
 | Bare Bun baseline | ~22 MB |
 
@@ -308,10 +322,21 @@ itself). See *Optional next steps*.
 
 ## Optional next steps
 
+- **Stop forcing full `react-icons` packs into the entry chunk** (biggest remaining
+  renderer win, ~13.8 MB of the 18.8 MB entry). `utils/extension-icons.ts` dynamically
+  imports 22 packs (`import('react-icons/md')`, …) to resolve extension icon names at
+  runtime. Because the same packs are also statically imported by app components, Rollup
+  must put the *entire* pack (all 4000+ icons) into the entry chunk; without the dynamic
+  namespace imports, tree-shaking keeps only the used icons (~12 KB each in an isolated
+  esbuild check). Fixing this needs a design decision — e.g. a separately built,
+  lazily-fetched icon pack bundle, or resolving extension icons from a curated registry —
+  and then also deferring `useReactIcons()` in `ExtensionsContext` so the packs load on
+  demand rather than at startup.
 - **Lazy-load AI providers** — `model-manager.ts` statically imports all ~28 provider
-  strategies, pulling in every `@ai-sdk/*`, AWS and Google SDK at startup. Deferring
-  these would cut ~100 MB+ and shave startup, at the cost of touching ~29 shared files
-  (higher merge conflict).
+  strategies, pulling in every `@ai-sdk/*` SDK at startup. The heavy cloud SDKs
+  (Vertex, Bedrock) are already deferred per provider; deferring the remaining
+  `@ai-sdk/*` strategies would save a further ~180 ms / ~40 MB, at the cost of touching
+  ~29 shared files (higher merge conflict).
 - **Remove Electron entirely** — delete `src/main/index.ts`, `ipc-handlers.ts`,
   `window-manager.ts`, `progress-window.ts`, `src/preload/`, `electron.vite.config.ts`,
   `electron-builder.yml` and the Electron dev dependencies.

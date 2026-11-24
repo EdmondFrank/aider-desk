@@ -6,6 +6,7 @@ import { MultiFileDiff, type MultiFileDiffProps, PatchDiff } from '@pierre/diffs
 import type { DiffLineAnnotation, OnDiffLineClickProps, SelectedLineRange } from '@pierre/diffs';
 
 import { useResponsive } from '@/hooks/useResponsive';
+import { DiffsWorkerPoolProvider } from '@/contexts/DiffsWorkerPoolContext';
 
 import './PierreDiffViewer.scss';
 
@@ -38,7 +39,9 @@ type Props = {
   expandContext?: boolean;
 };
 
-export const PierreDiffViewer = ({
+export type PierreDiffViewerProps = Props;
+
+const PierreDiffViewerContent = ({
   oldValue,
   newValue,
   udiff,
@@ -176,3 +179,9 @@ export const PierreDiffViewer = ({
 
   return null;
 };
+
+export const PierreDiffViewer = (props: Props) => (
+  <DiffsWorkerPoolProvider>
+    <PierreDiffViewerContent {...props} />
+  </DiffsWorkerPoolProvider>
+);

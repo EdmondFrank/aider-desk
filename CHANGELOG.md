@@ -7,6 +7,7 @@
 - re-applied the MCP placeholder fix (`${projectDir}`/`${taskDir}` in `command`, `url` and `headers`) on top of the reworked per-scope connector pool
 - re-applied the per-connector `AIDER_DESK_MCP_INIT_TIMEOUT_MS` bound with failed-server reporting and retry on top of upstream's `createToolset`
 - kept the lite-only guards (no Python/Aider bootstrap, aider modes read as `agent`, optional `cloudflared`/`probe`/`node-pty`) against the 0.92/0.93 task, shutdown and MCP scope changes
+- fixed ACP clients receiving a whole `run-prompt` completion at once: the lite gzip middleware no longer encodes `text/event-stream`, which the encoder buffered until the response ended
 
 ## [0.93.0]
 

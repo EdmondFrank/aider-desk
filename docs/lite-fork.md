@@ -77,7 +77,7 @@ Bun is the only supported runtime: the fork has no Node entry point.
 | `packages/extensions/extensions/code-mode-lua/` | UI extension rendering `mcp-hub` `code_mode` tool messages with Lua highlighting (fork feature). |
 | `src/main/network-manager.ts` | Installs the Bun-native fetch wrapper ahead of everything else in the lite profile; the undici dispatcher path stays for Node/Electron. |
 | `src/main/managers.ts` | HTTP server `keepAliveTimeout`/`headersTimeout` raised and `TCP_NODELAY` enabled. |
-| `src/main/server/server-controller.ts` | gzip for `/api` JSON responses (SSE is skipped by `compression`). |
+| `src/main/server/api-compression.ts`, `src/main/server/server-controller.ts` | gzip for `/api` JSON responses above 1 KiB; `text/event-stream` is filtered out so the `run-prompt` SSE body is never encoded (a gzip/brotli encoder only flushes on end, which would deliver a whole completion at once). |
 | `src/main/connector/connector-manager.ts` | Socket.IO `pingInterval`/`pingTimeout` and `perMessageDeflate` (1 KiB threshold). |
 | `src/main/server/rest-api/prompt-api.ts` | 15 s `: ping` keep-alive on the `run-prompt` SSE stream. |
 | `src/main/models/model-manager.ts` | Conditional GET (`If-None-Match` / `If-Modified-Since`) for `models.dev`; compact cache writes. |
@@ -148,7 +148,9 @@ keep-alive connections and does not starve short calls behind long streams, so
 the pool split itself is unnecessary here.
 
 Inbound, the server keeps idle browser sockets for 65 s (instead of the 5 s
-runtime default), compresses API responses above 1 KiB, opens Socket.IO over
+runtime default), compresses API responses above 1 KiB (except
+`text/event-stream`, which is sent as-is so SSE clients such as the ACP bridge
+receive each token as it is written), opens Socket.IO over
 WebSocket first (polling remains a fallback), and writes a `: ping` comment
 every 15 s on the `run-prompt` SSE stream so proxies do not reap a quiet
 completion. Per-message deflate is enabled for runtimes whose WebSocket stack

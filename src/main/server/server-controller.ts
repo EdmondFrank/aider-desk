@@ -2,7 +2,6 @@ import { Server } from 'http';
 import path from 'path';
 
 import express, { NextFunction, Request, Response } from 'express';
-import compression from 'compression';
 import cors from 'cors';
 
 import {
@@ -31,6 +30,7 @@ import { EventsHandler } from '@/events-handler';
 import { Store } from '@/store';
 import { isDev, isElectron } from '@/app';
 import { PythonDependenciesInstaller } from '@/python-dependencies-installer';
+import { apiCompressionMiddleware } from '@/server/api-compression';
 import { createCorsOriginValidator } from '@/server/cors';
 import { serveRendererAssets } from '@/server/renderer-assets';
 import { requestTimeoutMiddleware } from '@/server/request-timeout';
@@ -160,9 +160,9 @@ export class ServerController {
   private init() {
     this.app.use(express.json({ limit: '50mb' }));
     // API payloads (settings, transcripts, diffs) can be large; compressing them
-    // matters most when the UI is opened from another machine. `compression`
-    // skips `text/event-stream`, so the run-prompt SSE path is unaffected.
-    this.app.use(compression({ threshold: 1024 }));
+    // matters most when the UI is opened from another machine. `text/event-stream`
+    // is excluded, otherwise the run-prompt SSE path would buffer until the end.
+    this.app.use(apiCompressionMiddleware());
     this.setupCors();
 
     // Add server guard middleware as the first middleware
